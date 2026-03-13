@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="BiznesAI — Sun'iy intellekt bilan biznesingizni boshqaring" />
+    <meta name="theme-color" content="#06070D" />
+    <title>BiznesAI — Strategik Agent</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { background: #06070D; }
+      #root { height: 100vh; }
+      #loading {
+        position: fixed; inset: 0;
+        background: #06070D;
+        display: flex; align-items: center; justify-content: center;
+        flex-direction: column; gap: 16px;
+        font-family: 'Syne', sans-serif;
+        z-index: 9999;
+        transition: opacity 0.4s ease;
+      }
+      #loading .logo {
+        font-size: 28px; font-weight: 800; color: #DFE5F2; letter-spacing: -1px;
+      }
+      #loading .logo span { color: #E8B84B; }
+      #loading .bar-wrap {
+        width: 120px; height: 2px; background: #1C2136; border-radius: 2px; overflow: hidden;
+      }
+      #loading .bar {
+        height: 100%; width: 0%; background: linear-gradient(90deg, #E8B84B, #00C9BE);
+        border-radius: 2px; animation: load 1.2s ease forwards;
+      }
+      @keyframes load { to { width: 100%; } }
+    </style>
+  </head>
+  <body>
+    <div id="loading">
+      <div class="logo">BIZ<span>NES</span>AI</div>
+      <div class="bar-wrap"><div class="bar"></div></div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const el = document.getElementById('loading');
+          if (el) { el.style.opacity = '0'; setTimeout(() => el.remove(), 400); }
+        }, 800);
+      });
+    </script>
+  </body>
+</html>

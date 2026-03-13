@@ -1,0 +1,89 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL Database ─────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: biznesai_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: biznesai
+      POSTGRES_USER: biznesai
+      POSTGRES_PASSWORD: BiznesAI_2026_Secure!
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - biznesai_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U biznesai -d biznesai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Backend API (Node.js + Express) ─────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: biznesai_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: biznesai
+      DB_USER: biznesai
+      DB_PASS: BiznesAI_2026_Secure!
+      JWT_SECRET: biznesai_jwt_secret_change_me_2026
+      JWT_EXPIRES_IN: 30d
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 10485760
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - biznesai_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Frontend React App ──────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: biznesai_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:3000:80"
+    networks:
+      - biznesai_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  pgdata:
+    driver: local
+  uploads:
+    driver: local
+
+networks:
+  biznesai_net:
+    driver: bridge
