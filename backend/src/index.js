@@ -14,6 +14,9 @@ const pool = require('./db/pool');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Nginx proxy for rate limiting
+app.set('trust proxy', 1);
+
 // ── Middleware ──
 app.use(helmet());
 app.use(cors({
@@ -37,15 +40,15 @@ app.use('/api/', limiter);
 app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, '../uploads')));
 
 // ── Routes ──
-app.use('/api/auth',     require('./routes/auth'));
-app.use('/api/sources',  require('./routes/sources'));
-app.use('/api/alerts',   require('./routes/alerts'));
-app.use('/api/reports',  require('./routes/reports'));
-app.use('/api/chat',     require('./routes/chat'));
-app.use('/api/ai',       require('./routes/ai'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/sources', require('./routes/sources'));
+app.use('/api/alerts', require('./routes/alerts'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/chat', require('./routes/chat'));
+app.use('/api/ai', require('./routes/ai'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/upload',   require('./routes/upload'));
-app.use('/api/admin',    require('./routes/admin'));
+app.use('/api/upload', require('./routes/upload'));
+app.use('/api/admin', require('./routes/admin'));
 
 // ── Health check ──
 app.get('/api/health', async (req, res) => {
@@ -95,10 +98,10 @@ async function start() {
 
   // Auto-migrate
   try {
-    const bcrypt = require('bcryptjs');
     const migrate = require('./db/migrate');
+    await migrate(false); // don't end pool
   } catch (e) {
-    // Migration alohida ishga tushiriladi (npm run migrate)
+    console.error('[MIGRATE] Auto-migration error:', e.message);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

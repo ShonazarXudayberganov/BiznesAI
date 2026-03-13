@@ -163,7 +163,7 @@ VALUES ('Admin', 'admin@biznesai.uz', '$ADMIN_HASH', 'admin', 'enterprise')
 ON CONFLICT (email) DO NOTHING;
 `;
 
-async function migrate() {
+async function migrate(shouldEndPool = true) {
   console.log('[MIGRATE] Starting database migration...');
   try {
     // bcrypt admin password
@@ -192,11 +192,19 @@ async function migrate() {
 
   } catch (err) {
     console.error('[MIGRATE] ✗ Error:', err.message);
-    process.exit(1);
+    if (require.main === module) process.exit(1);
+    throw err;
   } finally {
-    await pool.end();
+    if (shouldEndPool && require.main === module) {
+      await pool.end();
+      console.log('[MIGRATE] Pool closed.');
+    }
     console.log('[MIGRATE] Done.');
   }
 }
 
-migrate();
+if (require.main === module) {
+  migrate(true);
+}
+
+module.exports = migrate;
