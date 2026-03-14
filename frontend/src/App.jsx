@@ -7569,11 +7569,20 @@ const THEME_PREVIEWS = {
 
 function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
   const sz = size === "sm" ? 32 : 38;
   const prev = THEME_PREVIEWS[theme] || THEME_PREVIEWS.obsidian;
+
+  // Dropdown pozitsiyasini hisoblash (fixed)
+  const getPos = () => {
+    if (!btnRef.current) return { top: 50, right: 16 };
+    const r = btnRef.current.getBoundingClientRect();
+    return { top: r.bottom + 8, right: window.innerWidth - r.right };
+  };
+
   return (
-    <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen(!open)} title="Mavzu tanlash"
+    <div>
+      <button ref={btnRef} onClick={() => setOpen(!open)} title="Mavzu tanlash"
         style={{
           width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border-hi)",
           background: "var(--s2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
@@ -7584,7 +7593,7 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
       {open && (
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
-          <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 220, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", animation: "fadeIn .15s ease" }}>
+          <div style={{ position: "fixed", top: getPos().top, right: getPos().right, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 220, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", animation: "fadeIn .15s ease" }}>
             {THEMES.map(t => {
               const tp = THEME_PREVIEWS[t.id];
               const active = theme === t.id;
