@@ -5303,7 +5303,13 @@ QOIDALAR:
           <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish"> Yukla</button>
           <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
-        <button className="btn btn-ghost btn-xs" onClick={() => { setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi." }]); LS.del(chatKey); }} title="Tozalash"></button>
+        <button onClick={() => { if(confirm("Chat tarixini tozalashni xohlaysizmi?")){ setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi." }]); LS.del(chatKey); }}}
+          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(248,113,113,0.3)", background:"rgba(248,113,113,0.08)", color:"#F87171", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6, transition:"all .2s" }}
+          onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.15)";e.currentTarget.style.borderColor="rgba(248,113,113,0.5)"}}
+          onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.08)";e.currentTarget.style.borderColor="rgba(248,113,113,0.3)"}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Tozalash
+        </button>
       </div>
 
       {/* ── Manbalar tanlash ── */}
