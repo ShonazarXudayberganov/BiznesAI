@@ -4814,16 +4814,25 @@ GRAFIK QOIDALARI:
 QOIDALAR:
 1. Ma'lumotlardan HAQIQIY RAQAMLAR hisoblab chiqar — taxminiy emas, ANIQ!
 2. Har bir chart uchun DATA arrayini O'ZING tuzib ber — foydalanuvchining raw datasidan hisobla
-3. stats — asosiy raqamlar (jami, o'rtacha, min, max, foiz). KAMIDA 1 ta stats karta bo'lsin
-4. chart — bar/line/area/pie vizualizatsiya, KAMIDA 2-3 ta chart bo'lsin
-5. gauge — foiz ko'rsatgichlar (0-100 oralig'ida)
-6. highlight — muhim xulosalar ro'yxati
-7. Jami 4-8 ta karta bo'lsin — ko'p emas, lekin boy raqamlar bilan
-8. Barcha matn O'ZBEK tilida
-9. Ranglar: #00C9BE (teal), #E8B84B (gold), #A78BFA (purple), #4ADE80 (green), #F87171 (red), #60A5FA (blue), #FB923C (orange), #E879F9 (pink), #FBBF24 (yellow), #38BDF8 (sky)
-10. Pie chart uchun data: [{"name":"...", "value":number}], keys kerak EMAS
-11. Bar/line/area uchun data: [{"name":"label", "col1":num, "col2":num}], keys: ["col1","col2"]
-12. Scatter uchun data: [{"x":num, "y":num}], xLabel, yLabel qo'sh
+3. Barcha matn O'ZBEK tilida
+4. Ranglar: #00C9BE (teal), #E8B84B (gold), #A78BFA (purple), #4ADE80 (green), #F87171 (red), #60A5FA (blue), #FB923C (orange), #E879F9 (pink), #FBBF24 (yellow), #38BDF8 (sky)
+
+KARTALAR TARTIBI VA TARKIBI (QATTIQ QOIDA):
+- BIRINCHI KARTA: "stats" turi — ASOSIY RAQAMLAR. Jami, o'rtacha, eng yuqori, eng past, o'sish %. Kamida 4-6 ta raqamli ko'rsatkich. Bu eng MUHIM karta!
+- IKKINCHI KARTA: "stats" turi — SOLISHTIRMA RAQAMLAR. O'tgan davr bilan solishtirish, foizlar, nisbatlar. Chartga SIG'MAYDIGAN muhim raqamlar shu yerda bo'lsin.
+- KEYIN: 2-3 ta "chart" turidagi kartalar — vizual grafiklar (bar, line, pie)
+- OXIRGI KARTA: "highlight" turi — XULOSALAR va AMALIY TAVSIYALAR. Kamida 4-5 ta xulosa.
+
+MUHIM: Ba'zi raqamlar chartga mos EMAS (masalan: jami summa, foiz, o'rtacha qiymat). Bunday raqamlarni CHART ga qo'yma — "stats" kartaga qo'y! Stats karta = oddiy raqamlar ro'yxati, chart = faqat grafik bilan ko'rsatish mantiqiy bo'lgan ma'lumotlar.
+
+Jami 5-7 ta karta bo'lsin: 2 ta stats + 2-3 ta chart + 1 ta highlight
+
+TEXNIK FORMAT:
+- Pie: data: [{"name":"...", "value":number}], keys kerak EMAS
+- Bar/line/area: data: [{"name":"label", "col1":num}], keys: ["col1"], xKey: "name"
+- Scatter: data: [{"x":num, "y":num}], xLabel, yLabel qo'sh
+- Stats: stats: [{"l":"Nomi","v":"1,234","c":"#rang","i":"emoji"}] — v da formatlangan raqam
+- Highlight: items: [{"l":"Xulosa","v":"tushuntirish","c":"#rang"}]
 
 FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
