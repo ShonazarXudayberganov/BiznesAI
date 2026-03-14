@@ -4463,7 +4463,7 @@ function GaugeChart({ value = 0, max = 100, label = "", color = "var(--teal)" })
 // Instagram/Telegram → auto-dashboard
 // Boshqa manbalar → foydalanuvchi so'rov yozadi, AI raqamlar hisoblaydi + chartlar qaytaradi
 // ─────────────────────────────────────────────────────────────
-function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
+function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed }) {
   const [selectedSrc, setSelectedSrc] = useState(null);
   const [filter, setFilter] = useState("all");
   const [chartOverrides, setChartOverrides] = useState({});
@@ -4631,7 +4631,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
       // Yangi kartalarni eskisining USTIGA qo'shish (eski saqlanadi)
       setAiCards(prev => [...cards, ...prev]);
 
-      if (!hasPersonalKey && user) Auth.incrementAI(user.id);
+      if (!hasPersonalKey && user && onAiUsed) onAiUsed();
     } catch (err) {
       setAiError(err.message || "AI tahlil xatosi");
     }
@@ -4920,7 +4920,7 @@ function VoiceButton({ onResult }) {
 // ─────────────────────────────────────────────────────────────
 // CHAT PAGE
 // ─────────────────────────────────────────────────────────────
-function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
+function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const chatKey = "u_" + (user?.id || "anon") + "_chat_h";
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
@@ -4972,7 +4972,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
         setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
       });
       // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
-      if (!hasPersonalKey && user) Auth.incrementAI(user.id);
+      if (!hasPersonalKey && user && onAiUsed) onAiUsed();
       setMessages(m => { LS.set(chatKey, m.slice(-24)); return m; });
     } catch (e) {
       setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
@@ -5213,7 +5213,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
 // ─────────────────────────────────────────────────────────────
 // ANALYTICS PAGE — Tayyor tahlillar + aloqador chartlar
 // ─────────────────────────────────────────────────────────────
-function AnalyticsPage({ aiConfig, sources, user }) {
+function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [result, setResult] = useState("");
@@ -5246,7 +5246,7 @@ function AnalyticsPage({ aiConfig, sources, user }) {
     const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + "\n\nJavobni o'zbek tilida, professional formatda, aniq raqamlar va foizlar bilan ber. Har bir bo'limni sarlavha bilan ajrat.";
     try {
       await callAI([{ role: "user", content: enrichedPrompt }], aiConfig, setResult);
-      if (!isPersonal) { const sess = Auth.getSession(); if (sess) Auth.incrementAI(sess.id); }
+      if (!isPersonal && onAiUsed) onAiUsed();
     }
     catch (e) { setResult(" Xato: " + e.message); }
     setLoading(false);
@@ -5508,7 +5508,7 @@ function AnalyticsPage({ aiConfig, sources, user }) {
 // ─────────────────────────────────────────────────────────────
 // REPORTS PAGE (PDF + Excel + TXT eksport)
 // ─────────────────────────────────────────────────────────────
-function ReportsPage({ aiConfig, sources, user }) {
+function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [report, setReport] = useState("");
@@ -5552,7 +5552,7 @@ function ReportsPage({ aiConfig, sources, user }) {
     try {
       let full = "";
       await callAI([{ role: "user", content: prompt }], aiConfig, c => { full = c; setReport(c); });
-      if (!isPersonal) { const sess = Auth.getSession(); if (sess) Auth.incrementAI(sess.id); }
+      if (!isPersonal && onAiUsed) onAiUsed();
       // Tarixga saqlash
       const entry = { id: Date.now(), text: full, date: today, label: mod.l, icon: mod.icon, cat: mod.cat, createdAt: new Date().toISOString() };
       const prev = LS.get(repKey, []);
@@ -5983,7 +5983,7 @@ const ALERT_TYPES = {
   success: { label: "Ijobiy", color: "#34D399", bg: "rgba(52,211,153,0.06)", border: "rgba(52,211,153,0.18)", icon: "", glow: "rgba(52,211,153,0.06)" },
 };
 
-function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAlert, push, user }) {
+function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAlert, push, user, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -6050,7 +6050,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
     let full = "";
     try {
       await callAI([{ role: "user", content: prompt }], aiConfig, (c) => { full = c; });
-      if (!isPersonal) { const sess = Auth.getSession(); if (sess) Auth.incrementAI(sess.id); }
+      if (!isPersonal && onAiUsed) onAiUsed();
       const jsonMatch = full.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("JSON topilmadi");
       const parsed = JSON.parse(jsonMatch[0]);
@@ -7673,10 +7673,22 @@ export default function App() {
     Auth.setSession(updatedUser);
   };
 
+  // ── AI so'rov ishlatilganda — React state VA LS ni yangilash ──
+  const onAiUsed = useCallback(() => {
+    if (!user) return;
+    Auth.incrementAI(user.id);
+    // React state ni yangilash — bu eng muhim qism!
+    const curMonth = new Date().toISOString().slice(0, 7);
+    const sameMonth = user.ai_requests_month === curMonth;
+    const newUsed = sameMonth ? (user.ai_requests_used || 0) + 1 : 1;
+    const updated = { ...user, ai_requests_used: newUsed, ai_requests_month: curMonth };
+    setUser(updated);
+  }, [user]);
+
   // ── Plan limit check wrapper ──
   const checkLimit = (limitKey) => {
     if (!user) return false;
-    return Auth.checkLimit(user, limitKey);
+    return Auth.checkLimit(user, limitKey, sources);
   };
 
   // ── Not logged in ──
@@ -7752,11 +7764,11 @@ export default function App() {
     settings: <SettingsPage aiConfig={aiConfig} setAiConfig={setAiConfig} push={push} effectiveAI={effectiveAI} hasPersonalKey={hasPersonalKey} hasGlobalAI={hasGlobalAI} user={user} />,
     dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} />,
     datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} />,
-    charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} />,
-    chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} />,
-    analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} user={user} />,
-    reports: <ReportsPage aiConfig={effectiveAI} sources={sources} user={user} />,
-    alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} user={user} />,
+    charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
+    chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
+    analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
+    reports: <ReportsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
+    alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} user={user} onAiUsed={onAiUsed} />,
     profile: <ProfilePage user={user} onPlanChange={handlePlanChange} push={push} sources={sources} />,
   };
 
