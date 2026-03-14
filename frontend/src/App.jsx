@@ -4855,7 +4855,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
   }, [workingSource?.id, workingSource?.data?.length, workingSource?.updatedAt, isSpecialSource]);
 
   // Instagram/Telegram: avval auto-dashboard, keyin AI yaratganlar. Boshqalar: faqat AI
-  const allCards = isSpecialSource ? [...specialCards, ...aiCards] : aiCards;
+  const allCards = useMemo(() => isSpecialSource ? [...specialCards, ...aiCards] : aiCards, [isSpecialSource, specialCards, aiCards]);
 
   // Jadval uchun data
   const tableData = useMemo(() => {
@@ -5132,10 +5132,14 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name) }, { role: "assistant", content: "" }];
     setMessages(newMsgs); setLoading(true);
 
-    // Professional system prompt
+    // Professional system prompt — onboarding ma'lumotlari bilan moslashtirilgan
+    const onbPfx = "u_" + (user?.id || "anon") + "_onboarding";
+    const onb = LS.get(onbPfx, {});
+    const bizContext = onb.bizName ? `\n\nFOYDALANUVCHI HAQIDA: Biznes nomi: "${onb.bizName}", Soha: ${onb.bizType || "noma'lum"}, Jamoa: ${onb.employees || "noma'lum"}, Asosiy qiziqish: ${onb.interest || "umumiy"}, Maqsad: ${onb.goal || "tahlil"}. Javoblarni SHU BIZNESGA MOSLASHTIRIB ber!` : "";
+
     const systemPrompt = {
       role: "system",
-      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi va strategik maslahatchi. Sening maqsading — biznes egasini HAYRATGA SOLADIGAN darajada chuqur, aniq va foydali javoblar berish.
+      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi va strategik maslahatchi. Sening maqsading — biznes egasini HAYRATGA SOLADIGAN darajada chuqur, aniq va foydali javoblar berish.${bizContext}
 
 QOIDALAR:
 1. HAMMA JAVOB O'ZBEK TILIDA — professional, ravon, tushunarli
@@ -7590,6 +7594,10 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
                 </div>
               )}
               <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} />
+              {/* YANGI badge — 3 daqiqa ichida yaratilgan kartalar */}
+              {card.id && String(card.id).startsWith("ai_") && (Date.now() - parseInt(String(card.id).split("_")[1] || 0)) < 180000 && (
+                <div style={{ position:"absolute", top:12, left:12, zIndex:5, padding:"3px 10px", borderRadius:8, background:"linear-gradient(135deg,#00C9BE,#4ADE80)", color:"#000", fontSize:9, fontFamily:"var(--fh)", fontWeight:800, letterSpacing:1, textTransform:"uppercase", boxShadow:"0 2px 8px rgba(0,201,190,0.4)", animation:"fadeIn .5s ease" }}>YANGI</div>
+              )}
             </div>
           );
         })}
@@ -8084,9 +8092,9 @@ export default function App() {
   const bgTasksRef = useRef([]);
   const [bgTaskCount, setBgTaskCount] = useState(0);
 
-  const runBackgroundAI = useCallback(async (taskName, messages, config, onDone) => {
+  const runBackgroundAI = useCallback(async (taskName, messages, config, onDone, sourcePage) => {
     const taskId = Date.now();
-    bgTasksRef.current.push({ id: taskId, name: taskName, status: "running" });
+    bgTasksRef.current.push({ id: taskId, name: taskName, status: "running", page: sourcePage || "charts" });
     setBgTaskCount(bgTasksRef.current.filter(t => t.status === "running").length);
     push(`"${taskName}" — AI tahlil boshlandi`, "info");
 
@@ -8171,13 +8179,39 @@ export default function App() {
     AlertsAPI.delete(id).catch(() => { });
   };
 
+  // ── Onboarding (birinchi kirish) ──
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onbStep, setOnbStep] = useState(0);
+  const [onbData, setOnbData] = useState({ bizName: "", bizType: "", interest: "", employees: "", goal: "" });
+
+  const onbQuestions = [
+    { key: "bizName", label: "Biznesingiz nomi nima?", placeholder: "Masalan: Najot Ta'lim, My Shop, Baraka Cafe", type: "input" },
+    { key: "bizType", label: "Qaysi sohada ishlaysiz?", placeholder: "", type: "select", options: ["O'quv markaz", "Onlayn do'kon", "Restoran/Kafe", "Marketing agentlik", "IT kompaniya", "Logistika", "Ishlab chiqarish", "Xizmat ko'rsatish", "Freelance", "Boshqa"] },
+    { key: "employees", label: "Jamoangizda necha kishi?", placeholder: "", type: "select", options: ["Faqat men", "2-5 kishi", "6-20 kishi", "21-50 kishi", "50+ kishi"] },
+    { key: "interest", label: "Sizni eng ko'p nima qiziqtiradi?", placeholder: "", type: "select", options: ["Savdo va daromad tahlili", "Xarajatlarni kamaytirish", "Mijozlar tahlili", "Marketing samaradorligi", "Xodimlar boshqaruvi", "Moliyaviy hisobotlar", "Prognozlash va bashorat"] },
+    { key: "goal", label: "BiznesAI dan nimani kutasiz?", placeholder: "", type: "select", options: ["Vaqtimni tejashni", "Aniq raqamlar bilan qaror qabul qilishni", "Avtomatik hisobotlar olishni", "Muammolarni oldindan ko'rishni", "Biznesni o'stirish strategiyasini"] },
+  ];
+
+  const saveOnboarding = () => {
+    const pfx = "u_" + (user?.id || "anon") + "_";
+    LS.set(pfx + "onboarding", onbData);
+    LS.set(pfx + "onboarding_done", true);
+    setShowOnboarding(false);
+    push(`Rahmat, ${onbData.bizName || user?.name}! Tizim sizga moslashtirildi`, "ok");
+  };
+
   // ── Auth handlers ──
   const handleAuth = (authUser) => {
     setUser(authUser);
-    push(`Xush kelibsiz, ${authUser.name}! `, "ok");
+    push(`Xush kelibsiz, ${authUser.name}!`, "ok");
     setPage("dashboard");
-    // Landing page hash'ini tozalash (#pricing, #features)
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
+    // Birinchi kirish tekshiruvi
+    const pfx = "u_" + (authUser?.id || "anon") + "_";
+    const done = LS.get(pfx + "onboarding_done", false);
+    if (!done && authUser.role !== "admin") {
+      setTimeout(() => setShowOnboarding(true), 800);
+    }
   };
 
   const handleLogout = () => {
@@ -8223,6 +8257,56 @@ export default function App() {
       </>
     );
   }
+
+  // ── Onboarding Modal ──
+  const onboardingModal = showOnboarding && (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.7)", backdropFilter:"blur(12px)" }}>
+      <div style={{ background:"var(--s1)", border:"1px solid var(--border)", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:460, position:"relative", animation:"fadeIn .3s ease" }}>
+        {/* Progress */}
+        <div style={{ display:"flex", gap:4, marginBottom:24 }}>
+          {onbQuestions.map((_, i) => (
+            <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i <= onbStep ? "linear-gradient(90deg,#00C9BE,#4ADE80)" : "var(--s3)", transition:"all .3s" }} />
+          ))}
+        </div>
+        {/* Savol */}
+        <div style={{ fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{onbStep + 1} / {onbQuestions.length}</div>
+        <div style={{ fontFamily:"var(--fh)", fontSize:20, fontWeight:800, marginBottom:16, lineHeight:1.3 }}>{onbQuestions[onbStep]?.label}</div>
+        {/* Input */}
+        {onbQuestions[onbStep]?.type === "input" ? (
+          <input className="field" placeholder={onbQuestions[onbStep]?.placeholder} value={onbData[onbQuestions[onbStep]?.key] || ""}
+            onChange={e => setOnbData(p => ({ ...p, [onbQuestions[onbStep]?.key]: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }}}
+            style={{ fontSize:14, padding:"14px 18px", marginBottom:16 }} autoFocus />
+        ) : (
+          <div style={{ display:"grid", gap:8, marginBottom:16 }}>
+            {onbQuestions[onbStep]?.options?.map(opt => (
+              <button key={opt} onClick={() => { setOnbData(p => ({ ...p, [onbQuestions[onbStep]?.key]: opt })); setTimeout(() => { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }, 200); }}
+                style={{
+                  padding:"12px 18px", borderRadius:12, border:`1px solid ${onbData[onbQuestions[onbStep]?.key] === opt ? "rgba(0,201,190,0.5)" : "var(--border)"}`,
+                  background: onbData[onbQuestions[onbStep]?.key] === opt ? "rgba(0,201,190,0.08)" : "var(--s2)",
+                  color: onbData[onbQuestions[onbStep]?.key] === opt ? "var(--teal)" : "var(--text2)",
+                  fontSize:13, textAlign:"left", cursor:"pointer", transition:"all .2s", fontWeight: onbData[onbQuestions[onbStep]?.key] === opt ? 700 : 400,
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(0,201,190,0.3)"}
+                onMouseLeave={e => { if (onbData[onbQuestions[onbStep]?.key] !== opt) e.currentTarget.style.borderColor = "var(--border)"; }}>
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Tugmalar */}
+        <div className="flex gap8">
+          {onbStep > 0 && <button className="btn btn-ghost" style={{ flex:1 }} onClick={() => setOnbStep(s => s - 1)}>← Orqaga</button>}
+          {onbQuestions[onbStep]?.type === "input" && (
+            <button className="btn btn-primary" style={{ flex:1 }} onClick={() => { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }}>
+              {onbStep < onbQuestions.length - 1 ? "Keyingi →" : "Boshlash →"}
+            </button>
+          )}
+          <button className="btn btn-ghost btn-xs" style={{ position:"absolute", top:16, right:16, color:"var(--muted)" }} onClick={() => { saveOnboarding(); }}>O'tkazib yuborish</button>
+        </div>
+      </div>
+    </div>
+  );
 
   // ── Admin mode ──
   if (adminMode && user.role === "admin") {
@@ -8301,6 +8385,7 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <NotifBanner notifs={notifs} />
+      {onboardingModal}
       <div className="app">
         {/* Mobile overlay */}
         {sidebarOpen && <div className="mob-overlay" onClick={() => setSidebarOpen(false)} />}
@@ -8386,7 +8471,8 @@ export default function App() {
             </div>
             <div className="topbar-right">
               {bgTaskCount > 0 && (
-                <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:8, background:"rgba(0,201,190,0.08)", border:"1px solid rgba(0,201,190,0.2)", fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", fontWeight:600, animation:"pulse-voice 2s ease infinite" }}>
+                <div onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
+                  style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:8, background:"rgba(0,201,190,0.08)", border:"1px solid rgba(0,201,190,0.2)", fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", animation:"pulse-voice 2s ease infinite" }}>
                   <span style={{ width:8, height:8, borderRadius:"50%", background:"var(--teal)", animation:"pulse-voice 1s ease infinite" }}/>
                   AI ishlayapti ({bgTaskCount})
                 </div>
