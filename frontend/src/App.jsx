@@ -292,16 +292,62 @@ const Auth = {
     return updated.find(u => u.id === userId);
   },
 
-  checkLimit: (user, limitKey) => {
+  checkLimit: (user, limitKey, sources) => {
+    if (user?.role === "admin") return true; // Admin cheksiz
     const plan = PLANS[user?.plan || "free"];
     const limit = plan?.limits[limitKey];
-    if (limit === -1) return true;
+    if (limit === -1) return true; // Cheksiz
+    if (limit === false) return false; // Mutlaqo taqiqlangan
+
     if (limitKey === "ai_requests") {
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const used = user.ai_requests_month === currentMonth ? (user.ai_requests_used || 0) : 0;
+      const used = user?.ai_requests_month === currentMonth ? (user?.ai_requests_used || 0) : 0;
       return used < limit;
     }
+    if (limitKey === "files") {
+      // Fayl turidagi manbalar soni (excel, document, image)
+      const fileSources = (sources || []).filter(s => s.type === "excel" || s.type === "document" || s.type === "image");
+      return fileSources.length < limit;
+    }
+    if (limitKey === "connectors") {
+      // Barcha manbalar soni (excel, manual, image, document bundan tashqari)
+      const connectors = (sources || []).filter(s => s.type !== "excel" && s.type !== "document" && s.type !== "image" && s.type !== "manual");
+      return connectors.length < limit;
+    }
+    if (limitKey === "reports") {
+      const pfx = "u_" + (user?.id || "anon") + "_reports";
+      const reports = LS.get(pfx, []);
+      return reports.length < limit;
+    }
     return limit === true || limit > 0;
+  },
+
+  // Limit haqida batafsil ma'lumot
+  getLimitInfo: (user, limitKey, sources) => {
+    if (user?.role === "admin") return { allowed: true, used: 0, max: -1, label: "Cheksiz" };
+    const plan = PLANS[user?.plan || "free"];
+    const limit = plan?.limits[limitKey];
+    let used = 0;
+
+    if (limitKey === "ai_requests") {
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      used = user?.ai_requests_month === currentMonth ? (user?.ai_requests_used || 0) : 0;
+    } else if (limitKey === "files") {
+      used = (sources || []).filter(s => s.type === "excel" || s.type === "document" || s.type === "image").length;
+    } else if (limitKey === "connectors") {
+      used = (sources || []).filter(s => s.type !== "excel" && s.type !== "document" && s.type !== "image" && s.type !== "manual").length;
+    } else if (limitKey === "reports") {
+      const pfx = "u_" + (user?.id || "anon") + "_reports";
+      used = LS.get(pfx, []).length;
+    }
+
+    return {
+      allowed: limit === -1 ? true : limit === false ? false : used < limit,
+      used,
+      max: limit === -1 ? "Cheksiz" : limit,
+      remaining: limit === -1 ? "Cheksiz" : Math.max(0, limit - used),
+      label: limit === -1 ? "Cheksiz" : `${used}/${limit}`,
+    };
   },
 
   incrementAI: (userId) => {
@@ -4228,6 +4274,23 @@ function DataHubPage({ sources, setSources, push, user }) {
 
   const addSource = () => {
     if (!newType || !newName.trim()) { push("Nomi va turini tanlang", "warn"); return; }
+
+    // ── LIMIT TEKSHIRUV ──
+    const isFile = newType === "excel" || newType === "document" || newType === "image";
+    const isConnector = !isFile && newType !== "manual";
+    const plan = PLANS[user?.plan || "free"];
+
+    if (isFile && !Auth.checkLimit(user, "files", sources)) {
+      const info = Auth.getLimitInfo(user, "files", sources);
+      push(`Fayl limiti tugadi (${info.label}). Tarifni yangilang.`, "warn");
+      return;
+    }
+    if (isConnector && !Auth.checkLimit(user, "connectors", sources)) {
+      const info = Auth.getLimitInfo(user, "connectors", sources);
+      push(`Konnector limiti tugadi (${info.label}). Tarifni yangilang.`, "warn");
+      return;
+    }
+
     const src = {
       id: Date.now() + "_" + Math.random().toString(36).slice(2),
       type: newType,
@@ -4241,7 +4304,6 @@ function DataHubPage({ sources, setSources, push, user }) {
     };
     const updated = [...sources, src];
     setSources(updated); saveSources(updated, user?.id);
-    // API ga ham saqlash
     SourcesAPI.create({ id: src.id, type: src.type, name: src.name, color: src.color, config: src.config }).catch(() => { });
     setAdding(false); setNewType(null); setNewName(""); push("✓ Yangi manba qo'shildi", "ok");
   };
@@ -4464,6 +4526,12 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
   const runAiCharts = async (queryText) => {
     const query = queryText || userQuery;
     if (!query.trim() || !workingSource?.data?.length || !aiConfig?.apiKey) return;
+    // AI limit tekshirish
+    if (!hasPersonalKey && user && !Auth.checkLimit(user, "ai_requests", sources)) {
+      const info = Auth.getLimitInfo(user, "ai_requests", sources);
+      setAiError(`AI so'rov limiti tugadi (${info.label}). Tarifni yangilang yoki shaxsiy API kalit ulang.`);
+      return;
+    }
     setAiLoading(true); setAiError(""); setLastQuery(query);
 
     try {
@@ -5145,7 +5213,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
 // ─────────────────────────────────────────────────────────────
 // ANALYTICS PAGE — Tayyor tahlillar + aloqador chartlar
 // ─────────────────────────────────────────────────────────────
-function AnalyticsPage({ aiConfig, sources }) {
+function AnalyticsPage({ aiConfig, sources, user }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [result, setResult] = useState("");
@@ -5166,6 +5234,12 @@ function AnalyticsPage({ aiConfig, sources }) {
   const isPersonal = !!aiConfig.isPersonal;
   const run = async (mod) => {
     if (!aiConfig.apiKey) { alert("AI ulanmagan. Admin global AI sozlashi yoki AI Sozlamalardan shaxsiy API kalit kiriting."); return; }
+    // AI limit tekshirish
+    if (!isPersonal && user && !Auth.checkLimit(user, "ai_requests", sources)) {
+      const info = Auth.getLimitInfo(user, "ai_requests", sources);
+      alert(`AI so'rov limiti tugadi (${info.label}). Tarifni yangilang yoki shaxsiy API kalit ulang.`);
+      return;
+    }
     setLoading(true); setResult(""); setActiveLabel(mod.l); setActiveMod(mod);
     const ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
@@ -5458,6 +5532,18 @@ function ReportsPage({ aiConfig, sources, user }) {
   const isPersonal = !!aiConfig.isPersonal;
   const gen = async (mod) => {
     if (!aiConfig.apiKey) { alert("AI ulanmagan. Admin global AI sozlashi yoki AI Sozlamalardan shaxsiy API kalit kiriting."); return; }
+    // Hisobot limiti
+    if (!isPersonal && user?.role !== "admin" && !Auth.checkLimit(user, "reports", sources)) {
+      const info = Auth.getLimitInfo(user, "reports", sources);
+      alert(`Hisobot limiti tugadi (${info.label}). Eski hisobotlarni o'chiring yoki tarifni yangilang.`);
+      return;
+    }
+    // AI so'rov limiti
+    if (!isPersonal && user && !Auth.checkLimit(user, "ai_requests", sources)) {
+      const info = Auth.getLimitInfo(user, "ai_requests", sources);
+      alert(`AI so'rov limiti tugadi (${info.label}). Tarifni yangilang yoki shaxsiy API kalit ulang.`);
+      return;
+    }
     setLoading(true); setReport(""); setLabel(mod.l); setActiveMod(mod);
     const today = new Date().toLocaleDateString("uz-UZ");
     const ctx = buildMergedContext(connectedSources);
@@ -5478,7 +5564,17 @@ function ReportsPage({ aiConfig, sources, user }) {
   };
 
   // ── Eksport funksiyalari ──
+  const checkExportLimit = () => {
+    if (user?.role === "admin") return true;
+    const plan = PLANS[user?.plan || "free"];
+    if (!plan?.limits?.export) {
+      alert("Export funksiyasi faqat Boshlang'ich tarifdan boshlab ishlaydi. Tarifni yangilang.");
+      return false;
+    }
+    return true;
+  };
   const exportTXT = (text, lbl) => {
+    if (!checkExportLimit()) return;
     const t = text || report; const l = lbl || label;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([`${l}\n${"═".repeat(50)}\nSana: ${new Date().toLocaleDateString("uz-UZ")}\nAI: ${prov.name}\n${"═".repeat(50)}\n\n${t}`], { type: "text/plain;charset=utf-8" }));
@@ -5503,6 +5599,7 @@ function ReportsPage({ aiConfig, sources, user }) {
   };
 
   const exportPDF = (text, lbl) => {
+    if (!checkExportLimit()) return;
     const t = text || report; const l = lbl || label;
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
@@ -5886,7 +5983,7 @@ const ALERT_TYPES = {
   success: { label: "Ijobiy", color: "#34D399", bg: "rgba(52,211,153,0.06)", border: "rgba(52,211,153,0.18)", icon: "", glow: "rgba(52,211,153,0.06)" },
 };
 
-function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAlert, push }) {
+function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAlert, push, user }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("all");
@@ -5910,6 +6007,20 @@ function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAl
   const runCheck = async (checkMod) => {
     if (!aiConfig.apiKey) { alert("AI ulanmagan. Admin global AI sozlashi yoki AI Sozlamalardan shaxsiy API kalit kiriting."); return; }
     if (!connectedSources.length) { push("Data Hub da manba ulang", "warn"); return; }
+    // AI ogohlantirish limiti (free tarifda taqiqlangan)
+    const isPersonalKey = !!aiConfig.isPersonal;
+    if (!isPersonalKey && user?.role !== "admin") {
+      const plan = PLANS[user?.plan || "free"];
+      if (!plan?.limits?.alerts_check) {
+        push("AI ogohlantirishlar faqat Boshlang'ich tarifdan boshlab ishlaydi. Tarifni yangilang.", "warn");
+        return;
+      }
+      if (!Auth.checkLimit(user, "ai_requests", sources)) {
+        const info = Auth.getLimitInfo(user, "ai_requests", sources);
+        push(`AI so'rov limiti tugadi (${info.label}). Tarifni yangilang.`, "warn");
+        return;
+      }
+    }
     setLoading(true); setCheckResult(""); setCheckType(checkMod || null);
     const ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} yozuv)`).join(", ");
@@ -7643,9 +7754,9 @@ export default function App() {
     datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} />,
     charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} />,
     chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} />,
-    analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} />,
+    analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} user={user} />,
     reports: <ReportsPage aiConfig={effectiveAI} sources={sources} user={user} />,
-    alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} />,
+    alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} user={user} />,
     profile: <ProfilePage user={user} onPlanChange={handlePlanChange} push={push} sources={sources} />,
   };
 
