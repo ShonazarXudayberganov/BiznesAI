@@ -22,12 +22,12 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://188.225.74.65:3011',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://localhost:3001',
+        target: 'http://188.225.74.65:3011',
         changeOrigin: true,
         secure: false,
       },

@@ -115,13 +115,18 @@ const AI_PROVIDERS = {
 };
 
 const SOURCE_TYPES = {
-  excel: { id: "excel", icon: "", label: "Excel/CSV", color: "#4ADE80", desc: "xlsx, xls, csv fayllar" },
-  sheets: { id: "sheets", icon: "🔗", label: "Google Sheets", color: "#60A5FA", desc: "Sheets URL yuklash" },
-  restapi: { id: "restapi", icon: "", label: "REST API", color: "#F59E0B", desc: "JSON endpoint" },
+  excel: { id: "excel", icon: "📊", label: "Excel/CSV", color: "#4ADE80", desc: "xlsx, xls, csv fayllar" },
+  sheets: { id: "sheets", icon: "📋", label: "Google Sheets", color: "#60A5FA", desc: "Sheets URL yuklash" },
+  restapi: { id: "restapi", icon: "🔗", label: "REST API", color: "#F59E0B", desc: "JSON endpoint" },
   instagram: { id: "instagram", icon: "📸", label: "Instagram", color: "#E879F9", desc: "Business API" },
   telegram: { id: "telegram", icon: "✈️", label: "Telegram Kanal", color: "#38BDF8", desc: "Kanal statistikasi" },
   crm: { id: "crm", icon: "🏢", label: "LC-UP CRM", color: "#8B5CF6", desc: "O'quv markaz CRM tizimi" },
-  manual: { id: "manual", icon: "✏️", label: "Qo'lda JSON", color: "#94A3B8", desc: "Bevosita JSON kiritish" },
+  document: { id: "document", icon: "📄", label: "Hujjat (PDF/Word/TXT)", color: "#F87171", desc: "PDF, DOCX, TXT fayllar — AI tahlil qiladi" },
+  image: { id: "image", icon: "🖼️", label: "Rasm tahlili", color: "#EC4899", desc: "JPG, PNG rasmlar — AI tavsiflaydi" },
+  onec: { id: "onec", icon: "🏦", label: "1C Buxgalteriya", color: "#FF6B35", desc: "1C:Enterprise OData API" },
+  yandex: { id: "yandex", icon: "📈", label: "Yandex Metrika", color: "#FC3F1D", desc: "Sayt traffigi va statistikasi" },
+  database: { id: "database", icon: "🗄️", label: "SQL Database", color: "#06B6D4", desc: "MySQL/PostgreSQL ulanish" },
+  manual: { id: "manual", icon: "📝", label: "Qo'lda JSON", color: "#94A3B8", desc: "Bevosita JSON kiritish" },
 };
 
 // NAV is defined below in MAIN APP section
@@ -340,7 +345,7 @@ function buildMergedContext(sources) {
     if (s.type === "instagram" && s.data?.length > 0) {
       const summary = s.data.find(d => d._type === "PROFIL_STATISTIKA");
       const posts = s.data.filter(d => !d._type).slice(0, 20);
-      return `\n📸 INSTAGRAM MANBA: "${s.name}" (@${s.profileName || "noma'lum"})
+      return `\n INSTAGRAM MANBA: "${s.name}" (@${s.profileName || "noma'lum"})
 ${summary ? `PROFIL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}\n
 TOP POSTLAR (${posts.length} ta / ${total - 1} tadan):
 ${JSON.stringify(posts, null, 2)}`;
@@ -351,7 +356,7 @@ ${JSON.stringify(posts, null, 2)}`;
       const summary = s.data.find(d => d._type === "KANAL_STATISTIKA");
       const admins = s.data.find(d => d._type === "ADMINLAR");
       const posts = s.data.filter(d => !d._type).slice(0, 25);
-      return `\n✈️ TELEGRAM KANAL MANBA: "${s.name}" (${s.profileName || "noma'lum"})
+      return `\n TELEGRAM KANAL MANBA: "${s.name}" (${s.profileName || "noma'lum"})
 ${summary ? `KANAL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
 ${admins ? `ADMINLAR: ${JSON.stringify(admins.admins, null, 2)}` : ""}
 OXIRGI POSTLAR (${posts.length} ta / ${total - (summary ? 1 : 0) - (admins ? 1 : 0)} tadan):
@@ -365,7 +370,7 @@ ${JSON.stringify(posts, null, 2)}`;
       const groups = s.data.filter(d => d._entity === "group").slice(0, 15);
       const students = s.data.filter(d => d._entity === "student").slice(0, 15);
       const teachers = s.data.filter(d => d._entity === "teacher").slice(0, 10);
-      return `\n🏢 CRM MANBA: "${s.name}" (${s.profileName || "noma'lum"})
+      return `\n CRM MANBA: "${s.name}" (${s.profileName || "noma'lum"})
 ${summary ? `CRM STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
 
 LIDLAR (${lids.length} ta namuna / jami ${s.data.filter(d => d._entity === "lid").length}):
@@ -383,8 +388,78 @@ ${JSON.stringify(teachers, null, 2)}`;
 
     // Boshqa manbalar uchun (Excel, Sheets, API, Manual)
     const rows = s.data?.slice(0, 40) || [];
-    return `\n📌 MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv):\n${JSON.stringify(rows, null, 2)}`;
+    return `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv):\n${JSON.stringify(rows, null, 2)}`;
   }).join("\n\n");
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANOMALIYA ANIQLASH (matematik/statistik — AI shart emas)
+// ─────────────────────────────────────────────────────────────
+function detectAnomalies(sources) {
+  const anomalies = [];
+  const connected = (Array.isArray(sources) ? sources : []).filter(s => s.connected && s.active && s.data?.length > 5);
+
+  connected.forEach(src => {
+    const rows = src.data || [];
+    const keys = Object.keys(rows[0] || {});
+    // Raqamli ustunlarni topish
+    const numKeys = keys.filter(k => {
+      const vals = rows.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
+      return vals.filter(v => !isNaN(v)).length > rows.length * 0.5;
+    });
+
+    numKeys.forEach(key => {
+      const vals = rows.map(r => parseFloat(String(r[key]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v));
+      if (vals.length < 3) return;
+
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+      if (std === 0 || mean === 0) return;
+
+      // Z-score anomaliyalar (|z| > 2.5)
+      vals.forEach((v, i) => {
+        const z = (v - mean) / std;
+        if (Math.abs(z) > 2.5) {
+          anomalies.push({
+            source: src.name,
+            field: key,
+            value: v,
+            mean: Math.round(mean * 100) / 100,
+            zScore: Math.round(z * 100) / 100,
+            type: z > 0 ? 'yuqori' : 'past',
+            severity: Math.abs(z) > 3.5 ? 'danger' : 'warning',
+            row: i,
+            message: `"${key}" ustunida ${z > 0 ? 'g\'ayrioddiy yuqori' : 'g\'ayrioddiy past'} qiymat: ${v.toLocaleString()} (o'rtacha: ${Math.round(mean).toLocaleString()}, ${Math.abs(Math.round((v - mean) / mean * 100))}% farq)`,
+          });
+        }
+      });
+
+      // Trend anomaliya — oxirgi 3 qiymat ketma-ket pasayish/o'sish
+      if (vals.length >= 5) {
+        const last5 = vals.slice(-5);
+        const allDown = last5.every((v, i) => i === 0 || v <= last5[i - 1]);
+        const allUp = last5.every((v, i) => i === 0 || v >= last5[i - 1]);
+        const totalChange = last5.length > 1 ? (last5[last5.length - 1] - last5[0]) / (Math.abs(last5[0]) || 1) * 100 : 0;
+
+        if (allDown && Math.abs(totalChange) > 15) {
+          anomalies.push({
+            source: src.name, field: key, type: 'trend_down', severity: Math.abs(totalChange) > 30 ? 'danger' : 'warning',
+            message: `"${key}" oxirgi 5 qiymatda ketma-ket pasayish: ${Math.round(totalChange)}%`,
+            value: last5[last5.length - 1], mean,
+          });
+        }
+        if (allUp && totalChange > 50) {
+          anomalies.push({
+            source: src.name, field: key, type: 'trend_up', severity: 'info',
+            message: `"${key}" oxirgi 5 qiymatda kuchli o'sish: +${Math.round(totalChange)}%`,
+            value: last5[last5.length - 1], mean,
+          });
+        }
+      }
+    });
+  });
+
+  return anomalies.slice(0, 20); // Max 20 ta anomaliya
 }
 
 function buildChartData(rows = []) {
@@ -895,6 +970,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .chat-send-btn:hover:not(:disabled){transform:scale(1.05);box-shadow:0 4px 16px rgba(0,201,190,0.3)}
 .chat-send-btn:active:not(:disabled){transform:scale(0.95)}
 .chat-send-btn:disabled{opacity:.35;cursor:not-allowed;background:var(--s3)}
+@keyframes pulse-voice{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0.4)}50%{box-shadow:0 0 0 8px rgba(248,113,113,0)}}
 .chat-export-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s var(--ease);display:flex;align-items:center;gap:4px;font-family:var(--fh);font-size:10px;font-weight:500;}
 .chat-export-btn:hover{border-color:var(--border-hi);color:var(--text);background:var(--s3)}
 .typing-ind{display:flex;gap:5px;align-items:center}
@@ -1033,10 +1109,10 @@ function LandingPage({ onLogin, onRegister }) {
         </p>
         <div className="hero-btns">
           <button className="btn btn-primary btn-lg" onClick={onRegister}>
-            Bepul boshlang
+             Bepul boshlang
           </button>
           <button className="btn btn-ghost btn-lg" onClick={onLogin}>
-            Kirish
+             Kirish
           </button>
         </div>
         <div style={{ marginTop: 28, fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>
@@ -1133,7 +1209,7 @@ function LandingPage({ onLogin, onRegister }) {
       {/* FOOTER */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "24px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ fontFamily: "var(--fh)", fontWeight: 700, fontSize: 14 }}>BIZ<span style={{ color: "var(--gold)" }}>NES</span>AI</div>
-        <div style={{ fontSize: 11, color: "var(--muted)" }}>© 2025 BiznesAI. Barcha huquqlar himoyalangan.</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }}> 2025 BiznesAI. Barcha huquqlar himoyalangan.</div>
         <div style={{ display: "flex", gap: 16 }}>
           {["Maxfiylik", "Shartlar", "Yordam"].map(l => (
             <span key={l} style={{ fontSize: 11, color: "var(--muted)", cursor: "pointer", fontFamily: "var(--fm)" }}>{l}</span>
@@ -1357,7 +1433,7 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 
             <button className="btn btn-primary" style={{ width: "100%" }} onClick={pay}
               disabled={!card.num || card.num.replace(/\s/g, "").length < 16}>
-              {price.toLocaleString("uz-UZ")} so'm to'lash
+               {price.toLocaleString("uz-UZ")} so'm to'lash
             </button>
             <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
               256-bit SSL shifrlash · Xavfsiz to'lov
@@ -1470,7 +1546,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
               </div>
               {user.plan === "free" && (
                 <button className="btn btn-primary btn-sm" style={{ marginTop: 14, width: "100%" }} onClick={() => setTab("billing")}>
-                  Yangilash
+                   Yangilash
                 </button>
               )}
             </div>
@@ -1740,7 +1816,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
   const statCards = [
     { l: "Jami foydalanuvchi", v: total, sub: `${activeToday} bugun faol`, c: "var(--teal)", ac: "#00C9BE", i: "" },
     { l: "Haftalik faol", v: activeWeek, sub: `${blocked} bloklangan`, c: "var(--green)", ac: "#4ADE80", i: "" },
-    { l: "Jami daromad", v: totalRevenue.toLocaleString("uz-UZ") + " so'm", sub: allPayments.length + " ta to'lov", c: "var(--gold)", ac: "#E8B84B", i: "💰" },
+    { l: "Jami daromad", v: totalRevenue.toLocaleString("uz-UZ") + " so'm", sub: allPayments.length + " ta to'lov", c: "var(--gold)", ac: "#E8B84B", i: "" },
     { l: "Bu oylik daromad", v: thisMonthRevenue.toLocaleString("uz-UZ") + " so'm", sub: revenueGrowth > 0 ? `↑ ${revenueGrowth}% o'sish` : revenueGrowth < 0 ? `↓ ${Math.abs(revenueGrowth)}% kamayish` : "Yangi oy", c: "var(--purple)", ac: "#A78BFA", i: "" },
   ];
 
@@ -1761,7 +1837,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div className="modal-box" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>️</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}></div>
               <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Foydalanuvchini o'chirish</div>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}><strong style={{ color: "var(--text)" }}>{confirmDelete.name}</strong> — barcha ma'lumotlari o'chadi. Bu amalni qaytarib bo'lmaydi.</div>
               <div className="flex gap10" style={{ justifyContent: "center" }}>
@@ -1795,7 +1871,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           { id: "analytics", l: " Analytics" },
           { id: "users", l: `◐ Foydalanuvchilar (${total})` },
           { id: "payments", l: `◰ To'lovlar (${allPayments.length})` },
-          { id: "ai_config", l: "🤖 AI Sozlama" },
+          { id: "ai_config", l: " AI Sozlama" },
           { id: "tariffs", l: " Tariflar" },
           { id: "system", l: " Tizim" },
         ].map(t => (
@@ -1829,10 +1905,10 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           {/* Qo'shimcha ko'rsatkichlar */}
           <div className="g4 mb16">
             {[
-              { l: "Pullik foydalanuvchilar", v: paidUsers, sub: `${conversionRate}% konversiya`, c: "var(--gold)", i: "⭐" },
+              { l: "Pullik foydalanuvchilar", v: paidUsers, sub: `${conversionRate}% konversiya`, c: "var(--gold)", i: "" },
               { l: "O'rtacha daromad (har biri)", v: avgRevPerUser.toLocaleString("uz-UZ") + " so'm", sub: "Pullik foydalanuvchilar", c: "var(--teal)", i: "" },
-              { l: "Jami manbalar", v: totalSources, sub: "Barcha foydalanuvchilar", c: "var(--green)", i: "📂" },
-              { l: "Jami yozuvlar", v: totalDataRows.toLocaleString(), sub: "Ma'lumotlar", c: "var(--purple)", i: "🗃" },
+              { l: "Jami manbalar", v: totalSources, sub: "Barcha foydalanuvchilar", c: "var(--green)", i: "" },
+              { l: "Jami yozuvlar", v: totalDataRows.toLocaleString(), sub: "Ma'lumotlar", c: "var(--purple)", i: "" },
             ].map((s, i) => (
               <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${s.c}80,transparent)` }} />
@@ -1996,7 +2072,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
       {tab === "users" && (
         <>
           <div className="flex gap10 mb14" style={{ flexWrap: "wrap", alignItems: "center" }}>
-            <input className="search-field" placeholder="🔍 Ism yoki email..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="search-field" placeholder=" Ism yoki email..." value={search} onChange={e => setSearch(e.target.value)} />
             <select className="field" style={{ width: "auto", padding: "7px 10px", fontSize: 12 }} value={planFilter} onChange={e => setPlanFilter(e.target.value)}>
               <option value="all">Barcha tariflar</option>
               {Object.values(PLANS).map(p => <option key={p.id} value={p.id}>{p.nameUz}</option>)}
@@ -2152,7 +2228,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
               {/* Joriy holat */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: currentGlobal?.apiKey ? "rgba(0,201,190,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${currentGlobal?.apiKey ? "rgba(0,201,190,0.25)" : "rgba(248,113,113,0.25)"}`, borderRadius: 10, marginBottom: 18 }}>
-                <span style={{ fontSize: 20 }}>{currentGlobal?.apiKey ? "" : "❌"}</span>
+                <span style={{ fontSize: 20 }}>{currentGlobal?.apiKey ? "" : ""}</span>
                 <div className="f1">
                   <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: currentGlobal?.apiKey ? "var(--green)" : "var(--red)" }}>
                     {currentGlobal?.apiKey ? `${AI_PROVIDERS[currentGlobal.provider]?.name || currentGlobal.provider} ulangan — tizim ishlaydi` : "Global AI ulanmagan — foydalanuvchilar AI ishlatib bo'lmaydi"}
@@ -2198,21 +2274,21 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
                   onKeyDown={e => e.key === "Enter" && saveGlobalAI()} />
                 <button className="btn btn-ghost btn-sm" onClick={() => setGKeyVisible(v => !v)}>{gKeyVisible ? "◑" : "◐"}</button>
               </div>
-              <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 14 }}>💡 <span style={{ color: "var(--teal)" }}>{gProv.hint}</span></div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 14 }}> <span style={{ color: "var(--teal)" }}>{gProv.hint}</span></div>
 
               <div className="flex aic gap10">
-                <button className="btn btn-primary" onClick={saveGlobalAI}>{gSaved ? "✓ Saqlandi!" : "💾 Global AI Saqlash"}</button>
+                <button className="btn btn-primary" onClick={saveGlobalAI}>{gSaved ? "✓ Saqlandi!" : " Global AI Saqlash"}</button>
                 <span style={{ fontSize: 11, color: "var(--muted)" }}>Bu kalit barcha foydalanuvchilar uchun ishlaydi</span>
               </div>
             </div>
 
             {/* Qanday ishlaydi */}
             <div className="card">
-              <div className="card-title mb10">📋 Qanday Ishlaydi</div>
+              <div className="card-title mb10"> Qanday Ishlaydi</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 {[
-                  { icon: "🆓", title: "Bepul Foydalanish", desc: "Siz ulagan global AI dan hamma bepul foydalanadi. Tarif limitlariga qarab — Free: 5, Starter: 100, Pro: 500, Enterprise: ∞ so'rov/oy", c: "var(--green)" },
-                  { icon: "🔑", title: "Shaxsiy API Kalit", desc: "Foydalanuvchi o'z API kalitini kiritsa — u cheksiz so'rov yuboradi, limit hisoblanmaydi. Istalgan provayderdan foydalanadi", c: "var(--gold)" },
+                  { icon: "", title: "Bepul Foydalanish", desc: "Siz ulagan global AI dan hamma bepul foydalanadi. Tarif limitlariga qarab — Free: 5, Starter: 100, Pro: 500, Enterprise: ∞ so'rov/oy", c: "var(--green)" },
+                  { icon: "", title: "Shaxsiy API Kalit", desc: "Foydalanuvchi o'z API kalitini kiritsa — u cheksiz so'rov yuboradi, limit hisoblanmaydi. Istalgan provayderdan foydalanadi", c: "var(--gold)" },
                   { icon: "", title: "Tarif Sotish", desc: "Foydalanuvchilar yuqori tarif olsa — ko'proq AI so'rov limiti oladi. Enterprise — cheksiz. Yoki o'z API kaliti bilan cheksiz", c: "var(--purple)" },
                 ].map((s, i) => (
                   <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "14px 16px", border: `1px solid ${s.c}20` }}>
@@ -2297,7 +2373,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
             </div>
 
             <div className="flex aic gap10">
-              <button className="btn btn-primary" onClick={savePrices}>{tSaved ? "✓ Saqlandi!" : "💾 Narxlarni Saqlash"}</button>
+              <button className="btn btn-primary" onClick={savePrices}>{tSaved ? "✓ Saqlandi!" : " Narxlarni Saqlash"}</button>
               <button className="btn btn-ghost" onClick={resetPrices}>↺ Standartga Qaytarish</button>
             </div>
           </>
@@ -2311,9 +2387,9 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           <div className="g3 mb16">
             {[
               { l: "Jami Foydalanuvchilar", v: total, c: "var(--teal)", i: "" },
-              { l: "Jami Manbalar", v: totalSources, c: "var(--green)", i: "📂" },
-              { l: "Jami Yozuvlar", v: totalDataRows.toLocaleString(), c: "var(--gold)", i: "🗃" },
-              { l: "Pullik Foydalanuvchilar", v: paidUsers, c: "var(--purple)", i: "⭐" },
+              { l: "Jami Manbalar", v: totalSources, c: "var(--green)", i: "" },
+              { l: "Jami Yozuvlar", v: totalDataRows.toLocaleString(), c: "var(--gold)", i: "" },
+              { l: "Pullik Foydalanuvchilar", v: paidUsers, c: "var(--purple)", i: "" },
               { l: "Konversiya", v: conversionRate + "%", c: "var(--teal)", i: "" },
               { l: "O'rtacha Daromad", v: avgRevPerUser.toLocaleString() + " so'm", c: "var(--gold)", i: "" },
             ].map((s, i) => (
@@ -2429,9 +2505,9 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
               {/* Modal tabs */}
               <div className="flex gap5 mb14" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
                 {[
-                  { id: "info", l: "📋 Ma'lumotlar" },
-                  { id: "data", l: `📂 Manbalar (${uSourceCount})` },
-                  { id: "payments", l: `💰 To'lovlar (${uRevenue > 0 ? "✓" : "0"})` },
+                  { id: "info", l: " Ma'lumotlar" },
+                  { id: "data", l: ` Manbalar (${uSourceCount})` },
+                  { id: "payments", l: ` To'lovlar (${uRevenue > 0 ? "✓" : "0"})` },
                 ].map(t => (
                   <button key={t.id} className="qcat" onClick={() => setUserTab(t.id)}
                     style={userTab === t.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.1)", padding: "5px 12px", fontSize: 10 } : { padding: "5px 12px", fontSize: 10 }}>
@@ -2478,7 +2554,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
                     <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Ulangan Manbalar</div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--s2)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 10 }}>
-                        <span>📂</span>
+                        <span></span>
                         <span style={{ fontWeight: 600 }}>{uSourceCount} ta manba</span>
                         <span className="badge b-ok" style={{ fontSize: 7 }}>{uTotalRows} yozuv</span>
                       </div>
@@ -2514,7 +2590,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
                       </button>
                       <button className="btn btn-danger btn-sm ml-auto"
                         onClick={() => { setSelectedUser(null); setConfirmDelete(u); }}>
-                        🗑 O'chirish
+                         O'chirish
                       </button>
                     </div>
                   </>
@@ -2525,14 +2601,14 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
               {userTab === "data" && (<div>
                 {uSourceCount === 0 && (
                   <div style={{ textAlign: "center", padding: 32 }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>📂</div>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}></div>
                     <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Ma'lumot manbasi yo'q</div>
                     <div className="text-muted text-sm">Bu foydalanuvchi hali hech qanday manba ulamagan</div>
                   </div>
                 )}
                 {uSourceCount > 0 && (
                   <div style={{ textAlign: "center", padding: 20 }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>📂</div>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}></div>
                     <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{uSourceCount} ta manba</div>
                     <div style={{ fontSize: 12, color: "var(--muted)" }}>Jami {uTotalRows.toLocaleString()} ta yozuv</div>
                   </div>
@@ -2557,7 +2633,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
                 {uRevenue === 0 && (
                   <div style={{ textAlign: "center", padding: 32 }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}>💰</div>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}></div>
                     <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>To'lov yo'q</div>
                     <div className="text-muted text-sm">Bu foydalanuvchi hali to'lov qilmagan</div>
                   </div>
@@ -2565,7 +2641,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
                 {uRevenue > 0 && (
                   <div style={{ textAlign: "center", padding: 20 }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>💰</div>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}></div>
                     <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--gold)" }}>{uRevenue.toLocaleString("uz-UZ")} so'm</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Jami to'lov miqdori</div>
                   </div>
@@ -2797,6 +2873,183 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       onUpdate({ ...src, connected: true, active: true, data, updatedAt: new Date().toLocaleString("uz-UZ") });
       push(`✓ ${data.length} ta yozuv saqlandi`, "ok");
     } catch (e) { push("JSON xato: " + e.message, "error"); }
+  };
+
+  // ── DOCUMENT (PDF/Word/TXT) — faylni o'qib data ga saqlash ──
+  const docFileRef = useRef(null);
+  const handleDocumentFiles = async (files) => {
+    setLoading(true);
+    const results = [];
+    for (const file of files) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      try {
+        if (ext === 'txt' || ext === 'csv' || ext === 'log' || ext === 'md') {
+          const text = await file.text();
+          results.push({ fileName: file.name, type: ext, content: text, size: file.size, lines: text.split('\n').length });
+        } else if (ext === 'pdf') {
+          // PDF — base64 saqlaymiz, AI tahlil qiladi
+          const buf = await file.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let binary = ''; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          const b64 = btoa(binary);
+          // PDF dan matn ajratish (oddiy regex — PDF text extraction)
+          const textChunks = [];
+          const decoder = new TextDecoder('utf-8', { fatal: false });
+          const raw = decoder.decode(buf);
+          // BT...ET orasidagi Tj/TJ operatorlardan matn olish
+          const tjMatches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
+          tjMatches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) textChunks.push(t[1]); });
+          const extractedText = textChunks.join(' ').substring(0, 50000) || `[PDF fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB — matn ajratib bo'lmadi]`;
+          results.push({ fileName: file.name, type: 'pdf', content: extractedText, size: file.size, pages: (raw.match(/\/Type\s*\/Page[^s]/g) || []).length || 1 });
+        } else if (ext === 'docx') {
+          // DOCX — ZIP ichidagi word/document.xml dan matn olish
+          const buf = await file.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          // PK zip signature tekshirish
+          if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
+            // Oddiy XML extraction — word/document.xml topish
+            const decoder = new TextDecoder('utf-8', { fatal: false });
+            const raw = decoder.decode(buf);
+            // XML taglardan matn ajratish
+            const xmlContent = raw.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
+            const text = xmlContent.map(t => t.replace(/<[^>]+>/g, '')).join(' ');
+            results.push({ fileName: file.name, type: 'docx', content: text.substring(0, 50000) || `[Word fayl: ${file.name}]`, size: file.size });
+          } else {
+            results.push({ fileName: file.name, type: 'docx', content: `[Word fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB]`, size: file.size });
+          }
+        } else if (ext === 'doc') {
+          results.push({ fileName: file.name, type: 'doc', content: `[DOC fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB — eski format, DOCX ga aylantiring]`, size: file.size });
+        } else {
+          const text = await file.text().catch(() => `[Fayl: ${file.name}]`);
+          results.push({ fileName: file.name, type: ext, content: text.substring(0, 50000), size: file.size });
+        }
+      } catch (e) { push(`Fayl o'qishda xato (${file.name}): ${e.message}`, "error"); }
+    }
+    if (results.length) {
+      const data = results.map((r, i) => ({
+        id: i + 1,
+        fayl_nomi: r.fileName,
+        tur: r.type,
+        hajm_kb: Math.round(r.size / 1024),
+        sahifalar: r.pages || null,
+        qatorlar: r.lines || null,
+        matn: r.content?.substring(0, 500) + (r.content?.length > 500 ? '...' : ''),
+        toliq_matn: r.content,
+      }));
+      onUpdate({ ...src, connected: true, active: true, data, files: results.map(r => ({ fileName: r.fileName, type: r.type, size: r.size })), updatedAt: new Date().toLocaleString("uz-UZ") });
+      push(`✓ ${results.length} ta hujjat yuklandi`, "ok");
+    }
+    setLoading(false);
+  };
+
+  // ── IMAGE — rasm yuklash (base64 + AI tahlil uchun) ──
+  const imgFileRef = useRef(null);
+  const handleImageFiles = async (files) => {
+    setLoading(true);
+    const results = [];
+    for (const file of files) {
+      try {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+          push(`${file.name} — qo'llab-quvvatlanmaydigan format`, "warn"); continue;
+        }
+        // Base64 ga aylantirish
+        const b64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        // Rasm o'lchami
+        const img = new Image();
+        const dims = await new Promise(resolve => {
+          img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+          img.onerror = () => resolve({ w: 0, h: 0 });
+          img.src = b64;
+        });
+        results.push({
+          fileName: file.name, type: ext, size: file.size,
+          width: dims.w, height: dims.h,
+          dataUrl: b64,
+          description: `Rasm: ${file.name} (${dims.w}x${dims.h}, ${(file.size/1024).toFixed(1)}KB)`,
+        });
+      } catch (e) { push(`Rasm xato (${file.name}): ${e.message}`, "error"); }
+    }
+    if (results.length) {
+      const data = results.map((r, i) => ({
+        id: i + 1,
+        fayl_nomi: r.fileName,
+        tur: r.type,
+        hajm_kb: Math.round(r.size / 1024),
+        kenglik: r.width,
+        balandlik: r.height,
+        tavsif: r.description,
+        rasm_url: r.dataUrl,
+      }));
+      onUpdate({ ...src, connected: true, active: true, data, files: results.map(r => ({ fileName: r.fileName, type: r.type, size: r.size, width: r.width, height: r.height })), updatedAt: new Date().toLocaleString("uz-UZ") });
+      push(`✓ ${results.length} ta rasm yuklandi`, "ok");
+    }
+    setLoading(false);
+  };
+
+  // ── 1C Buxgalteriya (OData API) ──
+  const handle1CFetch = async () => {
+    const baseUrl = (src.config?.onecUrl || "").trim();
+    const login = (src.config?.onecLogin || "").trim();
+    const pass = (src.config?.onecPassword || "").trim();
+    if (!baseUrl) { push("1C server URL kiriting", "warn"); return; }
+    if (!login || !pass) { push("Login va parol kiriting", "warn"); return; }
+    setLoading(true);
+    try {
+      const headers = { 'Authorization': 'Basic ' + btoa(login + ':' + pass), 'Accept': 'application/json' };
+      // OData endpoint
+      const url = baseUrl.endsWith('/') ? baseUrl : baseUrl + '/';
+      const res = await fetch(url + 'odata/standard.odata?$format=json', { headers });
+      if (!res.ok) throw new Error(`1C server xato: ${res.status} ${res.statusText}`);
+      const json = await res.json();
+      const entities = json.value || json.d || [];
+      if (entities.length === 0) throw new Error("1C dan ma'lumot kelmadi");
+      const data = Array.isArray(entities) ? entities : [entities];
+      onUpdate({ ...src, connected: true, active: true, data, updatedAt: new Date().toLocaleString("uz-UZ") });
+      push(`✓ 1C dan ${data.length} ta yozuv yuklandi`, "ok");
+    } catch (e) { push("1C xato: " + e.message, "error"); }
+    setLoading(false);
+  };
+
+  // ── Yandex Metrika ──
+  const handleYandexFetch = async () => {
+    const counterId = (src.config?.ymCounter || "").trim();
+    const token = (src.config?.ymToken || "").trim();
+    if (!counterId) { push("Yandex Metrika counter ID kiriting", "warn"); return; }
+    if (!token) { push("OAuth token kiriting", "warn"); return; }
+    setLoading(true);
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      const metricsUrl = `https://api-metrika.yandex.net/stat/v1/data?id=${counterId}&metrics=ym:s:visits,ym:s:pageviews,ym:s:users,ym:s:bounceRate,ym:s:avgVisitDurationSeconds&dimensions=ym:s:date&date1=${d30}&date2=${today}&sort=ym:s:date&limit=30`;
+      const res = await fetch(metricsUrl, { headers: { 'Authorization': `OAuth ${token}` } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Yandex API xato: ${res.status}`);
+      }
+      const json = await res.json();
+      const data = (json.data || []).map(row => ({
+        sana: row.dimensions?.[0]?.name || '',
+        tashriflar: row.metrics?.[0] || 0,
+        sahifa_korishlar: row.metrics?.[1] || 0,
+        foydalanuvchilar: row.metrics?.[2] || 0,
+        qaytish_foizi: Math.round((row.metrics?.[3] || 0) * 100) / 100,
+        ortacha_vaqt_sek: Math.round(row.metrics?.[4] || 0),
+      }));
+      onUpdate({ ...src, connected: true, active: true, data, updatedAt: new Date().toLocaleString("uz-UZ") });
+      push(`✓ Yandex Metrika: ${data.length} kunlik statistika yuklandi`, "ok");
+    } catch (e) { push("Yandex Metrika xato: " + e.message, "error"); }
+    setLoading(false);
+  };
+
+  // ── SQL Database ──
+  const handleDatabaseTest = () => {
+    push("SQL Database ulanish hozircha backend orqali ishlaydi. Backend API ni sozlang.", "info");
   };
 
   // ── Facebook Graph API orqali so'rov (Instagram Business) ──
@@ -3069,7 +3322,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           const res = await fetch(url, { headers });
           if (res.status === 429) {
             const waitMs = attempt * 2000; // 2s, 4s, 6s, 8s, 10s
-            push(`⏳ ${label} — server band, ${Math.round(waitMs / 1000)}s kutilmoqda... (${attempt}/${retries})`, "info");
+            push(` ${label} — server band, ${Math.round(waitMs / 1000)}s kutilmoqda... (${attempt}/${retries})`, "info");
             await delay(waitMs);
             continue;
           }
@@ -3244,6 +3497,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     if (src.type === "sheets") return handleSheetsFetch();
     if (src.type === "restapi") return handleAPIFetch();
     if (src.type === "crm") return handleCrmFetch();
+    if (src.type === "onec") return handle1CFetch();
+    if (src.type === "yandex") return handleYandexFetch();
     push("Bu manba turini qo'lda yangilash kerak", "info");
   };
 
@@ -3278,7 +3533,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             <span className="badge b-ok text-xs">{src.data?.length || 0}</span>
           )}
           {src.connected && ["instagram", "telegram", "sheets", "restapi", "crm"].includes(src.type) && (
-            <button className="btn btn-ghost btn-xs" onClick={handleRefreshData} disabled={loading} title="Yangilash">{loading ? "⏳" : "↻"}</button>
+            <button className="btn btn-ghost btn-xs" onClick={handleRefreshData} disabled={loading} title="Yangilash">{loading ? "" : "↻"}</button>
           )}
           {/* active toggle */}
           <button className="src-toggle" style={{ background: src.active ? "var(--green)" : "var(--s4)" }}
@@ -3311,13 +3566,13 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
                 onDrop={e => { e.preventDefault(); setDrag(false); handleExcelFiles([...e.dataTransfer.files]); }}>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" multiple style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
                   onChange={e => handleExcelFiles([...e.target.files])} />
-                <div style={{ fontSize: 22, marginBottom: 6 }}>{loading ? "⏳" : "📁"}</div>
+                <div style={{ fontSize: 22, marginBottom: 6 }}>{loading ? "" : ""}</div>
                 <div className="text-sm text-muted">{loading ? "Yuklanmoqda..." : "Bir yoki bir nechta fayl tashlang"}</div>
                 <div className="text-xs text-muted mt4" style={{ opacity: .6 }}>.xlsx .xls .csv — bir vaqtda ko'p fayl</div>
               </div>
               {src.files?.map((f, i) => (
                 <div key={i} className="flex aic gap8 mb6" style={{ padding: "6px 10px", background: "var(--s3)", borderRadius: 6, fontSize: 11 }}>
-                  <span>📄 {f.fileName}</span>
+                  <span> {f.fileName}</span>
                   <span className="text-muted ml-auto">{f.data.length} qator</span>
                   {f.sheets.length > 1 && <span className="badge b-ok">{f.sheets.length} varaq</span>}
                 </div>
@@ -3331,7 +3586,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
                       <button key={sheet} className="btn btn-ghost btn-xs"
                         style={(src.activeSheet || src.files?.[0]?.sheets?.[0]) === sheet ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}
                         onClick={() => switchSheet(sheet)}>
-                        📋 {sheet}
+                         {sheet}
                       </button>
                     ))}
                   </div>
@@ -3359,7 +3614,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               <input className="field mb8" placeholder="https://docs.google.com/spreadsheets/d/..." value={src.config?.url || ""} onChange={e => updateConfig("url", e.target.value)} />
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleSheetsFetch} disabled={loading || !src.config?.url}>
-                  {loading ? "⏳ Yuklanmoqda..." : "🔗 Ulash va Yuklash"}
+                  {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
                 </button>
                 {src.connected && src.data?.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={handleSheetsFetch} disabled={loading}>↻ Yangilash</button>
@@ -3367,7 +3622,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               {src.connected && src.spreadsheetName && (
                 <div style={{ fontSize: 11, color: "#60A5FA", marginBottom: 8 }}>
-                  🔗 <strong>{src.spreadsheetName}</strong> ulangan
+                   <strong>{src.spreadsheetName}</strong> ulangan
                   {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
                 </div>
               )}
@@ -3408,7 +3663,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
                 <label className="field-label">Ma'lumot Joyi (ixtiyoriy)</label>
                 <input className="field" placeholder="data.results yoki items — bo'sh qoldirsa root ishlatiladi" value={src.config?.dataPath || ""} onChange={e => updateConfig("dataPath", e.target.value)} />
               </div>
-              <button className="btn btn-primary btn-sm" onClick={handleAPIFetch} disabled={loading}>{loading ? "⏳ So'rov yuborilmoqda..." : "API Ulash"}</button>
+              <button className="btn btn-primary btn-sm" onClick={handleAPIFetch} disabled={loading}>{loading ? " So'rov yuborilmoqda..." : "API Ulash"}</button>
             </div>
           )}
 
@@ -3426,7 +3681,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               <input className="field mb8" type="password" placeholder="IGQVJWZAmN3..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading || !src.config?.token}>
-                  {loading ? "⏳ Yuklanmoqda..." : "📸 Ulash va Yuklash"}
+                  {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
                 </button>
                 {src.connected && src.data?.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={handleInstagramFetch} disabled={loading}>↻ Yangilash</button>
@@ -3434,7 +3689,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               {src.profileName && (
                 <div style={{ fontSize: 11, color: "#E879F9", marginBottom: 8 }}>
-                  📸 <strong>@{src.profileName}</strong> ulangan
+                   <strong>@{src.profileName}</strong> ulangan
                   {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
                 </div>
               )}
@@ -3483,7 +3738,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleTelegramFetch} disabled={loading || !src.config?.token || !src.config?.channelId}>
-                  {loading ? "⏳ Yuklanmoqda..." : "✈️ Ulash va Statistika Olish"}
+                  {loading ? " Yuklanmoqda..." : " Ulash va Statistika Olish"}
                 </button>
                 {src.connected && src.data?.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={handleTelegramFetch} disabled={loading}>↻ Yangilash</button>
@@ -3491,7 +3746,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               {src.profileName && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "#38BDF8", marginBottom: 8, padding: "8px 12px", background: "rgba(56,189,248,0.06)", borderRadius: 8, border: "1px solid rgba(56,189,248,0.15)" }}>
-                  <span style={{ fontSize: 18 }}>✈️</span>
+                  <span style={{ fontSize: 18 }}></span>
                   <div className="f1">
                     <strong>{src.profileName}</strong> ulangan
                     {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
@@ -3552,7 +3807,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleCrmFetch} disabled={loading || !src.config?.crmPhone || !src.config?.crmPassword || !src.config?.crmDomain}>
-                  {loading ? "⏳ Yuklanmoqda..." : "🏢 Ulash va Yuklash"}
+                  {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
                 </button>
                 {src.connected && src.data?.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={handleCrmFetch} disabled={loading}>↻ Yangilash</button>
@@ -3560,7 +3815,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               {src.profileName && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "#8B5CF6", marginBottom: 8, padding: "8px 12px", background: "rgba(139,92,246,0.06)", borderRadius: 8, border: "1px solid rgba(139,92,246,0.15)" }}>
-                  <span style={{ fontSize: 18 }}>🏢</span>
+                  <span style={{ fontSize: 18 }}></span>
                   <div className="f1">
                     <strong>{src.profileName}</strong> ulangan
                     {src.config?.crmUser && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· {src.config.crmUser}</span>}
@@ -3601,6 +3856,153 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               <label className="field-label">JSON Ma'lumot</label>
               <textarea className="field mb8" rows={5} placeholder='[{"sana":"2024-01","savdo":1500,"xarajat":900},...]' value={src.config?.data || ""} onChange={e => updateConfig("data", e.target.value)} />
               <button className="btn btn-primary btn-sm" onClick={handleManual}>Saqlash va Yuklash</button>
+            </div>
+          )}
+
+          {/* DOCUMENT (PDF/Word/TXT) */}
+          {src.type === "document" && (
+            <div>
+              <input ref={docFileRef} type="file" multiple accept=".pdf,.docx,.doc,.txt,.csv,.md,.log,.rtf" style={{display:"none"}}
+                onChange={e=>{ if(e.target.files.length) handleDocumentFiles(Array.from(e.target.files)); e.target.value=""; }} />
+              <div className={`drop-zone ${drag?"drag":""}`}
+                onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
+                onDrop={e=>{e.preventDefault();setDrag(false);handleDocumentFiles(Array.from(e.dataTransfer.files));}}
+                onClick={()=>docFileRef.current?.click()}>
+                <div style={{fontSize:32,marginBottom:8}}>📄</div>
+                <div style={{fontFamily:"var(--fh)",fontSize:13,marginBottom:4}}>Hujjatlarni bu yerga tashlang</div>
+                <div className="text-xs text-muted">PDF, DOCX, TXT, CSV, MD fayllar</div>
+                <div className="text-xs text-muted mt4">AI hujjat mazmunini tahlil qiladi</div>
+              </div>
+              {src.files?.length>0&&(
+                <div className="mt8">
+                  <div className="text-xs text-muted mb4">Yuklangan fayllar:</div>
+                  {src.files.map((f,i)=>(
+                    <div key={i} style={{fontSize:11,padding:"4px 8px",background:"var(--s2)",borderRadius:6,marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+                      <span>📄</span> <span style={{flex:1}}>{f.fileName}</span>
+                      <span className="text-muted">{f.type?.toUpperCase()}</span>
+                      <span className="text-muted">{Math.round((f.size||0)/1024)}KB</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* IMAGE (Rasm tahlili) */}
+          {src.type === "image" && (
+            <div>
+              <input ref={imgFileRef} type="file" multiple accept="image/*" style={{display:"none"}}
+                onChange={e=>{ if(e.target.files.length) handleImageFiles(Array.from(e.target.files)); e.target.value=""; }} />
+              <div className={`drop-zone ${drag?"drag":""}`}
+                onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
+                onDrop={e=>{e.preventDefault();setDrag(false);handleImageFiles(Array.from(e.dataTransfer.files));}}
+                onClick={()=>imgFileRef.current?.click()}>
+                <div style={{fontSize:32,marginBottom:8}}>🖼️</div>
+                <div style={{fontFamily:"var(--fh)",fontSize:13,marginBottom:4}}>Rasmlarni bu yerga tashlang</div>
+                <div className="text-xs text-muted">JPG, PNG, GIF, WebP, SVG</div>
+                <div className="text-xs text-muted mt4">AI rasm mazmunini tavsiflaydi</div>
+              </div>
+              {src.data?.length>0&&(
+                <div className="mt8" style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {src.data.slice(0,6).map((r,i)=>(
+                    <div key={i} style={{width:80,height:80,borderRadius:8,overflow:"hidden",border:"1px solid var(--border)"}}>
+                      {r.rasm_url?<img src={r.rasm_url} alt={r.fayl_nomi} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
+                      <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--s2)",fontSize:9,color:"var(--muted)"}}>{r.fayl_nomi}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 1C BUXGALTERIYA */}
+          {src.type === "onec" && (
+            <div>
+              <label className="field-label">1C Server URL</label>
+              <input className="field mb8" placeholder="http://server:8080/base" value={src.config?.onecUrl||""} onChange={e=>updateConfig("onecUrl",e.target.value)} />
+              <div className="flex gap8 mb8">
+                <div className="f1">
+                  <label className="field-label">Login</label>
+                  <input className="field" placeholder="Administrator" value={src.config?.onecLogin||""} onChange={e=>updateConfig("onecLogin",e.target.value)} />
+                </div>
+                <div className="f1">
+                  <label className="field-label">Parol</label>
+                  <input className="field" type="password" value={src.config?.onecPassword||""} onChange={e=>updateConfig("onecPassword",e.target.value)} />
+                </div>
+              </div>
+              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
+                1C:Enterprise OData API yoqilgan bo'lishi kerak. Sozlamalar → Umumiy → HTTP xizmatlar → OData
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={handle1CFetch} disabled={loading}>
+                {loading?"Yuklanmoqda...":"🏦 1C dan yuklash"}
+              </button>
+            </div>
+          )}
+
+          {/* YANDEX METRIKA */}
+          {src.type === "yandex" && (
+            <div>
+              <div className="flex gap8 mb8">
+                <div className="f1">
+                  <label className="field-label">Counter ID</label>
+                  <input className="field" placeholder="12345678" value={src.config?.ymCounter||""} onChange={e=>updateConfig("ymCounter",e.target.value)} />
+                </div>
+                <div className="f1">
+                  <label className="field-label">OAuth Token</label>
+                  <input className="field" type="password" placeholder="y0_AgA..." value={src.config?.ymToken||""} onChange={e=>updateConfig("ymToken",e.target.value)} />
+                </div>
+              </div>
+              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
+                Token olish: <a href="https://oauth.yandex.com/authorize?response_type=token&client_id=764adcc8e4774061bafdd1e1b1751e82" target="_blank" rel="noreferrer" style={{color:"var(--teal)"}}>Yandex OAuth →</a>
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={handleYandexFetch} disabled={loading}>
+                {loading?"Yuklanmoqda...":"📈 Metrika yuklash"}
+              </button>
+            </div>
+          )}
+
+          {/* SQL DATABASE */}
+          {src.type === "database" && (
+            <div>
+              <div className="flex gap8 mb8">
+                <div className="f1">
+                  <label className="field-label">DB turi</label>
+                  <select className="field" value={src.config?.dbType||"postgresql"} onChange={e=>updateConfig("dbType",e.target.value)}>
+                    <option value="postgresql">PostgreSQL</option>
+                    <option value="mysql">MySQL</option>
+                  </select>
+                </div>
+                <div className="f1">
+                  <label className="field-label">Host</label>
+                  <input className="field" placeholder="localhost" value={src.config?.dbHost||""} onChange={e=>updateConfig("dbHost",e.target.value)} />
+                </div>
+                <div style={{width:80}}>
+                  <label className="field-label">Port</label>
+                  <input className="field" placeholder="5432" value={src.config?.dbPort||""} onChange={e=>updateConfig("dbPort",e.target.value)} />
+                </div>
+              </div>
+              <div className="flex gap8 mb8">
+                <div className="f1">
+                  <label className="field-label">Database</label>
+                  <input className="field" placeholder="mydb" value={src.config?.dbName||""} onChange={e=>updateConfig("dbName",e.target.value)} />
+                </div>
+                <div className="f1">
+                  <label className="field-label">Login</label>
+                  <input className="field" placeholder="user" value={src.config?.dbUser||""} onChange={e=>updateConfig("dbUser",e.target.value)} />
+                </div>
+                <div className="f1">
+                  <label className="field-label">Parol</label>
+                  <input className="field" type="password" value={src.config?.dbPass||""} onChange={e=>updateConfig("dbPass",e.target.value)} />
+                </div>
+              </div>
+              <label className="field-label">SQL Query</label>
+              <textarea className="field mb8" rows={3} placeholder="SELECT * FROM sales ORDER BY date DESC LIMIT 100" value={src.config?.dbQuery||""} onChange={e=>updateConfig("dbQuery",e.target.value)} style={{fontFamily:"var(--fm)",fontSize:12}} />
+              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
+                SQL ulanish backend API orqali ishlaydi. Xavfsizlik uchun to'g'ridan-to'g'ri brauzerdan ulanib bo'lmaydi.
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={handleDatabaseTest} disabled={loading}>
+                {loading?"Ulanmoqda...":"🗄️ Ulanish va yuklash"}
+              </button>
             </div>
           )}
 
@@ -3839,21 +4241,21 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
     if (!workingSource) return [];
     if (workingSource.type === "crm") return [
       { icon: "", text: "O'quv markaz umumiy ko'rsatkichlari: lidlar, guruhlar, o'quvchilar, o'qituvchilar, daromad, maosh", c: "#8B5CF6" },
-      { icon: "💰", text: "Moliyaviy tahlil: daromad, maosh xarajati, foyda foizi, guruh narxlari, top daromadli guruhlar", c: "#4ADE80" },
-      { icon: "🎯", text: "Lidlar pipeline tahlili: qaysi bosqichda nechta lid, kunlik yangi lidlar trendi, konversiya", c: "#F87171" },
-      { icon: "📚", text: "Guruhlar to'liqligi: har bir guruhda nechta o'quvchi, to'la/bo'sh guruhlar, filial bo'yicha", c: "#60A5FA" },
-      { icon: "👨‍🏫", text: "O'qituvchilar yuklama: nechtadan guruh, maosh, samaradorlik, fan bo'yicha taqsimot", c: "#FBBF24" },
-      { icon: "🏫", text: "Filiallar solishtirma: o'quvchi soni, guruh soni, daromad, o'qituvchilar — har bir filial", c: "#A78BFA" },
-      { icon: "👤", text: "O'quvchilar demografi: jinsi, yoshi, fanlar bo'yicha, ko'p guruhli o'quvchilar", c: "#E879F9" },
+      { icon: "", text: "Moliyaviy tahlil: daromad, maosh xarajati, foyda foizi, guruh narxlari, top daromadli guruhlar", c: "#4ADE80" },
+      { icon: "", text: "Lidlar pipeline tahlili: qaysi bosqichda nechta lid, kunlik yangi lidlar trendi, konversiya", c: "#F87171" },
+      { icon: "", text: "Guruhlar to'liqligi: har bir guruhda nechta o'quvchi, to'la/bo'sh guruhlar, filial bo'yicha", c: "#60A5FA" },
+      { icon: "", text: "O'qituvchilar yuklama: nechtadan guruh, maosh, samaradorlik, fan bo'yicha taqsimot", c: "#FBBF24" },
+      { icon: "", text: "Filiallar solishtirma: o'quvchi soni, guruh soni, daromad, o'qituvchilar — har bir filial", c: "#A78BFA" },
+      { icon: "", text: "O'quvchilar demografi: jinsi, yoshi, fanlar bo'yicha, ko'p guruhli o'quvchilar", c: "#E879F9" },
       { icon: "", text: "O'sish tendensiyasi: kunlik yangi lidlar, o'quvchilar qo'shilish dinamikasi", c: "#00C9BE" },
     ];
     return [
       { icon: "", text: "Umumiy statistika va asosiy raqamlar: jami, o'rtacha, min, max ko'rsatkichlar", c: "#00C9BE" },
       { icon: "", text: "Tendensiya va o'zgarish: vaqt bo'yicha trend, o'sish yoki pasayish", c: "#4ADE80" },
-      { icon: "🏆", text: "Top va eng yaxshi ko'rsatkichlar: eng yuqori qiymatlar, reyting", c: "#FBBF24" },
-      { icon: "📉", text: "Solishtirma tahlil: kategoriyalar bo'yicha solishtirish", c: "#60A5FA" },
-      { icon: "💰", text: "Moliyaviy ko'rsatkichlar: daromad, xarajat, foyda, rentabellik", c: "#4ADE80" },
-      { icon: "🎯", text: "KPI va maqsadlar: asosiy ko'rsatkichlar holati", c: "#F87171" },
+      { icon: "", text: "Top va eng yaxshi ko'rsatkichlar: eng yuqori qiymatlar, reyting", c: "#FBBF24" },
+      { icon: "", text: "Solishtirma tahlil: kategoriyalar bo'yicha solishtirish", c: "#60A5FA" },
+      { icon: "", text: "Moliyaviy ko'rsatkichlar: daromad, xarajat, foyda, rentabellik", c: "#4ADE80" },
+      { icon: "", text: "KPI va maqsadlar: asosiy ko'rsatkichlar holati", c: "#F87171" },
     ];
   }, [workingSource?.id, workingSource?.type]);
 
@@ -4015,7 +4417,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
       {!isSpecialSource && workingSource && (
         <div className="card mb14" style={{ border: "1px solid rgba(0,201,190,0.15)", background: "linear-gradient(135deg,var(--s1),rgba(0,201,190,0.02))" }}>
           <div className="flex aic gap10 mb12">
-            <span style={{ fontSize: 22 }}>🤖</span>
+            <span style={{ fontSize: 22 }}></span>
             <div className="f1">
               <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800, color: "var(--text)" }}>AI Grafik Generatori</div>
               <div className="text-muted text-xs">Qanday raqamlar va grafiklar kerakligini yozing — AI hisoblaydi va chiqaradi</div>
@@ -4104,7 +4506,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           ))}
           <button className="btn btn-ghost btn-sm ml-auto" onClick={() => setFilter("table")}
             style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-            ☰ Jadval
+             Jadval
           </button>
         </div>
       )}
@@ -4114,7 +4516,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
         <div className="flex gap6 mb14 aic">
           <button className="btn btn-ghost btn-sm" onClick={() => setFilter("table")}
             style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-            ☰ Jadval ko'rinishi
+             Jadval ko'rinishi
           </button>
         </div>
       )}
@@ -4122,7 +4524,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
       {/* Jadval ko'rinishi */}
       {filter === "table" && tableData.length > 0 && (
         <div className="card">
-          <div className="card-title mb12">☰ Jadval — {workingSource?.name} ({tableData.length} qator)</div>
+          <div className="card-title mb12"> Jadval — {workingSource?.name} ({tableData.length} qator)</div>
           <div className="overflow-x">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
               <thead><tr>{Object.keys(tableData[0] || {}).map(k => <th key={k} style={{ padding: "7px 12px", textAlign: "left", color: "var(--muted)", borderBottom: "1px solid var(--border)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>{k}</th>)}</tr></thead>
@@ -4148,12 +4550,77 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {filter !== "table" && allCards.length === 0 && !aiLoading && (
         <div className="card" style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>{isSpecialSource ? "📭" : "🤖"}</div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}>{isSpecialSource ? "" : ""}</div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>{isSpecialSource ? "Grafiklar uchun data kerak" : "Yuqoridagi so'rovlardan birini tanlang yoki o'zingiz yozing"}</div>
           <div className="text-muted text-sm mt4">{isSpecialSource ? "Data Hub dan manba ulang" : "AI ma'lumotlaringizni tahlil qilib, raqamlar va grafiklar yaratadi"}</div>
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// VOICE INPUT BUTTON (Web Speech API)
+// ─────────────────────────────────────────────────────────────
+function VoiceButton({ onResult }) {
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+
+  const supported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
+
+  const toggle = () => {
+    if (!supported) { alert("Bu brauzer ovozli kiritishni qo'llab-quvvatlamaydi. Chrome yoki Edge ishlatib ko'ring."); return; }
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SpeechRecognition();
+    rec.lang = 'uz-UZ'; // O'zbek tili
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.continuous = false;
+
+    rec.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      if (text) onResult(text);
+      setListening(false);
+    };
+    rec.onerror = (e) => {
+      // Agar uz-UZ ishlamasa — ru-RU bilan qayta urinish
+      if (e.error === 'language-not-supported' || e.error === 'no-speech') {
+        rec.lang = 'ru-RU';
+        rec.start();
+        return;
+      }
+      console.warn('[Voice] Error:', e.error);
+      setListening(false);
+    };
+    rec.onend = () => setListening(false);
+
+    recRef.current = rec;
+    rec.start();
+    setListening(true);
+  };
+
+  if (!supported) return null;
+
+  return (
+    <button
+      className="chat-voice-btn"
+      onClick={toggle}
+      title={listening ? "To'xtatish" : "Ovozli kiritish"}
+      style={{
+        width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        fontSize: 16, transition: 'all .2s',
+        background: listening ? 'rgba(248,113,113,0.2)' : 'var(--s2)',
+        color: listening ? 'var(--red)' : 'var(--muted)',
+        animation: listening ? 'pulse-voice 1.5s ease infinite' : 'none',
+      }}>
+      {listening ? '⏹' : '🎤'}
+    </button>
   );
 }
 
@@ -4215,7 +4682,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
       if (!hasPersonalKey && user) Auth.incrementAI(user.id);
       setMessages(m => { LS.set(chatKey, m.slice(-24)); return m; });
     } catch (e) {
-      setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "❌ Xato: " + e.message }; return c; });
+      setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
     }
     setLoading(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -4282,51 +4749,51 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
   const QUICK_BASE = [
     { icon: "", text: "Umumiy biznes tahlili qil", cat: "tahlil", c: "#00C9BE" },
     { icon: "", text: "Daromad tendensiyasini ko'rsat", cat: "tahlil", c: "#4ADE80" },
-    { icon: "🔍", text: "Eng yaxshi va yomon ko'rsatkichlar", cat: "tahlil", c: "#FBBF24" },
-    { icon: "🎯", text: "SWOT tahlili yoz", cat: "strategiya", c: "#A78BFA" },
+    { icon: "", text: "Eng yaxshi va yomon ko'rsatkichlar", cat: "tahlil", c: "#FBBF24" },
+    { icon: "", text: "SWOT tahlili yoz", cat: "strategiya", c: "#A78BFA" },
     { icon: "", text: "O'sish strategiyasi taklif qil", cat: "strategiya", c: "#60A5FA" },
-    { icon: "💰", text: "Xarajatlarni optimallashtirish", cat: "moliya", c: "#F87171" },
-    { icon: "🔮", text: "3 oylik prognoz ber", cat: "prognoz", c: "#E879F9" },
+    { icon: "", text: "Xarajatlarni optimallashtirish", cat: "moliya", c: "#F87171" },
+    { icon: "", text: "3 oylik prognoz ber", cat: "prognoz", c: "#E879F9" },
     { icon: "", text: "Tezkor xulosa: asosiy raqamlar", cat: "tahlil", c: "#FB923C" },
   ];
   const QUICK_INSTAGRAM = [
-    { icon: "📸", text: "Instagram engagement tahlili", cat: "instagram", c: "#E879F9" },
-    { icon: "❤️", text: "Qaysi postlar eng ko'p like olgan?", cat: "instagram", c: "#F87171" },
+    { icon: "", text: "Instagram engagement tahlili", cat: "instagram", c: "#E879F9" },
+    { icon: "", text: "Qaysi postlar eng ko'p like olgan?", cat: "instagram", c: "#F87171" },
     { icon: "", text: "Izohlar tahlili — auditoriya qiziqishi", cat: "instagram", c: "#FBBF24" },
-    { icon: "📅", text: "Qaysi kunlarda post eng yaxshi ishlaydi?", cat: "instagram", c: "#4ADE80" },
-    { icon: "🎬", text: "Video vs Rasm — qaysi biri samaraliroq?", cat: "instagram", c: "#60A5FA" },
+    { icon: "", text: "Qaysi kunlarda post eng yaxshi ishlaydi?", cat: "instagram", c: "#4ADE80" },
+    { icon: "", text: "Video vs Rasm — qaysi biri samaraliroq?", cat: "instagram", c: "#60A5FA" },
     { icon: "", text: "Haftalik engagement dinamikasi", cat: "instagram", c: "#00C9BE" },
-    { icon: "🏆", text: "Top 5 eng yaxshi post va sabablari", cat: "instagram", c: "#FB923C" },
+    { icon: "", text: "Top 5 eng yaxshi post va sabablari", cat: "instagram", c: "#FB923C" },
     { icon: "", text: "Auditoriya o'sish tezligini baholash", cat: "instagram", c: "#A78BFA" },
     { icon: "", text: "Kontent strategiyasi tavsiyalari", cat: "strategiya", c: "#EC4899" },
-    { icon: "⏰", text: "Eng yaxshi post vaqtini aniqlash", cat: "instagram", c: "#38BDF8" },
+    { icon: "", text: "Eng yaxshi post vaqtini aniqlash", cat: "instagram", c: "#38BDF8" },
   ];
   const QUICK_TELEGRAM = [
-    { icon: "✈️", text: "Telegram kanal statistikasini tahlil qil", cat: "telegram", c: "#38BDF8" },
+    { icon: "", text: "Telegram kanal statistikasini tahlil qil", cat: "telegram", c: "#38BDF8" },
     { icon: "", text: "Obunachilar o'sishi va dinamikasi", cat: "telegram", c: "#E879F9" },
-    { icon: "👁", text: "Qaysi postlar eng ko'p ko'rilgan?", cat: "telegram", c: "#4ADE80" },
-    { icon: "🕐", text: "Qaysi soatlarda post chiqarish samarali?", cat: "telegram", c: "#FBBF24" },
-    { icon: "🔄", text: "Eng ko'p ulashilgan postlar tahlili", cat: "telegram", c: "#F87171" },
+    { icon: "", text: "Qaysi postlar eng ko'p ko'rilgan?", cat: "telegram", c: "#4ADE80" },
+    { icon: "", text: "Qaysi soatlarda post chiqarish samarali?", cat: "telegram", c: "#FBBF24" },
+    { icon: "", text: "Eng ko'p ulashilgan postlar tahlili", cat: "telegram", c: "#F87171" },
     { icon: "", text: "Kanal engagement rate va tavsiyalar", cat: "telegram", c: "#00C9BE" },
   ];
   const QUICK_DATA = [
-    { icon: "📋", text: "Ma'lumotlar sifatini tekshir", cat: "tahlil", c: "#00C9BE" },
+    { icon: "", text: "Ma'lumotlar sifatini tekshir", cat: "tahlil", c: "#00C9BE" },
     { icon: "", text: "Ustunlar bo'yicha statistika", cat: "tahlil", c: "#4ADE80" },
-    { icon: "🔗", text: "Korrelyatsiyalarni topib ber", cat: "tahlil", c: "#A78BFA" },
-    { icon: "📉", text: "Anomaliyalar va og'ishlarni aniqla", cat: "tahlil", c: "#F87171" },
-    { icon: "📑", text: "Ma'lumot bo'yicha hisobot yoz", cat: "hisobot", c: "#FBBF24" },
-    { icon: "🎯", text: "KPI ko'rsatkichlarini hisoblash", cat: "tahlil", c: "#60A5FA" },
+    { icon: "", text: "Korrelyatsiyalarni topib ber", cat: "tahlil", c: "#A78BFA" },
+    { icon: "", text: "Anomaliyalar va og'ishlarni aniqla", cat: "tahlil", c: "#F87171" },
+    { icon: "", text: "Ma'lumot bo'yicha hisobot yoz", cat: "hisobot", c: "#FBBF24" },
+    { icon: "", text: "KPI ko'rsatkichlarini hisoblash", cat: "tahlil", c: "#60A5FA" },
   ];
   const QUICK_CRM = [
-    { icon: "🏢", text: "CRM umumiy tahlili — lidlar, guruhlar, o'quvchilar", cat: "crm", c: "#8B5CF6" },
-    { icon: "🎯", text: "Lidlar konversiyasi va pipeline tahlili", cat: "crm", c: "#F87171" },
-    { icon: "📚", text: "Qaysi guruhlar eng ko'p o'quvchiga ega?", cat: "crm", c: "#4ADE80" },
-    { icon: "👨‍🏫", text: "O'qituvchilar yuklamasi va samaradorligi", cat: "crm", c: "#FBBF24" },
-    { icon: "🏫", text: "Filiallar bo'yicha solishtirma tahlil", cat: "crm", c: "#60A5FA" },
-    { icon: "💰", text: "Daromad va maosh nisbati — foyda tahlili", cat: "crm", c: "#4ADE80" },
+    { icon: "", text: "CRM umumiy tahlili — lidlar, guruhlar, o'quvchilar", cat: "crm", c: "#8B5CF6" },
+    { icon: "", text: "Lidlar konversiyasi va pipeline tahlili", cat: "crm", c: "#F87171" },
+    { icon: "", text: "Qaysi guruhlar eng ko'p o'quvchiga ega?", cat: "crm", c: "#4ADE80" },
+    { icon: "", text: "O'qituvchilar yuklamasi va samaradorligi", cat: "crm", c: "#FBBF24" },
+    { icon: "", text: "Filiallar bo'yicha solishtirma tahlil", cat: "crm", c: "#60A5FA" },
+    { icon: "", text: "Daromad va maosh nisbati — foyda tahlili", cat: "crm", c: "#4ADE80" },
     { icon: "", text: "O'quvchilar o'sish tendensiyasi", cat: "crm", c: "#00C9BE" },
-    { icon: "📖", text: "Qaysi fanlar eng mashhur?", cat: "crm", c: "#A78BFA" },
-    { icon: "👤", text: "O'quvchilar demografi tahlili (jins, yosh)", cat: "crm", c: "#E879F9" },
+    { icon: "", text: "Qaysi fanlar eng mashhur?", cat: "crm", c: "#A78BFA" },
+    { icon: "", text: "O'quvchilar demografi tahlili (jins, yosh)", cat: "crm", c: "#E879F9" },
     { icon: "", text: "CRM samaradorlik hisoboti yoz", cat: "crm", c: "#FB923C" },
   ];
 
@@ -4360,11 +4827,11 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
         {!aiConfig.apiKey && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
         {aiConfig.apiKey && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
         <div style={{ marginLeft: aiConfig.apiKey ? "8px" : "auto", display: "flex", gap: 4 }}>
-          <button className="chat-export-btn" onClick={copyChat} title="Nusxalash">📋 Nusxa</button>
-          <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish">💾 Yukla</button>
-          <button className="chat-export-btn" onClick={shareChat} title="Ulashish">📤 Ulash</button>
+          <button className="chat-export-btn" onClick={copyChat} title="Nusxalash"> Nusxa</button>
+          <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish"> Yukla</button>
+          <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
-        <button className="btn btn-ghost btn-xs" onClick={() => { setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi." }]); LS.del(chatKey); }} title="Tozalash">🗑</button>
+        <button className="btn btn-ghost btn-xs" onClick={() => { setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi." }]); LS.del(chatKey); }} title="Tozalash"></button>
       </div>
 
       {/* ── Manbalar tanlash ── */}
@@ -4403,7 +4870,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
                 <span className="bubble-meta">{m.role === "user" ? "Siz" : `${prov.name} AI`}</span>
                 {m.role === "user" && m.srcNames?.length > 0 && (
                   <div className="flex gap4 mb6" style={{ flexWrap: "wrap" }}>
-                    {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}>📌 {n}</span>)}
+                    {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
                   </div>
                 )}
                 <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
@@ -4438,11 +4905,12 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
 
       {/* ── Input ── */}
       <div className="chat-input-row">
-        <textarea className="chat-ta" rows={1} placeholder="Savolingizni yozing..." value={input}
+        <textarea className="chat-ta" rows={1} placeholder="Savolingizni yozing yoki 🎤 bosing..." value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }} />
+        <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
         <button className="chat-send-btn" onClick={() => sendMsg()} disabled={loading || !input.trim()}>
-          {loading ? <span className="typing-ind" style={{ justifyContent: "center", gap: 3 }}><span /><span /><span /></span> : "↗"}
+          {loading ? <span className="typing-ind" style={{ justifyContent: "center", gap: 3 }}><span /><span /><span /></span> : "➤"}
         </button>
       </div>
     </div>
@@ -4481,7 +4949,7 @@ function AnalyticsPage({ aiConfig, sources }) {
       await callAI([{ role: "user", content: enrichedPrompt }], aiConfig, setResult);
       if (!isPersonal) { const sess = Auth.getSession(); if (sess) Auth.incrementAI(sess.id); }
     }
-    catch (e) { setResult("❌ Xato: " + e.message); }
+    catch (e) { setResult(" Xato: " + e.message); }
     setLoading(false);
   };
 
@@ -4492,35 +4960,35 @@ function AnalyticsPage({ aiConfig, sources }) {
   const BASE_MODS = [
     { l: " Savdo Tahlili", p: "Savdo ko'rsatkichlarini tahlil qil. Daromad tendensiyasi, o'sish imkoniyatlari, zaif tomonlar. Jadval formatida ko'rsat.", cat: "biznes", color: "#4ADE80", icon: "" },
     { l: " Mijozlar Tahlili", p: "Mijozlar bazasini tahlil qil. Segmentatsiya, LTV, churn risk, takroriy xaridlar.", cat: "biznes", color: "#60A5FA", icon: "" },
-    { l: "💰 Xarajatlar Tahlili", p: "Xarajatlar tuzilmasini tahlil qil. Tejash imkoniyatlari, ROI, byudjet tavsiyalari.", cat: "moliya", color: "#FB923C", icon: "💰" },
-    { l: "🧑‍💼 Xodimlar KPI", p: "Xodimlar unumdorligi va KPI tahlili. Eng samarali va muammoli tomonlar.", cat: "biznes", color: "#A78BFA", icon: "🧑‍💼" },
-    { l: "🎯 SWOT Tahlil", p: "To'liq SWOT tahlili yoz: kuchli tomonlar, zaif tomonlar, imkoniyatlar, xatarlar. Har birini 3-5 ta band bilan.", cat: "strategiya", color: "#E879F9", icon: "🎯" },
-    { l: "🔮 3 Oy Prognoz", p: "Mavjud trend asosida keyingi 3 oy uchun bashorat yoz. Aniq raqamlar bilan. Eng yaxshi va eng yomon senariylar.", cat: "prognoz", color: "#38BDF8", icon: "🔮" },
+    { l: " Xarajatlar Tahlili", p: "Xarajatlar tuzilmasini tahlil qil. Tejash imkoniyatlari, ROI, byudjet tavsiyalari.", cat: "moliya", color: "#FB923C", icon: "" },
+    { l: " Xodimlar KPI", p: "Xodimlar unumdorligi va KPI tahlili. Eng samarali va muammoli tomonlar.", cat: "biznes", color: "#A78BFA", icon: "" },
+    { l: " SWOT Tahlil", p: "To'liq SWOT tahlili yoz: kuchli tomonlar, zaif tomonlar, imkoniyatlar, xatarlar. Har birini 3-5 ta band bilan.", cat: "strategiya", color: "#E879F9", icon: "" },
+    { l: " 3 Oy Prognoz", p: "Mavjud trend asosida keyingi 3 oy uchun bashorat yoz. Aniq raqamlar bilan. Eng yaxshi va eng yomon senariylar.", cat: "prognoz", color: "#38BDF8", icon: "" },
     { l: " KPI Dashboard", p: "Asosiy KPI ko'rsatkichlarini aniqlash va jadval formatida chiqarish. Har bir KPI uchun hozirgi holat, maqsad, farq.", cat: "biznes", color: "#00C9BE", icon: "" },
     { l: " Tezkor Xulosa", p: "Ma'lumotlarning eng muhim 5-7 ta xulosasini ber. Qisqa, aniq, raqamlarga asoslangan.", cat: "tezkor", color: "#FBBF24", icon: "" },
   ];
 
   const IG_MODS = [
-    { l: "📸 Instagram Tahlil", p: "Instagram akkaunt tahlili: engagement rate, eng yaxshi postlar, auditoriya faolligi, kontent strategiyasi tavsiyalari.", cat: "instagram", color: "#E879F9", icon: "📸" },
-    { l: "❤️ Engagement Tahlil", p: "Har bir post uchun engagement rate hisoblash. Qaysi turdagi postlar (rasm, video, karusel) eng yaxshi ishlaydi? Jadval bilan.", cat: "instagram", color: "#F87171", icon: "❤️" },
-    { l: "📅 Post Vaqti Tahlil", p: "Qaysi kunlar va soatlarda postlar eng ko'p like/izoh oladi? Optimal post qilish jadvalini tavsiya qil.", cat: "instagram", color: "#4ADE80", icon: "📅" },
+    { l: " Instagram Tahlil", p: "Instagram akkaunt tahlili: engagement rate, eng yaxshi postlar, auditoriya faolligi, kontent strategiyasi tavsiyalari.", cat: "instagram", color: "#E879F9", icon: "" },
+    { l: " Engagement Tahlil", p: "Har bir post uchun engagement rate hisoblash. Qaysi turdagi postlar (rasm, video, karusel) eng yaxshi ishlaydi? Jadval bilan.", cat: "instagram", color: "#F87171", icon: "" },
+    { l: " Post Vaqti Tahlil", p: "Qaysi kunlar va soatlarda postlar eng ko'p like/izoh oladi? Optimal post qilish jadvalini tavsiya qil.", cat: "instagram", color: "#4ADE80", icon: "" },
     { l: " Kontent Strategiya", p: "Kontent turlarini tahlil qil. Qaysi mavzular va formatlar ishlaydi? 30 kunlik kontent kalendar taklif qil.", cat: "instagram", color: "#EC4899", icon: "" },
-    { l: "🏆 Raqobatchilar", p: "Shu sohada raqobatchilar tahlili uchun tavsiyalar. Nima qilish kerak o'sish uchun?", cat: "instagram", color: "#FB923C", icon: "🏆" },
+    { l: " Raqobatchilar", p: "Shu sohada raqobatchilar tahlili uchun tavsiyalar. Nima qilish kerak o'sish uchun?", cat: "instagram", color: "#FB923C", icon: "" },
   ];
 
   const TG_MODS = [
-    { l: "✈️ Kanal Tahlili", p: "Telegram kanal statistikasini tahlil qil: obunachilar, ko'rishlar, engagement rate, o'sish tendensiyasi. Qaysi kontent turi samaraliroq?", cat: "telegram", color: "#38BDF8", icon: "✈️" },
-    { l: "👁 Post Samaradorligi", p: "Kanal postlarini tahlil qil: qaysi postlar eng ko'p ko'rilgan va ulashilgan? Kontent turlari bo'yicha solishtir (matn/rasm/video). Optimal post uzunligi va chiqarish vaqtini aniqlash.", cat: "telegram", color: "#4ADE80", icon: "👁" },
+    { l: " Kanal Tahlili", p: "Telegram kanal statistikasini tahlil qil: obunachilar, ko'rishlar, engagement rate, o'sish tendensiyasi. Qaysi kontent turi samaraliroq?", cat: "telegram", color: "#38BDF8", icon: "" },
+    { l: " Post Samaradorligi", p: "Kanal postlarini tahlil qil: qaysi postlar eng ko'p ko'rilgan va ulashilgan? Kontent turlari bo'yicha solishtir (matn/rasm/video). Optimal post uzunligi va chiqarish vaqtini aniqlash.", cat: "telegram", color: "#4ADE80", icon: "" },
     { l: " Auditoriya Tahlili", p: "Telegram kanal auditoriyasi tahlili: obunachilar o'sishi, engagement rate trendi, ko'rish/obunachi nisbati. Auditoriyani ushlab turish strategiyalari.", cat: "telegram", color: "#E879F9", icon: "" },
   ];
 
   const CRM_MODS = [
-    { l: "🏢 CRM Umumiy Tahlil", p: "O'quv markaz CRM ma'lumotlarini har tomonlama tahlil qil: lidlar konversiyasi, guruhlar to'liqligi, o'quvchilar soni, o'qituvchilar samaradorligi. Filiallar bo'yicha solishtir. Raqamlar va foizlar bilan.", cat: "crm", color: "#8B5CF6", icon: "🏢" },
-    { l: "🎯 Lidlar Pipeline", p: "CRM dagi lidlar tahlili: qaysi bosqichda ko'p lid to'xtab qolmoqda, konversiya foizi qanday, qaysi manbalar eng ko'p lid keltirmoqda. Lidlarni guruhga aylantirish strategiyasi.", cat: "crm", color: "#F87171", icon: "🎯" },
-    { l: "📚 Guruhlar Tahlili", p: "Guruhlar to'liqligini tahlil qil: qaysi guruhlar to'la, qaysilari bo'sh. Narx strategiyasi, optimal guruh hajmi. Qaysi fan va filialda eng ko'p talab bor?", cat: "crm", color: "#4ADE80", icon: "📚" },
-    { l: "👨‍🏫 O'qituvchilar KPI", p: "O'qituvchilar samaradorligi: guruhlar soni, o'quvchilar soni, maosh/o'quvchi nisbati. Eng samarali va kam yukli o'qituvchilarni aniqlash. Maosh optimizatsiya tavsiyalari.", cat: "crm", color: "#FBBF24", icon: "👨‍🏫" },
-    { l: "💰 Moliyaviy Tahlil", p: "O'quv markaz moliyaviy tahlili: umumiy daromad, maosh xarajatlari, foyda foizi. Filiallar bo'yicha rentabellik. Narx optimizatsiya tavsiyalari.", cat: "crm", color: "#4ADE80", icon: "💰" },
-    { l: "🏫 Filiallar Solishtirma", p: "Filiallar bo'yicha batafsil solishtirma tahlil: o'quvchilar soni, guruhlar, o'qituvchilar, daromad. Eng yaxshi va yomon filiallarni aniqlash.", cat: "crm", color: "#60A5FA", icon: "🏫" },
+    { l: " CRM Umumiy Tahlil", p: "O'quv markaz CRM ma'lumotlarini har tomonlama tahlil qil: lidlar konversiyasi, guruhlar to'liqligi, o'quvchilar soni, o'qituvchilar samaradorligi. Filiallar bo'yicha solishtir. Raqamlar va foizlar bilan.", cat: "crm", color: "#8B5CF6", icon: "" },
+    { l: " Lidlar Pipeline", p: "CRM dagi lidlar tahlili: qaysi bosqichda ko'p lid to'xtab qolmoqda, konversiya foizi qanday, qaysi manbalar eng ko'p lid keltirmoqda. Lidlarni guruhga aylantirish strategiyasi.", cat: "crm", color: "#F87171", icon: "" },
+    { l: " Guruhlar Tahlili", p: "Guruhlar to'liqligini tahlil qil: qaysi guruhlar to'la, qaysilari bo'sh. Narx strategiyasi, optimal guruh hajmi. Qaysi fan va filialda eng ko'p talab bor?", cat: "crm", color: "#4ADE80", icon: "" },
+    { l: " O'qituvchilar KPI", p: "O'qituvchilar samaradorligi: guruhlar soni, o'quvchilar soni, maosh/o'quvchi nisbati. Eng samarali va kam yukli o'qituvchilarni aniqlash. Maosh optimizatsiya tavsiyalari.", cat: "crm", color: "#FBBF24", icon: "" },
+    { l: " Moliyaviy Tahlil", p: "O'quv markaz moliyaviy tahlili: umumiy daromad, maosh xarajatlari, foyda foizi. Filiallar bo'yicha rentabellik. Narx optimizatsiya tavsiyalari.", cat: "crm", color: "#4ADE80", icon: "" },
+    { l: " Filiallar Solishtirma", p: "Filiallar bo'yicha batafsil solishtirma tahlil: o'quvchilar soni, guruhlar, o'qituvchilar, daromad. Eng yaxshi va yomon filiallarni aniqlash.", cat: "crm", color: "#60A5FA", icon: "" },
   ];
 
   const hasCRM = connectedSources.some(s => s.type === "crm");
@@ -4552,10 +5020,10 @@ function AnalyticsPage({ aiConfig, sources }) {
       {/* ── Tab tanlash: Tahlil / Chartlar ── */}
       <div className="flex gap8 mb16 aic">
         <button className={`btn ${anaTab === "tahlil" ? "btn-primary" : "btn-ghost"}`} onClick={() => setAnaTab("tahlil")}>
-          🧠 AI Tahlil Modullari
+           AI Tahlil Modullari
         </button>
         <button className={`btn ${anaTab === "chartlar" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAnaTab("chartlar")}>
-          Vizual Tahlil (Grafiklar)
+           Vizual Tahlil (Grafiklar)
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba ulangan</span>
@@ -4568,16 +5036,16 @@ function AnalyticsPage({ aiConfig, sources }) {
       {anaTab === "tahlil" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — tahlil shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}></span><div><b>Data Hub</b> dan manba ulang — tahlil shu ma'lumotlar asosida ishlaydi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(255,209,102,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
+          <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
 
         {/* Ulangan manbalar xulosa */}
         {connectedSources.length > 0 && (
           <div className="card" style={{ marginBottom: 14, background: "var(--s1)" }}>
-            <div className="card-title mb10">📌 Ulangan Manbalar</div>
+            <div className="card-title mb10"> Ulangan Manbalar</div>
             <div className="flex gap8 flex-wrap">
               {connectedSources.map(s => {
                 const st = SOURCE_TYPES[s.type];
@@ -4651,13 +5119,13 @@ function AnalyticsPage({ aiConfig, sources }) {
                 <div className="flex gap4">
                   <button className="chat-export-btn" title="Nusxalash" onClick={async () => {
                     try { await navigator.clipboard.writeText(result); alert("Nusxalandi!"); } catch { alert("Nusxalab bo'lmadi"); }
-                  }}>📋 Nusxa</button>
+                  }}> Nusxa</button>
                   <button className="chat-export-btn" title="Yuklab olish" onClick={() => {
                     const blob = new Blob([`${activeLabel}\n${"═".repeat(40)}\n\n${result}`], { type: "text/plain;charset=utf-8" });
                     const url = URL.createObjectURL(blob); const a = document.createElement("a");
                     a.href = url; a.download = `BiznesAI_${activeLabel.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
                     a.click(); URL.revokeObjectURL(url);
-                  }}>💾 Yukla</button>
+                  }}> Yukla</button>
                 </div>
               </div>
               <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.85, color: "var(--text)" }}>{result}</div>
@@ -4841,7 +5309,7 @@ function ReportsPage({ aiConfig, sources, user }) {
   // ── Hisobot modullari ──
   const BASE_TYPES = [
     {
-      icon: "📅", l: "Kundalik Hisobot", d: "Bugungi ko'rsatkichlar, muammolar va tavsiyalar", cat: "davr", color: "#4ADE80",
+      icon: "", l: "Kundalik Hisobot", d: "Bugungi ko'rsatkichlar, muammolar va tavsiyalar", cat: "davr", color: "#4ADE80",
       fn: d => `Bugun ${d} uchun kundalik biznes hisobot yoz. Bo'limlar: 1) Bugungi asosiy ko'rsatkichlar (jadval) 2) Muammolar va xatarlar 3) Imkoniyatlar 4) Ertangi kun uchun aniq tavsiyalar. Har bo'limni raqamla.`
     },
     {
@@ -4853,19 +5321,19 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: () => "Oylik moliyaviy va operatsion hisobot yoz. Bo'limlar: 1) Moliyaviy natijalar (jadval) 2) Mijozlar ko'rsatkichlari 3) Jamoaviy unumdorlik 4) Oy maqsadlari bajarilishi (%) 5) Keyingi oy strategiyasi va KPI maqsadlari."
     },
     {
-      icon: "📑", l: "Choraklik Hisobot", d: "3 oylik natijalar va yo'nalish", cat: "davr", color: "#E879F9",
+      icon: "", l: "Choraklik Hisobot", d: "3 oylik natijalar va yo'nalish", cat: "davr", color: "#E879F9",
       fn: () => "Choraklik (3 oylik) hisobot yoz. Bo'limlar: 1) Chorak davomidagi umumiy natijalar 2) Eng muhim yutuqlar va muvaffaqiyatsizliklar 3) KPI jadval (maqsad vs haqiqiy) 4) Keyingi chorak strategiyasi."
     },
     {
-      icon: "️", l: "Xavf va Risk Tahlili", d: "Xatarlar, ehtimollik va oldini olish", cat: "tahlil", color: "#F87171",
+      icon: "", l: "Xavf va Risk Tahlili", d: "Xatarlar, ehtimollik va oldini olish", cat: "tahlil", color: "#F87171",
       fn: () => "Biznes xatarlari va risk tahlili. Har xatar uchun jadval: Xatar nomi | Ehtimolligi (1-10) | Ta'sir darajasi (1-10) | Risk balli | Oldini olish chorasi | Mas'ul shaxs. Kamida 8 ta xatarni ko'rsat."
     },
     {
-      icon: "🎯", l: "Imkoniyat va O'sish", d: "Yangi yo'nalishlar va daromad imkoniyatlari", cat: "tahlil", color: "#00C9BE",
+      icon: "", l: "Imkoniyat va O'sish", d: "Yangi yo'nalishlar va daromad imkoniyatlari", cat: "tahlil", color: "#00C9BE",
       fn: () => "Biznes imkoniyatlari va o'sish yo'nalishlari. Har imkoniyat uchun: Tavsif, Potensial daromad ($), Amalga oshirish muddati, Zarur investitsiya, ROI bashorat (%), Ustuvorlik darajasi (Yuqori/O'rta/Past)."
     },
     {
-      icon: "💰", l: "Moliyaviy Tahlil", d: "Daromad, xarajat, foyda tuzilmasi", cat: "moliya", color: "#FB923C",
+      icon: "", l: "Moliyaviy Tahlil", d: "Daromad, xarajat, foyda tuzilmasi", cat: "moliya", color: "#FB923C",
       fn: () => "To'liq moliyaviy tahlil hisoboti. Bo'limlar: 1) Daromad tuzilmasi (jadval) 2) Xarajatlar taqsimoti 3) Foyda marginlari 4) Cash flow bashorat 5) Tejash imkoniyatlari (aniq summa bilan) 6) Investitsiya tavsiyalari."
     },
     {
@@ -4873,7 +5341,7 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: () => "Mijozlar tahlili hisoboti. Bo'limlar: 1) Mijozlar segmentatsiyasi (jadval) 2) Har segment uchun LTV 3) Retention rate 4) Churn risk 5) Eng qimmatli mijozlar profili 6) Mijoz jalb qilish strategiyasi."
     },
     {
-      icon: "🏢", l: "Raqobat Tahlili", d: "Bozor holati va raqobatchilar", cat: "strategiya", color: "#EC4899",
+      icon: "", l: "Raqobat Tahlili", d: "Bozor holati va raqobatchilar", cat: "strategiya", color: "#EC4899",
       fn: () => "Raqobat tahlili hisoboti. Bo'limlar: 1) Bozor umumiy holati 2) Asosiy raqobatchilar va ularning kuchli/zaif tomonlari (jadval) 3) Bizning ustunliklarimiz 4) Bozor ulushi bashorat 5) Raqobat strategiyasi."
     },
     {
@@ -4884,18 +5352,18 @@ function ReportsPage({ aiConfig, sources, user }) {
 
   const IG_TYPES = [
     {
-      icon: "📸", l: "Instagram Hisobot", d: "Profil, engagement va kontent tahlili", cat: "instagram", color: "#E879F9",
+      icon: "", l: "Instagram Hisobot", d: "Profil, engagement va kontent tahlili", cat: "instagram", color: "#E879F9",
       fn: () => "Instagram akkaunt uchun to'liq hisobot. Bo'limlar: 1) Profil statistikasi (jadval) 2) Engagement rate va trend 3) Kontent turlari samaradorligi 4) Eng yaxshi/yomon postlar tahlili 5) Auditoriya xulq-atvori 6) 30 kunlik kontent reja."
     },
     {
-      icon: "📱", l: "Instagram Kontent Reja", d: "30 kunlik kontent kalendar", cat: "instagram", color: "#EC4899",
+      icon: "", l: "Instagram Kontent Reja", d: "30 kunlik kontent kalendar", cat: "instagram", color: "#EC4899",
       fn: () => "Instagram uchun 30 kunlik kontent kalendar yarat. Jadval formatida: Sana | Kontent turi (Rasm/Video/Karusel/Reels) | Mavzu | Caption g'oyasi | Hashteglar | Post vaqti. Haftada kamida 4-5 ta post."
     },
   ];
 
   const TG_TYPES = [
     {
-      icon: "✈️", l: "Telegram Kanal Hisobot", d: "Kanal statistikasi, postlar samaradorligi, auditoriya tahlili", cat: "telegram", color: "#38BDF8",
+      icon: "", l: "Telegram Kanal Hisobot", d: "Kanal statistikasi, postlar samaradorligi, auditoriya tahlili", cat: "telegram", color: "#38BDF8",
       fn: () => "Telegram kanal uchun to'liq hisobot. Bo'limlar: 1) Kanal statistikasi — obunachilar, postlar, ko'rishlar (jadval) 2) Post samaradorligi — eng ko'p ko'rilgan va ulashilgan postlar 3) Kontent tahlili — qaysi tur (matn/rasm/video) samaraliroq 4) Optimal post vaqti — qaysi soat va kunlarda chiqarish yaxshi 5) Engagement tahlili — ko'rish/obunachi nisbati 6) Kanal rivojlantirish tavsiyalari."
     },
   ];
@@ -4925,13 +5393,13 @@ function ReportsPage({ aiConfig, sources, user }) {
       {/* ── Tab tanlash ── */}
       <div className="flex gap8 mb16 aic flex-wrap">
         <button className={`btn ${repTab === "hisobotlar" ? "btn-primary" : "btn-ghost"}`} onClick={() => setRepTab("hisobotlar")}>
-          📄 Hisobot Yaratish
+           Hisobot Yaratish
         </button>
         <button className={`btn ${repTab === "tarix" ? "btn-teal" : "btn-ghost"}`} onClick={() => setRepTab("tarix")}>
-          📋 Tarix ({savedReports.length})
+           Tarix ({savedReports.length})
         </button>
         <button className={`btn ${repTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setRepTab("vizual")}>
-          Vizual Grafiklar
+           Vizual Grafiklar
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba</span>
@@ -4944,10 +5412,10 @@ function ReportsPage({ aiConfig, sources, user }) {
       {repTab === "hisobotlar" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — hisobotlar shu ma'lumotlar asosida yaratiladi</div>
+          <span style={{ fontSize: 18 }}></span><div><b>Data Hub</b> dan manba ulang — hisobotlar shu ma'lumotlar asosida yaratiladi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(255,209,102,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
+          <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
 
         {/* Ulangan manbalar info */}
@@ -5024,17 +5492,17 @@ function ReportsPage({ aiConfig, sources, user }) {
             <div className="card" style={{ borderColor: `${activeMod?.color || prov.color}20`, marginBottom: 14 }}>
               <div className="flex aic jb mb12" style={{ flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 20 }}>{activeMod?.icon || "📄"}</span>
+                  <span style={{ fontSize: 20 }}>{activeMod?.icon || ""}</span>
                   <div>
                     <div className="card-title" style={{ marginBottom: 0 }}>{label}</div>
                     <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{new Date().toLocaleDateString("uz-UZ")} | {prov.name}</div>
                   </div>
                 </div>
                 <div className="flex gap4 flex-wrap">
-                  <button className="chat-export-btn" onClick={() => copyText()} title="Nusxalash">📋 Nusxa</button>
+                  <button className="chat-export-btn" onClick={() => copyText()} title="Nusxalash"> Nusxa</button>
                   <button className="chat-export-btn" onClick={() => exportTXT()} title="TXT yuklab olish"> TXT</button>
                   <button className="chat-export-btn" onClick={() => exportExcel()} title="Excel yuklab olish" style={{ borderColor: "rgba(0,201,190,0.3)", color: "var(--teal)" }}> Excel</button>
-                  <button className="chat-export-btn" onClick={() => exportPDF()} title="PDF chop etish" style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}>🖨 PDF</button>
+                  <button className="chat-export-btn" onClick={() => exportPDF()} title="PDF chop etish" style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}> PDF</button>
                   <button className="chat-export-btn" onClick={() => setReport("")} title="Yopish">✕</button>
                 </div>
               </div>
@@ -5063,7 +5531,7 @@ function ReportsPage({ aiConfig, sources, user }) {
         <div className="section-hd mb10">Saqlangan Hisobotlar</div>
         {savedReports.length === 0 && (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 14 }}>📋</div>
+            <div style={{ fontSize: 40, marginBottom: 14 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Hali hisobot yaratilmagan</div>
             <div className="text-muted text-sm">"Hisobot Yaratish" tabiga o'ting va birinchi hisobotni yarating</div>
           </div>
@@ -5073,9 +5541,9 @@ function ReportsPage({ aiConfig, sources, user }) {
             {/* Statistika */}
             <div className="g3 mb16">
               {[
-                { l: "Jami Hisobotlar", v: savedReports.length, c: "var(--teal)", i: "📄" },
-                { l: "So'nggi Sana", v: savedReports[0]?.date || "—", c: "var(--gold)", i: "📅" },
-                { l: "Turlar", v: [...new Set(savedReports.map(r => r.cat))].length, c: "var(--purple)", i: "📁" },
+                { l: "Jami Hisobotlar", v: savedReports.length, c: "var(--teal)", i: "" },
+                { l: "So'nggi Sana", v: savedReports[0]?.date || "—", c: "var(--gold)", i: "" },
+                { l: "Turlar", v: [...new Set(savedReports.map(r => r.cat))].length, c: "var(--purple)", i: "" },
               ].map((s, i) => (
                 <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
                   <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${s.c}80,transparent)` }} />
@@ -5089,7 +5557,7 @@ function ReportsPage({ aiConfig, sources, user }) {
             {/* Hisobotlar ro'yxati */}
             {savedReports.map((r, i) => (
               <div key={r.id || i} className="report-row" style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 22, flexShrink: 0 }}>{r.icon || "📄"}</div>
+                <div style={{ fontSize: 22, flexShrink: 0 }}>{r.icon || ""}</div>
                 <div className="f1" style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 600 }}>{r.label}</div>
                   <div className="flex gap8 mt4 aic">
@@ -5099,15 +5567,15 @@ function ReportsPage({ aiConfig, sources, user }) {
                   </div>
                 </div>
                 <div className="flex gap4" style={{ flexShrink: 0 }}>
-                  <button className="chat-export-btn" onClick={() => { setReport(r.text); setLabel(r.label); setRepTab("hisobotlar"); }} title="Ko'rish">👁 Ko'rish</button>
+                  <button className="chat-export-btn" onClick={() => { setReport(r.text); setLabel(r.label); setRepTab("hisobotlar"); }} title="Ko'rish"> Ko'rish</button>
                   <button className="chat-export-btn" onClick={() => exportTXT(r.text, r.label)} title="TXT"></button>
                   <button className="chat-export-btn" onClick={() => exportExcel(r.text, r.label)} title="Excel"></button>
-                  <button className="chat-export-btn" onClick={() => exportPDF(r.text, r.label)} title="PDF">🖨</button>
+                  <button className="chat-export-btn" onClick={() => exportPDF(r.text, r.label)} title="PDF"></button>
                   <button className="chat-export-btn" onClick={() => {
                     const updated = savedReports.filter(x => x.id !== r.id);
                     LS.set(repKey, updated);
                     window.location.reload();
-                  }} title="O'chirish" style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}>🗑</button>
+                  }} title="O'chirish" style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}></button>
                 </div>
               </div>
             ))}
@@ -5115,7 +5583,7 @@ function ReportsPage({ aiConfig, sources, user }) {
             {/* Hammasini tozalash */}
             <div style={{ textAlign: "center", marginTop: 16 }}>
               <button className="btn btn-danger btn-sm" onClick={() => { if (confirm("Barcha hisobotlarni o'chirish?")) { LS.set(repKey, []); window.location.reload(); } }}>
-                🗑 Barcha tarixni tozalash
+                 Barcha tarixni tozalash
               </button>
             </div>
           </div>
@@ -5187,9 +5655,9 @@ function ReportsPage({ aiConfig, sources, user }) {
 // ALERTS PAGE (AI Proaktiv Ogohlantirishlar)
 // ─────────────────────────────────────────────────────────────
 const ALERT_TYPES = {
-  danger: { label: "Xavfli", color: "#FB7185", bg: "rgba(251,113,133,0.06)", border: "rgba(251,113,133,0.22)", icon: "🚨", glow: "rgba(251,113,133,0.08)" },
-  warning: { label: "Ogohlantirish", color: "#D4A853", bg: "rgba(212,168,83,0.06)", border: "rgba(212,168,83,0.22)", icon: "️", glow: "rgba(212,168,83,0.08)" },
-  info: { label: "Ma'lumot", color: "#00D4C8", bg: "rgba(0,212,200,0.06)", border: "rgba(0,212,200,0.18)", icon: "ℹ️", glow: "rgba(0,212,200,0.06)" },
+  danger: { label: "Xavfli", color: "#FB7185", bg: "rgba(251,113,133,0.06)", border: "rgba(251,113,133,0.22)", icon: "", glow: "rgba(251,113,133,0.08)" },
+  warning: { label: "Ogohlantirish", color: "#D4A853", bg: "rgba(212,168,83,0.06)", border: "rgba(212,168,83,0.22)", icon: "", glow: "rgba(212,168,83,0.08)" },
+  info: { label: "Ma'lumot", color: "#00D4C8", bg: "rgba(0,212,200,0.06)", border: "rgba(0,212,200,0.18)", icon: "", glow: "rgba(0,212,200,0.06)" },
   success: { label: "Ijobiy", color: "#34D399", bg: "rgba(52,211,153,0.06)", border: "rgba(52,211,153,0.18)", icon: "", glow: "rgba(52,211,153,0.06)" },
 };
 
@@ -5274,11 +5742,11 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
   // ── Tayyor tekshirish modullari ──
   const CHECK_MODS = [
     {
-      icon: "🔍", l: "Umumiy Tekshirish", d: "Barcha ko'rsatkichlarni tahlil qilish", color: "#00D4C8", count: "3-6", cat: "umumiy",
+      icon: "", l: "Umumiy Tekshirish", d: "Barcha ko'rsatkichlarni tahlil qilish", color: "#00D4C8", count: "3-6", cat: "umumiy",
       prompt: "Biznes ma'lumotlarini har tomonlama tahlil qilib, muhim ogohlantirishlar ber. Xavflar, imkoniyatlar, anomaliyalar va ijobiy tendensiyalarni aniqlash."
     },
     {
-      icon: "📉", l: "Tushish va Anomaliyalar", d: "Pasayish tendensiyalari va g'ayrioddiy o'zgarishlar", color: "#FB7185", count: "2-5", cat: "xavf",
+      icon: "", l: "Tushish va Anomaliyalar", d: "Pasayish tendensiyalari va g'ayrioddiy o'zgarishlar", color: "#FB7185", count: "2-5", cat: "xavf",
       prompt: "Ma'lumotlarda tushish tendensiyalari, anomaliyalar va kutilmagan o'zgarishlarni aniqlash. Har bir muammo uchun sabab va tavsiya."
     },
     {
@@ -5286,7 +5754,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       prompt: "Ma'lumotlarda o'sish imkoniyatlari, ijobiy tendensiyalar va foydalanilmagan potentsialni aniqlash. Har bir imkoniyat uchun aniq tavsiya."
     },
     {
-      icon: "💰", l: "Moliyaviy Risk", d: "Xarajat anomaliyalari va byudjet xatarlari", color: "#FB923C", count: "2-4", cat: "moliya",
+      icon: "", l: "Moliyaviy Risk", d: "Xarajat anomaliyalari va byudjet xatarlari", color: "#FB923C", count: "2-4", cat: "moliya",
       prompt: "Moliyaviy ko'rsatkichlarni tahlil qilib, xarajat anomaliyalari, byudjet xatarlari, noto'g'ri tendensiyalarni aniqlash."
     },
     {
@@ -5301,20 +5769,20 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 
   const IG_CHECKS = [
     {
-      icon: "📸", l: "Instagram Monitoring", d: "Engagement tushishi va kontent muammolari", color: "#E879F9", count: "2-4", cat: "instagram",
+      icon: "", l: "Instagram Monitoring", d: "Engagement tushishi va kontent muammolari", color: "#E879F9", count: "2-4", cat: "instagram",
       prompt: "Instagram ko'rsatkichlarini monitoring qilish: engagement tushishi, like/izoh pasayishi, kontent samaradorligi muammolari, auditoriya o'zgarishi."
     },
   ];
   const TG_CHECKS = [
     {
-      icon: "✈️", l: "Telegram Kanal Monitoring", d: "Kanal ko'rishlar tushishi, engagement kamayishi va post samaradorligi", color: "#38BDF8", count: "2-3", cat: "telegram",
+      icon: "", l: "Telegram Kanal Monitoring", d: "Kanal ko'rishlar tushishi, engagement kamayishi va post samaradorligi", color: "#38BDF8", count: "2-3", cat: "telegram",
       prompt: "Telegram kanal ko'rsatkichlarini monitoring: post ko'rishlar kamayishi, engagement rate tushishi, obunachi o'sishi sekinlashishi, kontent samaradorligi anomaliyalari. Postlarning o'rtacha ko'rish va ulashish nisbatini tekshir."
     },
   ];
 
   const CRM_CHECKS = [
     {
-      icon: "🏢", l: "CRM Monitoring", d: "O'quv markaz ko'rsatkichlari: to'lmagan guruhlar, lid konversiya, maosh/daromad nisbati", color: "#8B5CF6", count: "3-5", cat: "crm",
+      icon: "", l: "CRM Monitoring", d: "O'quv markaz ko'rsatkichlari: to'lmagan guruhlar, lid konversiya, maosh/daromad nisbati", color: "#8B5CF6", count: "3-5", cat: "crm",
       prompt: "O'quv markaz CRM ma'lumotlarini monitoring qilish: kam to'lgan guruhlar (o'rtachadan past o'quvchi), lidlar konversiya muammolari, yuqori maoshli lekin kam yukli o'qituvchilar, filiallar orasida katta farqlar, foyda foizi pasayishi. Har bir muammo uchun aniq tavsiya."
     },
   ];
@@ -5339,13 +5807,13 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       {/* ── Tab tanlash ── */}
       <div className="flex gap8 mb16 aic flex-wrap">
         <button className={`btn ${alertTab === "ogohlantirishlar" ? "btn-primary" : "btn-ghost"}`} onClick={() => setAlertTab("ogohlantirishlar")}>
-          🔔 Ogohlantirishlar {unread > 0 && <span style={{ background: "rgba(251,113,133,0.9)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 9, marginLeft: 4, fontWeight: 700 }}>{unread}</span>}
+           Ogohlantirishlar {unread > 0 && <span style={{ background: "rgba(251,113,133,0.9)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 9, marginLeft: 4, fontWeight: 700 }}>{unread}</span>}
         </button>
         <button className={`btn ${alertTab === "tekshirish" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAlertTab("tekshirish")}>
-          🔍 AI Tekshirish
+           AI Tekshirish
         </button>
         <button className={`btn ${alertTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAlertTab("vizual")}>
-          Vizual Monitoring
+           Vizual Monitoring
         </button>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{prov.icon} {prov.name}</span>
@@ -5360,9 +5828,9 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {/* Statistika kartalar */}
         <div className="g4 mb16">
           {[
-            { l: "Jami", v: alerts.length, c: "var(--text)", i: "📋", bg: "var(--s1)" },
-            { l: "O'qilmagan", v: unread, c: "var(--gold)", i: "🔔", bg: unread > 0 ? "rgba(212,168,83,0.04)" : "var(--s1)" },
-            { l: "Xavfli", v: dangerCount, c: "var(--red)", i: "🚨", bg: dangerCount > 0 ? "rgba(251,113,133,0.04)" : "var(--s1)" },
+            { l: "Jami", v: alerts.length, c: "var(--text)", i: "", bg: "var(--s1)" },
+            { l: "O'qilmagan", v: unread, c: "var(--gold)", i: "", bg: unread > 0 ? "rgba(212,168,83,0.04)" : "var(--s1)" },
+            { l: "Xavfli", v: dangerCount, c: "var(--red)", i: "", bg: dangerCount > 0 ? "rgba(251,113,133,0.04)" : "var(--s1)" },
             { l: "Ijobiy", v: successCount, c: "var(--green)", i: "", bg: "var(--s1)" },
           ].map((s, i) => (
             <div key={i} style={{ background: s.bg, border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", position: "relative", overflow: "hidden", transition: "all .25s" }}>
@@ -5381,18 +5849,18 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {/* Tezkor harakatlar */}
         <div className="flex gap8 mb14 aic flex-wrap">
           <button className="btn btn-primary btn-sm" onClick={() => runCheck()} disabled={loading || !aiConfig.apiKey || !connectedSources.length}>
-            {loading && !checkType ? "⏳ Tekshirilmoqda..." : " Tezkor AI Tekshirish"}
+            {loading && !checkType ? " Tekshirilmoqda..." : " Tezkor AI Tekshirish"}
           </button>
           {unread > 0 && <button className="btn btn-ghost btn-sm" onClick={markAllRead}>✓ Barchasini o'qildi</button>}
-          {alerts.length > 0 && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm("Barcha ogohlantirishlarni o'chirish?")) { alerts.forEach(a => deleteAlert(a.id)); } }}>🗑 Hammasini tozalash</button>}
+          {alerts.length > 0 && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm("Barcha ogohlantirishlarni o'chirish?")) { alerts.forEach(a => deleteAlert(a.id)); } }}> Hammasini tozalash</button>}
         </div>
 
         {/* Ogohlantirish */}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(212,168,83,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
+          <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
         {aiConfig.apiKey && !connectedSources.length && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — AI monitoring shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}></span><div><b>Data Hub</b> dan manba ulang — AI monitoring shu ma'lumotlar asosida ishlaydi</div>
         </div>}
 
         {/* Filtrlar */}
@@ -5418,7 +5886,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {/* Bo'sh holat */}
         {alerts.length === 0 && aiConfig.apiKey && connectedSources.length > 0 && (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 44, marginBottom: 16 }}>🔔</div>
+            <div style={{ fontSize: 44, marginBottom: 16 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Hali ogohlantirish yo'q</div>
             <div className="text-muted text-sm mb16">AI Tekshirish boshlang — ma'lumotlaringizni tahlil qilib, muhim ogohlantirishlarni yaratadi</div>
             <button className="btn btn-primary" onClick={() => runCheck()} disabled={loading}> Hozir Tekshirish</button>
@@ -5478,10 +5946,10 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       {alertTab === "tekshirish" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — tekshirish shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}></span><div><b>Data Hub</b> dan manba ulang — tekshirish shu ma'lumotlar asosida ishlaydi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(212,168,83,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
+          <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
 
         {/* Ulangan manbalar */}
@@ -5543,7 +6011,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {checkResult && !loading && (
           <div className="card" style={{ borderColor: `${checkType?.color || prov.color}20`, marginBottom: 14 }}>
             <div className="flex aic gap8 mb10">
-              <span style={{ fontSize: 20 }}>{checkType?.icon || "🔍"}</span>
+              <span style={{ fontSize: 20 }}>{checkType?.icon || ""}</span>
               <div>
                 <div className="card-title" style={{ marginBottom: 0 }}>{checkType?.l || "AI Tekshirish"} — Xulosa</div>
                 <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{new Date().toLocaleDateString("uz-UZ")} | {prov.name}</div>
@@ -5722,7 +6190,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         border: `1px solid ${effectiveAI.apiKey ? "rgba(0,201,190,0.2)" : "rgba(248,113,113,0.2)"}`,
         borderRadius: 14, marginBottom: 18
       }}>
-        <div style={{ fontSize: 28 }}>{effectiveAI.apiKey ? "🤖" : "️"}</div>
+        <div style={{ fontSize: 28 }}>{effectiveAI.apiKey ? "" : ""}</div>
         <div className="f1">
           <div style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 800, color: effectiveAI.apiKey ? "var(--green)" : "var(--red)" }}>
             {effectiveAI.apiKey
@@ -5746,7 +6214,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
       {/* ── GLOBAL AI HOLATI (agar bor) ── */}
       {hasGlobalAI && !hasPersonalKey && (
         <div className="card mb14">
-          <div className="card-title mb8">🌐 Global AI (Admin Ulagan)</div>
+          <div className="card-title mb8"> Global AI (Admin Ulagan)</div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: effProv.color + "15", border: `1px solid ${effProv.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>{effProv.icon}</div>
             <div className="f1">
@@ -5765,7 +6233,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
       <div className="card mb14">
         <div className="flex aic jb mb12">
           <div>
-            <div className="card-title" style={{ marginBottom: 3 }}>🔑 Shaxsiy API Kalit (Ixtiyoriy)</div>
+            <div className="card-title" style={{ marginBottom: 3 }}> Shaxsiy API Kalit (Ixtiyoriy)</div>
             <div style={{ fontSize: 10, color: "var(--muted)" }}>O'z API kalitingizni ulang — <strong style={{ color: "var(--green)" }}>cheksiz</strong> foydalaning, limit hisoblanmaydi</div>
           </div>
           <div style={{ width: 36, height: 20, borderRadius: 10, background: showPersonal ? "var(--gold)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }} onClick={() => setShowPersonal(v => !v)}>
@@ -5805,7 +6273,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
             {/* API Kalit */}
             <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>API Kalit</div>
             <input className="field mb6" type="password" placeholder={AI_PROVIDERS[aiConfig.provider].ph} value={keyInput} onChange={e => setKeyInput(e.target.value)} onKeyDown={e => e.key === "Enter" && saveKey()} />
-            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10 }}>💡 <span style={{ color: "var(--teal)" }}>{AI_PROVIDERS[aiConfig.provider].hint}</span></div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10 }}> <span style={{ color: "var(--teal)" }}>{AI_PROVIDERS[aiConfig.provider].hint}</span></div>
             <div className="flex aic gap8">
               <button className="btn btn-primary btn-sm" onClick={saveKey}>{saved ? "✓ Saqlandi!" : "Saqlash"}</button>
               {hasPersonalKey && <button className="btn btn-danger btn-sm" onClick={removePersonalKey}>O'chirish (Global ga qaytish)</button>}
@@ -5818,7 +6286,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
       {/* ── AVTOMATIK HISOBOT ── */}
       <div className="card mb14">
         <div className="flex aic jb mb12">
-          <div><div className="card-title" style={{ marginBottom: 3 }}>🔔 Avtomatik Hisobot</div><div style={{ fontSize: 10, color: "var(--muted)" }}>Belgilangan vaqtda AI hisobot tayyorlaydi</div></div>
+          <div><div className="card-title" style={{ marginBottom: 3 }}> Avtomatik Hisobot</div><div style={{ fontSize: 10, color: "var(--muted)" }}>Belgilangan vaqtda AI hisobot tayyorlaydi</div></div>
           <div style={{ width: 36, height: 20, borderRadius: 10, background: autoOn ? "var(--green)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }} onClick={() => { setAutoOn(v => { LS.set(uk("auto_report"), !v); return !v; }); }}>
             <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: autoOn ? 19 : 2, transition: "left .2s" }} />
           </div>
@@ -5828,11 +6296,11 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
 
       {/* ── QANDAY ISHLAYDI ── */}
       <div className="card">
-        <div className="card-title mb10">📋 AI Qanday Ishlaydi</div>
+        <div className="card-title mb10"> AI Qanday Ishlaydi</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {[
-            { icon: "🆓", title: "Bepul (Global AI)", desc: "Admin ulagan AI dan barcha foydalanuvchilar bepul foydalanadi. Har bir tarif o'z so'rov limitiga ega.", c: "var(--green)" },
-            { icon: "🔑", title: "Shaxsiy API", desc: "O'z API kalitingizni ulasangiz — cheksiz so'rov, limit hisoblanmaydi. Istalgan provayderdan.", c: "var(--gold)" },
+            { icon: "", title: "Bepul (Global AI)", desc: "Admin ulagan AI dan barcha foydalanuvchilar bepul foydalanadi. Har bir tarif o'z so'rov limitiga ega.", c: "var(--green)" },
+            { icon: "", title: "Shaxsiy API", desc: "O'z API kalitingizni ulasangiz — cheksiz so'rov, limit hisoblanmaydi. Istalgan provayderdan.", c: "var(--gold)" },
             { icon: "", title: "Yuqori tarif", desc: "Starter (100), Pro (500), Enterprise (∞) — ko'proq so'rov uchun tarifni yuksaltiring.", c: "var(--purple)" },
             { icon: "", title: "4 AI Provayder", desc: "Claude (aqlli), DeepSeek (arzon), ChatGPT (universal), Gemini (katta kontekst).", c: "var(--teal)" },
           ].map((s, i) => (
@@ -5867,12 +6335,12 @@ function generateDashboards(source, colSelection) {
     if (summary) {
       // 1. Profil umumiy statistika
       cards.push({
-        id: "ig_profile", title: "Profil Statistika", icon: "📸", size: "full", type: "stats",
+        id: "ig_profile", title: "Profil Statistika", icon: "", size: "full", type: "stats",
         stats: [
           { l: "Obunachilar", v: (summary.followers_count || 0).toLocaleString(), c: "#E879F9", i: "" },
           { l: "Obunalar", v: (summary.follows_count || 0).toLocaleString(), c: "#60A5FA", i: "" },
           { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "" },
-          { l: "Jami Like", v: (summary.total_likes || 0).toLocaleString(), c: "#F87171", i: "❤️" },
+          { l: "Jami Like", v: (summary.total_likes || 0).toLocaleString(), c: "#F87171", i: "" },
           { l: "Jami Izoh", v: (summary.total_comments || 0).toLocaleString(), c: "#FBBF24", i: "" },
           { l: "Engagement", v: (summary.total_engagement || 0).toLocaleString(), c: "#00C9BE", i: "" },
         ]
@@ -5880,16 +6348,16 @@ function generateDashboards(source, colSelection) {
       // 2. Engagement rate gauge
       const engRate = summary.total_posts > 0 && summary.followers_count > 0 ? ((summary.total_engagement || 0) / (summary.fetched_posts || 1) / summary.followers_count * 100).toFixed(2) : 0;
       cards.push({
-        id: "ig_eng_rate", title: "Engagement Rate", icon: "🎯", type: "gauge",
+        id: "ig_eng_rate", title: "Engagement Rate", icon: "", type: "gauge",
         value: parseFloat(engRate), max: 10, label: `${engRate}%`, color: "#E879F9"
       });
       // 3. O'rtacha like/izoh
       cards.push({
         id: "ig_avg", title: "O'rtacha Ko'rsatkichlar", icon: "", type: "stats",
         stats: [
-          { l: "O'rtacha Like", v: (summary.avg_likes_per_post || 0).toLocaleString(), c: "#F87171", i: "❤️" },
+          { l: "O'rtacha Like", v: (summary.avg_likes_per_post || 0).toLocaleString(), c: "#F87171", i: "" },
           { l: "O'rtacha Izoh", v: (summary.avg_comments_per_post || 0).toLocaleString(), c: "#FBBF24", i: "" },
-          { l: "Yuklangan Post", v: (summary.fetched_posts || 0).toLocaleString(), c: "#60A5FA", i: "📸" },
+          { l: "Yuklangan Post", v: (summary.fetched_posts || 0).toLocaleString(), c: "#60A5FA", i: "" },
         ]
       });
     }
@@ -5906,7 +6374,7 @@ function generateDashboards(source, colSelection) {
 
       // 5. Like taqsimoti (bar)
       cards.push({
-        id: "ig_likes_bar", title: "Postlar bo'yicha Like", icon: "❤️", type: "chart", chartType: "bar",
+        id: "ig_likes_bar", title: "Postlar bo'yicha Like", icon: "", type: "chart", chartType: "bar",
         data: posts.slice(0, 15).map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, likes: p.likes || 0 })),
         keys: ["likes"], xKey: "name", colors: ["#F87171"]
       });
@@ -5930,7 +6398,7 @@ function generateDashboards(source, colSelection) {
       // 8. Top 10 post engagement (bar)
       const top10 = [...posts].sort((a, b) => (b.engagement || 0) - (a.engagement || 0)).slice(0, 10);
       cards.push({
-        id: "ig_top10", title: "Top 10 Engagement", icon: "🏆", type: "chart", chartType: "bar",
+        id: "ig_top10", title: "Top 10 Engagement", icon: "", type: "chart", chartType: "bar",
         data: top10.map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, engagement: p.engagement || 0 })),
         keys: ["engagement"], xKey: "name", colors: ["#00C9BE"]
       });
@@ -5941,7 +6409,7 @@ function generateDashboards(source, colSelection) {
       const dayData = Object.entries(dayCounts).sort().slice(-20).map(([name, count]) => ({ name: name.slice(5), count }));
       if (dayData.length > 1)
         cards.push({
-          id: "ig_daily", title: "Kunlik Postlar", icon: "📅", type: "chart", chartType: "line",
+          id: "ig_daily", title: "Kunlik Postlar", icon: "", type: "chart", chartType: "line",
           data: dayData, keys: ["count"], xKey: "name", colors: ["#A78BFA"]
         });
 
@@ -5957,7 +6425,7 @@ function generateDashboards(source, colSelection) {
       const bestPost = [...posts].sort((a, b) => (b.likes || 0) - (a.likes || 0))[0];
       if (bestPost)
         cards.push({
-          id: "ig_best", title: "Eng Yaxshi Post", icon: "⭐", type: "highlight",
+          id: "ig_best", title: "Eng Yaxshi Post", icon: "", type: "highlight",
           items: [
             { l: "Caption", v: bestPost.caption || "—" },
             { l: "Like", v: (bestPost.likes || 0).toLocaleString(), c: "#F87171" },
@@ -5994,20 +6462,20 @@ function generateDashboards(source, colSelection) {
     if (summary) {
       // 1. Kanal umumiy statistika
       cards.push({
-        id: "tg_profile", title: "Kanal Statistikasi", icon: "✈️", size: "full", type: "stats",
+        id: "tg_profile", title: "Kanal Statistikasi", icon: "", size: "full", type: "stats",
         stats: [
           { l: "Obunachilar", v: (summary.member_count || 0).toLocaleString(), c: "#38BDF8", i: "" },
           { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "" },
-          { l: "Jami Ko'rishlar", v: (summary.total_views || 0).toLocaleString(), c: "#E879F9", i: "👁" },
+          { l: "Jami Ko'rishlar", v: (summary.total_views || 0).toLocaleString(), c: "#E879F9", i: "" },
           { l: "O'rt. Ko'rish", v: (summary.avg_views || 0).toLocaleString(), c: "#FBBF24", i: "" },
-          { l: "Jami Ulashish", v: (summary.total_forwards || 0).toLocaleString(), c: "#60A5FA", i: "🔄" },
+          { l: "Jami Ulashish", v: (summary.total_forwards || 0).toLocaleString(), c: "#60A5FA", i: "" },
           { l: "Engagement", v: (summary.engagement_rate || 0) + "%", c: "#F87171", i: "" },
         ]
       });
 
       // 2. Engagement rate gauge
       cards.push({
-        id: "tg_eng_rate", title: "Engagement Rate", icon: "🎯", type: "gauge",
+        id: "tg_eng_rate", title: "Engagement Rate", icon: "", type: "gauge",
         value: parseFloat(summary.engagement_rate || 0), max: 100, label: `${summary.engagement_rate || 0}%`, color: "#38BDF8"
       });
 
@@ -6019,7 +6487,7 @@ function generateDashboards(source, colSelection) {
       ].filter(d => d.value > 0);
       if (contentPie.length > 0)
         cards.push({
-          id: "tg_content_types", title: "Kontent Turlari", icon: "📎", type: "chart", chartType: "pie",
+          id: "tg_content_types", title: "Kontent Turlari", icon: "", type: "chart", chartType: "pie",
           data: contentPie, colors: ["#38BDF8", "#4ADE80", "#F87171"]
         });
     }
@@ -6050,7 +6518,7 @@ function generateDashboards(source, colSelection) {
       const dayData = Object.entries(dayMap).sort().slice(-15).map(([name, count]) => ({ name, count }));
       if (dayData.length > 1)
         cards.push({
-          id: "tg_daily", title: "Kunlik Postlar", icon: "📅", type: "chart", chartType: "area",
+          id: "tg_daily", title: "Kunlik Postlar", icon: "", type: "chart", chartType: "area",
           data: dayData, keys: ["count"], xKey: "name", colors: ["#4ADE80"]
         });
 
@@ -6060,7 +6528,7 @@ function generateDashboards(source, colSelection) {
       const hourData = Object.entries(hourMap).sort().map(([name, count]) => ({ name: name + "h", count }));
       if (hourData.length > 2)
         cards.push({
-          id: "tg_hourly", title: "Post Soatlari", icon: "🕐", type: "chart", chartType: "bar",
+          id: "tg_hourly", title: "Post Soatlari", icon: "", type: "chart", chartType: "bar",
           data: hourData, keys: ["count"], xKey: "name", colors: ["#FBBF24"]
         });
 
@@ -6070,7 +6538,7 @@ function generateDashboards(source, colSelection) {
       const mediaData = Object.entries(mediaMap).map(([name, count]) => ({ name, count }));
       if (mediaData.length > 1)
         cards.push({
-          id: "tg_media_bar", title: "Media Taqsimoti", icon: "🎬", type: "chart", chartType: "bar",
+          id: "tg_media_bar", title: "Media Taqsimoti", icon: "", type: "chart", chartType: "bar",
           data: mediaData, keys: ["count"], xKey: "name", colors: ["#E879F9"]
         });
 
@@ -6078,7 +6546,7 @@ function generateDashboards(source, colSelection) {
       const topPosts = posts.filter(p => p.views > 0).sort((a, b) => b.views - a.views).slice(0, 5);
       if (topPosts.length > 0)
         cards.push({
-          id: "tg_top_posts", title: "Top Postlar (ko'rishlar)", icon: "🏆", type: "highlight",
+          id: "tg_top_posts", title: "Top Postlar (ko'rishlar)", icon: "", type: "highlight",
           items: topPosts.map((p, i) => ({
             l: `#${i + 1}: ${(p.text || "[Media]").substring(0, 40)}...`,
             v: `${(p.views || 0).toLocaleString()} ko'rish`,
@@ -6091,7 +6559,7 @@ function generateDashboards(source, colSelection) {
         const lenData = posts.slice(0, 50).map((p, i) => ({ x: i + 1, y: (p.text || "").length, z: p.views || 0 })).filter(d => d.y > 0);
         if (lenData.length > 3)
           cards.push({
-            id: "tg_len", title: "Matn Uzunligi vs Post #", icon: "📏", type: "chart", chartType: "scatter",
+            id: "tg_len", title: "Matn Uzunligi vs Post #", icon: "", type: "chart", chartType: "scatter",
             data: lenData, xLabel: "Post #", yLabel: "Belgi soni"
           });
       }
@@ -6100,7 +6568,7 @@ function generateDashboards(source, colSelection) {
     // 11. Adminlar ro'yxati
     if (adminsData?.admins?.length > 0)
       cards.push({
-        id: "tg_admins", title: "Kanal Adminlari", icon: "👤", type: "highlight",
+        id: "tg_admins", title: "Kanal Adminlari", icon: "", type: "highlight",
         items: adminsData.admins.filter(a => !a.is_bot).map(a => ({
           l: a.name + (a.username !== "—" ? " (@" + a.username + ")" : ""),
           v: a.status === "creator" ? "Asoschisi" : "Admin",
@@ -6122,14 +6590,14 @@ function generateDashboards(source, colSelection) {
     if (summary) {
       // 1. CRM Umumiy Statistika
       cards.push({
-        id: "crm_stats", title: "CRM Umumiy Statistika", icon: "🏢", size: "full", type: "stats",
+        id: "crm_stats", title: "CRM Umumiy Statistika", icon: "", size: "full", type: "stats",
         stats: [
-          { l: "Lidlar", v: (summary.total_lids || 0).toLocaleString(), c: "#F87171", i: "🎯" },
-          { l: "Guruhlar", v: (summary.total_groups || 0).toLocaleString(), c: "#4ADE80", i: "📚" },
-          { l: "O'quvchilar", v: (summary.total_students || 0).toLocaleString(), c: "#60A5FA", i: "👨‍🎓" },
-          { l: "O'qituvchilar", v: (summary.total_teachers || 0).toLocaleString(), c: "#FBBF24", i: "👨‍🏫" },
-          { l: "Oylik daromad", v: fmtNum(summary.total_monthly_revenue || 0), c: "#4ADE80", i: "💰" },
-          { l: "Oylik maosh", v: fmtNum(summary.total_monthly_salary || 0), c: "#F87171", i: "💸" },
+          { l: "Lidlar", v: (summary.total_lids || 0).toLocaleString(), c: "#F87171", i: "" },
+          { l: "Guruhlar", v: (summary.total_groups || 0).toLocaleString(), c: "#4ADE80", i: "" },
+          { l: "O'quvchilar", v: (summary.total_students || 0).toLocaleString(), c: "#60A5FA", i: "" },
+          { l: "O'qituvchilar", v: (summary.total_teachers || 0).toLocaleString(), c: "#FBBF24", i: "" },
+          { l: "Oylik daromad", v: fmtNum(summary.total_monthly_revenue || 0), c: "#4ADE80", i: "" },
+          { l: "Oylik maosh", v: fmtNum(summary.total_monthly_salary || 0), c: "#F87171", i: "" },
         ]
       });
 
@@ -6138,8 +6606,8 @@ function generateDashboards(source, colSelection) {
         id: "crm_avg", title: "O'rtacha Ko'rsatkichlar", icon: "", type: "stats",
         stats: [
           { l: "Guruh o'lchami", v: summary.avg_group_size || 0, c: "#00C9BE", i: "" },
-          { l: "Guruh narxi", v: fmtNum(summary.avg_group_cost || 0), c: "#E8B84B", i: "💵" },
-          { l: "O'chirilgan", v: (summary.trashed_students || 0).toLocaleString(), c: "#94A3B8", i: "🗑" },
+          { l: "Guruh narxi", v: fmtNum(summary.avg_group_cost || 0), c: "#E8B84B", i: "" },
+          { l: "O'chirilgan", v: (summary.trashed_students || 0).toLocaleString(), c: "#94A3B8", i: "" },
         ]
       });
 
@@ -6147,7 +6615,7 @@ function generateDashboards(source, colSelection) {
       if (summary.filials && Object.keys(summary.filials).length > 0) {
         const filialPie = Object.entries(summary.filials).map(([name, value]) => ({ name, value }));
         cards.push({
-          id: "crm_filial_pie", title: "Filiallar bo'yicha O'quvchilar", icon: "🏫", type: "chart", chartType: "pie",
+          id: "crm_filial_pie", title: "Filiallar bo'yicha O'quvchilar", icon: "", type: "chart", chartType: "pie",
           data: filialPie, colors: C
         });
       }
@@ -6156,7 +6624,7 @@ function generateDashboards(source, colSelection) {
       if (summary.fans && Object.keys(summary.fans).length > 0) {
         const fanData = Object.entries(summary.fans).sort((a, b) => b[1] - a[1]).slice(0, 15).map(([name, count]) => ({ name: name.substring(0, 18), count }));
         cards.push({
-          id: "crm_fan_bar", title: "Fanlar bo'yicha O'quvchilar", icon: "📖", type: "chart", chartType: "bar",
+          id: "crm_fan_bar", title: "Fanlar bo'yicha O'quvchilar", icon: "", type: "chart", chartType: "bar",
           data: fanData, keys: ["count"], xKey: "name", colors: ["#A78BFA"]
         });
       }
@@ -6175,14 +6643,14 @@ function generateDashboards(source, colSelection) {
       }).map(([name, count]) => ({ name, count }));
       if (costData.length >= 2)
         cards.push({
-          id: "crm_cost_dist", title: "Guruh Narxlari Taqsimoti", icon: "💰", type: "chart", chartType: "bar",
+          id: "crm_cost_dist", title: "Guruh Narxlari Taqsimoti", icon: "", type: "chart", chartType: "bar",
           data: costData, keys: ["count"], xKey: "name", colors: ["#4ADE80"]
         });
 
       // 6. Guruhlar — o'quvchilar soni bo'yicha top
       const topGroups = [...groups].sort((a, b) => (b.students_count || 0) - (a.students_count || 0)).slice(0, 12);
       cards.push({
-        id: "crm_top_groups", title: "Eng Katta Guruhlar", icon: "📚", type: "chart", chartType: "bar",
+        id: "crm_top_groups", title: "Eng Katta Guruhlar", icon: "", type: "chart", chartType: "bar",
         data: topGroups.map(g => ({ name: g.name?.substring(0, 14) || "", students: g.students_count || 0 })),
         keys: ["students"], xKey: "name", colors: ["#60A5FA"]
       });
@@ -6193,7 +6661,7 @@ function generateDashboards(source, colSelection) {
       const grpFilialData = Object.entries(grpFilial).map(([name, count]) => ({ name, count }));
       if (grpFilialData.length >= 2)
         cards.push({
-          id: "crm_grp_filial", title: "Filiallar bo'yicha Guruhlar", icon: "🏫", type: "chart", chartType: "pie",
+          id: "crm_grp_filial", title: "Filiallar bo'yicha Guruhlar", icon: "", type: "chart", chartType: "pie",
           data: grpFilialData, colors: C
         });
     }
@@ -6204,7 +6672,7 @@ function generateDashboards(source, colSelection) {
         .map(t => ({ name: t.name?.substring(0, 14) || "", salary: t.salary || 0 }));
       if (salaryData.length > 0)
         cards.push({
-          id: "crm_salary", title: "O'qituvchilar Maoshi", icon: "💸", type: "chart", chartType: "bar",
+          id: "crm_salary", title: "O'qituvchilar Maoshi", icon: "", type: "chart", chartType: "bar",
           data: salaryData, keys: ["salary"], xKey: "name", colors: ["#FBBF24"]
         });
 
@@ -6212,7 +6680,7 @@ function generateDashboards(source, colSelection) {
       const teacherLoad = [...teachers].sort((a, b) => (b.groups_count || 0) - (a.groups_count || 0)).slice(0, 15)
         .map(t => ({ name: t.name?.substring(0, 14) || "", groups: t.groups_count || 0 }));
       cards.push({
-        id: "crm_teacher_load", title: "O'qituvchi Yuklama (guruhlar)", icon: "👨‍🏫", type: "chart", chartType: "bar",
+        id: "crm_teacher_load", title: "O'qituvchi Yuklama (guruhlar)", icon: "", type: "chart", chartType: "bar",
         data: teacherLoad, keys: ["groups"], xKey: "name", colors: ["#FB923C"]
       });
     }
@@ -6224,7 +6692,7 @@ function generateDashboards(source, colSelection) {
       const lidDayData = Object.entries(lidDayMap).sort().slice(-30).map(([name, count]) => ({ name: name.slice(5), count }));
       if (lidDayData.length > 1)
         cards.push({
-          id: "crm_lid_trend", title: "Kunlik Yangi Lidlar", icon: "🎯", type: "chart", chartType: "area",
+          id: "crm_lid_trend", title: "Kunlik Yangi Lidlar", icon: "", type: "chart", chartType: "area",
           data: lidDayData, keys: ["count"], xKey: "name", colors: ["#F87171"]
         });
 
@@ -6234,7 +6702,7 @@ function generateDashboards(source, colSelection) {
       const roadData = Object.entries(roadMap).sort((a, b) => b[1] - a[1]).map(([name, value]) => ({ name: name.substring(0, 18), value }));
       if (roadData.length >= 2)
         cards.push({
-          id: "crm_lid_pipeline", title: "Lid Pipeline (bosqichlar)", icon: "🔄", type: "chart", chartType: "pie",
+          id: "crm_lid_pipeline", title: "Lid Pipeline (bosqichlar)", icon: "", type: "chart", chartType: "pie",
           data: roadData, colors: C
         });
     }
@@ -6246,14 +6714,14 @@ function generateDashboards(source, colSelection) {
       const genderData = Object.entries(genderMap).filter(([k]) => k).map(([name, value]) => ({ name: name === "male" ? "Erkak" : name === "female" ? "Ayol" : name, value }));
       if (genderData.length >= 2)
         cards.push({
-          id: "crm_gender", title: "O'quvchilar Jinsi", icon: "👤", type: "chart", chartType: "pie",
+          id: "crm_gender", title: "O'quvchilar Jinsi", icon: "", type: "chart", chartType: "pie",
           data: genderData, colors: ["#60A5FA", "#E879F9", "#94A3B8"]
         });
 
       // 13. Top 5 ma'lumotlar highlight
       const multiGroupStudents = students.filter(s => (s.active_groups_count || 0) > 1).length;
       cards.push({
-        id: "crm_highlights", title: "Asosiy Ko'rsatkichlar", icon: "⭐", type: "highlight",
+        id: "crm_highlights", title: "Asosiy Ko'rsatkichlar", icon: "", type: "highlight",
         items: [
           { l: "Jami o'quvchilar", v: students.length.toLocaleString(), c: "#60A5FA" },
           { l: "Aktiv guruhlarda", v: students.filter(s => (s.active_groups_count || 0) > 0).length.toLocaleString(), c: "#4ADE80" },
@@ -6379,7 +6847,7 @@ function generateDashboards(source, colSelection) {
     const vals = genData.map(r => parseFloat(String(r[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0);
     const sum = vals.reduce((a, b) => a + b, 0);
     cards.push({
-      id: "gen_minmax", title: `${numKeys[0]} — Xulosa`, icon: "📐", type: "highlight",
+      id: "gen_minmax", title: `${numKeys[0]} — Xulosa`, icon: "", type: "highlight",
       items: [
         { l: "Minimum", v: fmtNum(Math.min(...vals)), c: "#F87171" },
         { l: "Maximum", v: fmtNum(Math.max(...vals)), c: "#4ADE80" },
@@ -6673,6 +7141,39 @@ function DashboardPage({ sources, aiConfig, setPage }) {
         ))}
       </div>
 
+      {/* ── Anomaliya Aniqlash (avtomatik) ── */}
+      {(() => {
+        const anomalies = detectAnomalies(connected);
+        if (anomalies.length === 0) return null;
+        return (
+          <div className="mb20">
+            <div className="flex aic jb mb10">
+              <div className="section-hd" style={{ marginBottom: 0 }}>⚠️ Anomaliyalar Aniqlandi</div>
+              <span className="badge b-warn">{anomalies.length} ta</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 10 }}>
+              {anomalies.slice(0, 6).map((a, i) => (
+                <div key={i} style={{
+                  padding: "12px 16px", borderRadius: 10,
+                  border: `1px solid ${a.severity === 'danger' ? 'rgba(248,113,113,0.3)' : a.severity === 'warning' ? 'rgba(251,191,36,0.3)' : 'rgba(96,165,250,0.3)'}`,
+                  background: a.severity === 'danger' ? 'rgba(248,113,113,0.05)' : a.severity === 'warning' ? 'rgba(251,191,36,0.05)' : 'rgba(96,165,250,0.05)',
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 14 }}>{a.severity === 'danger' ? '🔴' : a.severity === 'warning' ? '🟡' : '🔵'}</span>
+                    <span style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: a.severity === 'danger' ? 'var(--red)' : a.severity === 'warning' ? 'var(--gold)' : '#60A5FA' }}>
+                      {a.source} — {a.field}
+                    </span>
+                    {a.type === 'trend_down' && <span className="badge b-warn" style={{ fontSize: 8 }}>📉 Pasayish</span>}
+                    {a.type === 'trend_up' && <span className="badge b-ok" style={{ fontSize: 8 }}>📈 O'sish</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>{a.message}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Avtomatik Dashboard Kartalar ── */}
       {dashCards.length > 0 && (
         <>
@@ -6702,7 +7203,7 @@ function DashboardPage({ sources, aiConfig, setPage }) {
 
       {connected.length > 0 && dashCards.length === 0 && (
         <div className="card" style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>Ma'lumot yuklanmoqda...</div>
           <div className="text-muted text-sm mt4">Manbani ulab, ma'lumot yuklang</div>
         </div>
@@ -6885,7 +7386,7 @@ export default function App() {
           <div className="main">
             <div className="topbar">
               <div className="flex aic gap10">
-                <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}>☰</button>
+                <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
                 <div className="page-title" style={{ color: "var(--red)" }}> Admin Panel</div>
               </div>
               <div className="topbar-right">
@@ -6960,7 +7461,7 @@ export default function App() {
                   return (
                     <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
                       onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
-
+                      
                       <span>{item.lbl}</span>
                       {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
                     </div>
@@ -6975,7 +7476,7 @@ export default function App() {
                 <div className="nav-group-label">Boshqaruv</div>
                 <div className="ni" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.15)" }}
                   onClick={() => setAdminMode(true)}>
-
+                  
                   <span>Admin Panel</span>
                   <span className="ni-badge ml-auto warn">{Auth.getUsers().length}</span>
                 </div>
@@ -7012,13 +7513,13 @@ export default function App() {
           {/* TOPBAR */}
           <div className="topbar">
             <div className="flex aic gap10">
-              <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}>☰</button>
+              <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
               <div className="page-title">{PAGE_TITLES[page] || page}</div>
             </div>
             <div className="topbar-right">
               {unreadAlerts > 0 && (
                 <button className="btn btn-ghost btn-xs" onClick={() => setPage("alerts")} style={{ borderColor: "var(--gold)", color: "var(--gold)" }}>
-                  🔔 {unreadAlerts}
+                   {unreadAlerts}
                 </button>
               )}
               <div className="model-chip" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "30" }}>
