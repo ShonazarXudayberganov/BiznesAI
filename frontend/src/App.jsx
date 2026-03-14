@@ -7639,10 +7639,10 @@ function LiveClock() {
   const date = now.toLocaleDateString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric" });
   const time = now.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
   return (
-    <div className="tb-item hide-mobile" style={{ cursor:"default", gap:8 }}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <span style={{ fontFamily:"var(--fm)", fontSize:10, letterSpacing:0.3 }}>
-        <span style={{ color:"var(--muted)" }}>{day}</span> {date} <span style={{ color:"var(--teal)", fontWeight:600 }}>{time}</span>
+    <div className="tb-item hide-mobile" style={{ cursor:"default", gap:8, display:"flex", alignItems:"center" }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink:0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span style={{ fontFamily:"var(--fm)", fontSize:10, letterSpacing:0.3, lineHeight:1, display:"flex", alignItems:"center" }}>
+        <span style={{ color:"var(--muted)" }}>{day}</span>&nbsp;{date}&nbsp;<span style={{ color:"var(--teal)", fontWeight:600 }}>{time}</span>
       </span>
     </div>
   );
