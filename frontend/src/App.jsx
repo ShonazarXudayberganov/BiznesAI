@@ -769,7 +769,7 @@ async function callAI(messages, config, onChunk) {
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
+:root,[data-theme="dark"]{
   --bg:#05060C;--s1:#0A0C15;--s2:#0E1019;--s3:#12141F;--s4:#181B28;
   --glass:rgba(10,12,21,0.92);
   --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.03);--border-hi:rgba(255,255,255,0.12);
@@ -788,14 +788,33 @@ const CSS = `
   --radius:10px;--radius-lg:16px;--radius-xl:20px;
   --ease:cubic-bezier(0.4,0,0.2,1);
   --ease-spring:cubic-bezier(0.175,0.885,0.32,1.275);
+  --chart-grid:rgba(100,160,180,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(15,23,42,0.95);--chart-tip-border:rgba(0,201,190,0.2);
+}
+[data-theme="light"]{
+  --bg:#F8FAFC;--s1:#FFFFFF;--s2:#F1F5F9;--s3:#E2E8F0;--s4:#CBD5E1;
+  --glass:rgba(255,255,255,0.92);
+  --border:rgba(0,0,0,0.08);--border2:rgba(0,0,0,0.04);--border-hi:rgba(0,0,0,0.15);
+  --gold:#B8860B;--gold2:#996515;--gold-glow:rgba(184,134,11,0.12);
+  --teal:#0D9488;--teal2:#0F766E;--teal-glow:rgba(13,148,136,0.1);
+  --green:#059669;--red:#E11D48;--purple:#7C3AED;--blue:#2563EB;--orange:#EA580C;
+  --text:#0F172A;--text2:#475569;--muted:#94A3B8;--muted2:#CBD5E1;
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:0 10px 40px rgba(0,0,0,0.1),0 4px 12px rgba(0,0,0,0.06);
+  --shadow-glow-gold:0 0 20px rgba(184,134,11,0.1),0 0 60px rgba(184,134,11,0.03);
+  --shadow-glow-teal:0 0 20px rgba(13,148,136,0.1),0 0 60px rgba(13,148,136,0.03);
+  --chart-grid:rgba(0,0,0,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(255,255,255,0.95);--chart-tip-border:rgba(13,148,136,0.2);
 }
 html,body,#root{height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:13.5px;line-height:1.6;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;}
+body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:13.5px;line-height:1.6;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
 body::before{content:'';position:fixed;inset:0;background:
   radial-gradient(ellipse 90% 60% at 15% 5%,rgba(212,168,83,0.035) 0%,transparent 55%),
   radial-gradient(ellipse 70% 50% at 85% 85%,rgba(0,212,200,0.03) 0%,transparent 55%),
   radial-gradient(ellipse 50% 40% at 50% 50%,rgba(167,139,250,0.015) 0%,transparent 50%);
   pointer-events:none;z-index:0;}
+[data-theme="light"] body::before{background:
+  radial-gradient(ellipse 90% 60% at 15% 5%,rgba(13,148,136,0.04) 0%,transparent 55%),
+  radial-gradient(ellipse 70% 50% at 85% 85%,rgba(37,99,235,0.03) 0%,transparent 55%);}
 
 /* ═══ LAYOUT ═══ */
 .app{position:relative;z-index:1;display:flex;height:100vh;width:100vw;overflow:hidden}
@@ -1120,6 +1139,43 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .sidebar-close-btn{display:none;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;position:absolute;top:18px;right:16px;transition:color .2s}
 .sidebar-close-btn:hover{color:var(--text)}
 .mob-overlay{display:none}.hide-mobile{display:inline}
+
+/* ═══ LIGHT THEME OVERRIDES ═══ */
+[data-theme="light"] .sidebar{background:#FFFFFF;border-right-color:rgba(0,0,0,0.08)}
+[data-theme="light"] .topbar{background:rgba(255,255,255,0.85);border-bottom-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .content{background:var(--bg)}
+[data-theme="light"] .card{background:#FFFFFF;border-color:rgba(0,0,0,0.06);box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+[data-theme="light"] .field{background:#F8FAFC;border-color:rgba(0,0,0,0.1);color:#0F172A}
+[data-theme="light"] .field:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,0.1)}
+[data-theme="light"] .btn-ghost{background:transparent;border-color:rgba(0,0,0,0.1);color:#475569}
+[data-theme="light"] .btn-ghost:hover{background:rgba(0,0,0,0.04);border-color:rgba(0,0,0,0.15)}
+[data-theme="light"] .btn-primary{background:linear-gradient(135deg,#0D9488,#0F766E);box-shadow:0 2px 8px rgba(13,148,136,0.25)}
+[data-theme="light"] .badge{border-color:rgba(0,0,0,0.08)}
+[data-theme="light"] .nav-btn{color:#475569}
+[data-theme="light"] .nav-btn:hover{background:rgba(13,148,136,0.06);color:#0D9488}
+[data-theme="light"] .nav-btn.active{background:rgba(13,148,136,0.08);color:#0D9488;border-color:rgba(13,148,136,0.2)}
+[data-theme="light"] .logo-main span{color:#B8860B}
+[data-theme="light"] .landing{background:#FFFFFF}
+[data-theme="light"] .land-nav{background:rgba(255,255,255,0.9);border-bottom-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .land-hero{background:linear-gradient(180deg,#F8FAFC,#FFFFFF)}
+[data-theme="light"] .hero-badge{background:rgba(13,148,136,0.06);border-color:rgba(13,148,136,0.15)}
+[data-theme="light"] .grad{background:linear-gradient(135deg,#0D9488,#B8860B);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="light"] .stat-block{background:#FFFFFF;border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .feat-card{background:#FFFFFF;border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .feat-ico{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .plan-card{background:#FFFFFF;border-color:rgba(0,0,0,0.08)}
+[data-theme="light"] .plan-card.popular{border-color:rgba(13,148,136,0.3);box-shadow:0 8px 32px rgba(13,148,136,0.08)}
+[data-theme="light"] .billing-pill{background:#F1F5F9}
+[data-theme="light"] .msg .bubble{background:#F8FAFC;border-color:rgba(0,0,0,0.06)}
+[data-theme="light"] .msg.user .bubble{background:rgba(13,148,136,0.06);border-color:rgba(13,148,136,0.12)}
+[data-theme="light"] .notif{background:#FFFFFF;border-color:rgba(0,0,0,0.08);box-shadow:0 4px 16px rgba(0,0,0,0.08)}
+[data-theme="light"] .modal-overlay{background:rgba(0,0,0,0.3)}
+[data-theme="light"] .modal-box{background:#FFFFFF;border-color:rgba(0,0,0,0.1)}
+[data-theme="light"] .chat-input-row{background:rgba(255,255,255,0.9);border-color:rgba(0,0,0,0.08)}
+[data-theme="light"] .drop-zone{border-color:rgba(13,148,136,0.2);background:linear-gradient(135deg,rgba(13,148,136,0.02),rgba(13,148,136,0.04))}
+[data-theme="light"] .drop-zone:hover{border-color:rgba(13,148,136,0.4);background:linear-gradient(135deg,rgba(13,148,136,0.04),rgba(13,148,136,0.08))}
+[data-theme="light"] select.field{background:#F8FAFC}
+
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
   .sidebar-close-btn{display:block}
@@ -1171,6 +1227,7 @@ function NotifBanner({ notifs }) {
 function LandingPage({ onLogin, onRegister }) {
   const [billing, setBilling] = useState("monthly");
   const [openFaq, setOpenFaq] = useState(null);
+  const { theme, toggle: toggleTheme } = useTheme();
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   // SVG icon helper — gradient rangdor iconlar
@@ -1235,6 +1292,7 @@ function LandingPage({ onLogin, onRegister }) {
             <button key={n.id} onClick={()=>scrollTo(n.id)} style={{fontSize:13,color:"var(--text2)",background:"none",border:"none",fontFamily:"var(--fh)",fontWeight:500,padding:"6px 12px",cursor:"pointer",transition:"color .2s"}}
               onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</button>
           ))}
+          <ThemeToggle theme={theme} toggle={toggleTheme} size="sm" />
           <button className="btn btn-ghost btn-sm" onClick={onLogin}>Kirish</button>
           <button className="btn btn-primary btn-sm" onClick={onRegister}>Bepul boshlash</button>
         </div>
@@ -7448,9 +7506,47 @@ function AiProgressBar({ loading }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// THEME TOGGLE (Light / Dark)
+// ─────────────────────────────────────────────────────────────
+function useTheme() {
+  const [theme, setThemeState] = useState(() => localStorage.getItem("bai_theme") || "dark");
+  const setTheme = useCallback((t) => {
+    setThemeState(t);
+    localStorage.setItem("bai_theme", t);
+    document.documentElement.setAttribute("data-theme", t);
+  }, []);
+  useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, []);
+  return { theme, setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") };
+}
+
+function ThemeToggle({ theme, toggle, size = "md" }) {
+  const isDark = theme === "dark";
+  const sz = size === "sm" ? 32 : 38;
+  return (
+    <button onClick={toggle} title={isDark ? "Yorqin mavzu" : "Tungi mavzu"}
+      style={{
+        width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border)",
+        background: isDark ? "var(--s2)" : "linear-gradient(135deg,#FBBF24,#F59E0B)",
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        transition: "all .3s", flexShrink: 0,
+      }}>
+      {isDark ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1E293B" strokeWidth="2" strokeLinecap="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 const AngledXTick = ({ x, y, payload }) => (
   <g transform={`translate(${x},${y})`}>
-    <text x={0} y={0} dy={10} textAnchor="end" fill="#64748B" fontSize={8} fontFamily="Space Grotesk,sans-serif" transform="rotate(-40)">
+    <text x={0} y={0} dy={10} textAnchor="end" fill="var(--chart-label)" fontSize={8} fontFamily="Space Grotesk,sans-serif" transform="rotate(-40)">
       {String(payload.value || "").substring(0, 10)}
     </text>
   </g>
@@ -7613,8 +7709,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
   // Yaxshilangan Tooltip
   const CustomTip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
-    return (<div style={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(0,201,190,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 11, fontFamily: "var(--fm)", backdropFilter: "blur(8px)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)", maxWidth: 240 }}>
-      <div style={{ color: "#94A3B8", marginBottom: 5, fontSize: 10, fontWeight: 600, borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: 5 }}>{label}</div>
+    return (<div style={{ background: "var(--chart-tip-bg)", border: "1px solid var(--chart-tip-border)", borderRadius: 10, padding: "10px 14px", fontSize: 11, fontFamily: "var(--fm)", backdropFilter: "blur(8px)", boxShadow: "var(--shadow-md)", maxWidth: 240 }}>
+      <div style={{ color: "var(--muted)", marginBottom: 5, fontSize: 10, fontWeight: 600, borderBottom: "1px solid var(--border)", paddingBottom: 5 }}>{label}</div>
       {payload.map((p, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
         <span style={{ color: "#94A3B8", fontSize: 10 }}>{p.name}:</span>
@@ -7639,7 +7735,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
     const colors = card.colors || CHART_COLORS;
     const h = CARD_H - 80;
     const margin = { top: 5, right: 12, left: 0, bottom: 55 };
-    const gridStroke = "rgba(100,160,180,0.06)";
+    const gridStroke = "var(--chart-grid)";
     // Data ko'p bo'lsa X labellarni kamroq ko'rsatish
     const xInterval = d.length > 15 ? Math.ceil(d.length / 8) : d.length > 8 ? Math.ceil(d.length / 6) : 0;
 
@@ -8083,6 +8179,7 @@ export default function App() {
   });
   const [sources, setSources] = useState(() => loadSources());
   const { notifs, push } = useNotifs();
+  const { theme, setTheme, toggle: toggleTheme } = useTheme();
 
   // ── Global AI Task Manager ──
   // Sahifa o'zgarganda ham AI jarayoni davom etadi
@@ -8485,6 +8582,7 @@ export default function App() {
                 <span style={{ color: "var(--muted)" }}>·</span>
                 <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
               </div>
+              <ThemeToggle theme={theme} toggle={toggleTheme} size="sm" />
               <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{new Date().toLocaleDateString("uz-UZ")}</span>
               <button className="btn btn-ghost btn-xs" onClick={handleLogout} style={{ color: "var(--muted)" }}>Chiqish</button>
             </div>
