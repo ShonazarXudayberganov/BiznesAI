@@ -1031,6 +1031,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .chat-msgs-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
 .chat-msgs{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:6px 2px 14px;}
 .chat-msgs::-webkit-scrollbar{width:3px}
+.hide-scroll{scrollbar-width:none;-ms-overflow-style:none}.hide-scroll::-webkit-scrollbar{display:none}
 .chat-float-btns{position:absolute;right:8px;top:10px;bottom:10px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;z-index:5;}
 .chat-float-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-hi);background:var(--glass);backdrop-filter:blur(10px);color:var(--text2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s var(--ease);pointer-events:all;box-shadow:var(--shadow-md);opacity:.7;}
 .chat-float-btn:hover{opacity:1;color:var(--gold);border-color:rgba(212,168,83,0.3);transform:scale(1.1);box-shadow:var(--shadow-glow-gold)}
@@ -4887,61 +4888,43 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
         })}
       </div>
 
-      {/* ═══ AI SO'ROV PANELI — barcha manbalar uchun ═══ */}
+      {/* ═══ AI SO'ROV PANELI — ixcham ═══ */}
       {workingSource && (
-        <div className="card mb14" style={{ border: "1px solid rgba(0,201,190,0.15)", background: "linear-gradient(135deg,var(--s1),rgba(0,201,190,0.02))" }}>
-          <div className="flex aic gap10 mb12">
-            <span style={{ fontSize: 22 }}></span>
-            <div className="f1">
-              <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800, color: "var(--text)" }}>AI Grafik Generatori</div>
-              <div className="text-muted text-xs">Qanday raqamlar va grafiklar kerakligini yozing — AI hisoblaydi va chiqaradi</div>
-            </div>
-            <div style={{ textAlign: "right", fontSize: 10, color: "var(--muted)" }}>
-              <div>{workingSource.data?.length || 0} ta yozuv</div>
-              <div style={{ color: SOURCE_TYPES[workingSource.type]?.color }}>{SOURCE_TYPES[workingSource.type]?.icon} {SOURCE_TYPES[workingSource.type]?.label}</div>
-            </div>
-          </div>
-
-          {/* Tayyor so'rov chiplar */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            {QUICK_CHARTS.map((q, i) => (
-              <button key={i} onClick={() => { setUserQuery(q.text); runAiCharts(q.text); }} disabled={aiLoading}
-                style={{
-                  background: `${q.c}0A`, border: `1px solid ${q.c}25`, borderRadius: 10, padding: "8px 14px", cursor: aiLoading ? "not-allowed" : "pointer",
-                  fontSize: 11, color: "var(--text2)", transition: "all .2s", textAlign: "left", maxWidth: 380, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 8
-                }}
-                onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = q.c + "60"; e.currentTarget.style.background = q.c + "15"; } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = q.c + "25"; e.currentTarget.style.background = q.c + "0A"; }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{q.icon}</span>
-                <span>{q.text}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Custom input */}
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="field f1" placeholder="Qanday tahlil kerak? Masalan: oylik daromad trendi, guruhlar to'liqligi..."
+        <div className="mb14" style={{ background: "var(--s1)", border: "1px solid rgba(0,201,190,0.12)", borderRadius: 14, padding: "14px 18px" }}>
+          {/* Input qatori */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <input className="field f1" placeholder={`${SOURCE_TYPES[workingSource.type]?.label || "Manba"} tahlili: qanday grafik kerak?`}
               value={userQuery} onChange={e => setUserQuery(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !aiLoading) runAiCharts(); }}
               disabled={aiLoading}
-              style={{ fontSize: 13, padding: "12px 16px" }} />
+              style={{ fontSize: 12, padding: "10px 14px" }} />
             <button className="btn btn-primary" onClick={() => runAiCharts()} disabled={aiLoading || !userQuery.trim() || !aiConfig?.apiKey}
-              style={{ padding: "12px 24px", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
-              {aiLoading ? (
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 1s linear infinite", display: "inline-block" }} />
-                  Tahlil...
-                </span>
-              ) : " Generatsiya"}
+              style={{ padding: "10px 20px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
+              {aiLoading ? "Tahlil..." : "Generatsiya"}
             </button>
           </div>
-          {!aiConfig?.apiKey && <div className="text-muted text-xs mt6">AI ulangan emas. Sozlamalar bo'limidan API kalit kiriting.</div>}
-          {aiError && <div style={{ color: "var(--red)", fontSize: 11, marginTop: 8 }}>Xato: {aiError}</div>}
-          {allCards.length > 0 && (
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
-              <span>{allCards.length} ta grafik saqlangan {lastQuery && <>— oxirgi so'rov: <span style={{ color: "var(--teal)" }}>{lastQuery}</span></>}</span>
-              <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}
-                onClick={() => { if (confirm("Barcha saqlangan grafiklarni o'chirishni xohlaysizmi?")) { setAiCards([]); LS.del(cacheKey); } }}>
+          {/* Chiplar — ixcham, bir qator scroll */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }} className="hide-scroll">
+            {QUICK_CHARTS.map((q, i) => (
+              <button key={i} onClick={() => { setUserQuery(q.text); runAiCharts(q.text); }} disabled={aiLoading}
+                style={{
+                  background: `${q.c}08`, border: `1px solid ${q.c}20`, borderRadius: 8, padding: "5px 12px", cursor: aiLoading ? "not-allowed" : "pointer",
+                  fontSize: 10, color: q.c, transition: "all .2s", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 600,
+                }}
+                onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = q.c + "60"; e.currentTarget.style.background = q.c + "18"; } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = q.c + "20"; e.currentTarget.style.background = q.c + "08"; }}>
+                {q.text.length > 40 ? q.text.substring(0, 38) + "..." : q.text}
+              </button>
+            ))}
+          </div>
+          {/* Xato va info */}
+          {!aiConfig?.apiKey && <div className="text-muted text-xs mt6">AI ulangan emas. Sozlamalar → API kalit kiriting.</div>}
+          {aiError && <div style={{ color: "var(--red)", fontSize: 10, marginTop: 6 }}>Xato: {aiError}</div>}
+          {aiCards.length > 0 && (
+            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{aiCards.length} ta AI grafik saqlangan</span>
+              <button className="btn btn-ghost btn-xs" style={{ fontSize: 9, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)", padding: "2px 8px" }}
+                onClick={() => { if (confirm("AI grafiklarni tozalash?")) { setAiCards([]); LS.del(cacheKey); } }}>
                 Tozalash
               </button>
             </div>
@@ -4951,25 +4934,6 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {/* AI Loading — bosqichli progress bar */}
       <AiProgressBar loading={aiLoading} />
-
-      {/* Umumiy statistika */}
-      {allCards.length > 0 && (
-        <div className="g4 mb14">
-          {[
-            { l: "Yozuvlar", v: (workingSource?.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "" },
-            { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "" },
-            { l: "Statistika", v: allCards.filter(c => c.type === "stats" || c.type === "highlight" || c.type === "gauge").length, c: "var(--gold)", i: "" },
-            { l: "Jami Kartalar", v: allCards.length, c: "var(--purple)", i: "" },
-          ].map((c, i) => (
-            <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.c}80,transparent)` }} />
-              <div style={{ fontSize: 16, marginBottom: 6, color: c.c }}>{c.i}</div>
-              <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: c.c, lineHeight: 1 }}>{c.v}</div>
-              <div style={{ fontFamily: "var(--fh)", fontSize: 8.5, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 5 }}>{c.l}</div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* Filter tabs */}
       {allCards.length > 0 && (
