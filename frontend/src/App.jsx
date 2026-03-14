@@ -85,7 +85,7 @@ const PLANS = {
 // ─────────────────────────────────────────────────────────────
 const AI_PROVIDERS = {
   claude: {
-    id: "claude", name: "Claude", icon: "◈", color: "var(--gold)", company: "Anthropic",
+    id: "claude", name: "Claude", icon: "", color: "var(--gold)", company: "Anthropic",
     models: [{ id: "claude-sonnet-4-20250514", n: "Sonnet 4", label: "Sonnet 4", badge: "200K", ctx: "200K" }, { id: "claude-haiku-4-5-20251001", n: "Haiku 4.5", label: "Haiku 4.5", badge: "200K", ctx: "200K" }, { id: "claude-opus-4-6", n: "Opus 4.6", label: "Opus 4.6", badge: "200K", ctx: "200K" }],
     pricing: { in: 3, out: 15 }, note: "Eng aqlli agent, Uzbek tushunadi", streaming: true,
     ph: "sk-ant-api03-...", hint: "console.anthropic.com → API Keys",
@@ -106,7 +106,7 @@ const AI_PROVIDERS = {
     baseUrl: "https://api.openai.com/v1/chat/completions"
   },
   gemini: {
-    id: "gemini", name: "Gemini", icon: "⬡", color: "#FB923C", company: "Google",
+    id: "gemini", name: "Gemini", icon: "", color: "#FB923C", company: "Google",
     models: [{ id: "gemini-2.0-flash", n: "2.0 Flash", label: "Gemini 2.0 Flash", badge: "1M", ctx: "1M" }, { id: "gemini-1.5-pro", n: "1.5 Pro", label: "Gemini 1.5 Pro", badge: "1M", ctx: "1M" }],
     pricing: { in: 0.075, out: 0.3 }, note: "Google ekotizimi, tasvir tahlil", streaming: true,
     ph: "AIza...", hint: "aistudio.google.com → API Keys",
@@ -115,9 +115,9 @@ const AI_PROVIDERS = {
 };
 
 const SOURCE_TYPES = {
-  excel: { id: "excel", icon: "📊", label: "Excel/CSV", color: "#4ADE80", desc: "xlsx, xls, csv fayllar" },
+  excel: { id: "excel", icon: "", label: "Excel/CSV", color: "#4ADE80", desc: "xlsx, xls, csv fayllar" },
   sheets: { id: "sheets", icon: "🔗", label: "Google Sheets", color: "#60A5FA", desc: "Sheets URL yuklash" },
-  restapi: { id: "restapi", icon: "⚡", label: "REST API", color: "#F59E0B", desc: "JSON endpoint" },
+  restapi: { id: "restapi", icon: "", label: "REST API", color: "#F59E0B", desc: "JSON endpoint" },
   instagram: { id: "instagram", icon: "📸", label: "Instagram", color: "#E879F9", desc: "Business API" },
   telegram: { id: "telegram", icon: "✈️", label: "Telegram Kanal", color: "#38BDF8", desc: "Kanal statistikasi" },
   crm: { id: "crm", icon: "🏢", label: "LC-UP CRM", color: "#8B5CF6", desc: "O'quv markaz CRM tizimi" },
@@ -998,12 +998,12 @@ function NotifBanner({ notifs }) {
 function LandingPage({ onLogin, onRegister }) {
   const [billing, setBilling] = useState("monthly");
   const feats = [
-    { ico: "◈", title: "Ko'p AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar.", c: "var(--gold)" },
-    { ico: "📊", title: "Data Hub — Konstruktor", desc: "Excel, Google Sheets, REST API, Instagram, Telegram — istalgan manba bilan ulaning.", c: "var(--teal)" },
-    { ico: "◆", title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge, heatmap va boshqalar bilan ma'lumotni vizualizatsiya qiling.", c: "var(--green)" },
-    { ico: "◬", title: "Proaktiv AI Ogohlantirishlar", desc: "AI har 6 soatda biznesingizni tahlil qilib, xavfli o'zgarishlarni siz so'ramasdan xabar beradi.", c: "var(--red)" },
+    { ico: "", title: "Ko'p AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar.", c: "var(--gold)" },
+    { ico: "", title: "Data Hub — Konstruktor", desc: "Excel, Google Sheets, REST API, Instagram, Telegram — istalgan manba bilan ulaning.", c: "var(--teal)" },
+    { ico: "", title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge, heatmap va boshqalar bilan ma'lumotni vizualizatsiya qiling.", c: "var(--green)" },
+    { ico: "", title: "Proaktiv AI Ogohlantirishlar", desc: "AI har 6 soatda biznesingizni tahlil qilib, xavfli o'zgarishlarni siz so'ramasdan xabar beradi.", c: "var(--red)" },
     { ico: "◰", title: "Avtomatik Hisobotlar", desc: "PDF, Excel, TXT formatida professional hisobotlar. Bir tugma bilan tayyor.", c: "var(--purple)" },
-    { ico: "⬡", title: "Admin Paneli", desc: "Barcha foydalanuvchilar, to'lovlar, hisobotlar — bir joydan to'liq nazorat.", c: "var(--blue)" },
+    { ico: "", title: "Admin Paneli", desc: "Barcha foydalanuvchilar, to'lovlar, hisobotlar — bir joydan to'liq nazorat.", c: "var(--blue)" },
   ];
   const planList = Object.keys(PLANS).map(k => getPlan(k));
   return (
@@ -1021,7 +1021,7 @@ function LandingPage({ onLogin, onRegister }) {
 
       {/* HERO */}
       <div className="land-hero">
-        <div className="hero-badge"><span style={{ color: "var(--teal)" }}>◆</span> BiznesAI v2.0 chiqdi</div>
+        <div className="hero-badge"><span style={{ color: "var(--teal)" }}></span> BiznesAI v2.0 chiqdi</div>
         <h1 className="hero-title">
           Biznesingizni<br />
           <span className="grad">Sun'iy Intellekt</span><br />
@@ -1033,10 +1033,10 @@ function LandingPage({ onLogin, onRegister }) {
         </p>
         <div className="hero-btns">
           <button className="btn btn-primary btn-lg" onClick={onRegister}>
-            🚀 Bepul boshlang
+            Bepul boshlang
           </button>
           <button className="btn btn-ghost btn-lg" onClick={onLogin}>
-            ◈ Kirish
+            Kirish
           </button>
         </div>
         <div style={{ marginTop: 28, fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>
@@ -1127,7 +1127,7 @@ function LandingPage({ onLogin, onRegister }) {
       <div className="land-section" style={{ textAlign: "center" }}>
         <h2 className="land-section-title">Hoziroq boshlang</h2>
         <p className="land-section-sub">Ro'yxatdan o'tish 30 soniya davom etadi</p>
-        <button className="btn btn-primary btn-lg" onClick={onRegister}>◈ Bepul boshlash</button>
+        <button className="btn btn-primary btn-lg" onClick={onRegister}> Bepul boshlash</button>
       </div>
 
       {/* FOOTER */}
@@ -1178,15 +1178,15 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
           <label className="field-label">Parol</label>
           <input className="field" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
         </div>
-        <button className="btn btn-primary" style={{ width: "100%", marginTop: 4 }} onClick={submit} disabled={loading}>
-          {loading ? "Kirilmoqda..." : "Kirish →"}
+        <button className="btn btn-primary" style={{ width: "100%", marginTop: 4, justifyContent: "center" }} onClick={submit} disabled={loading}>
+          {loading ? "Kirilmoqda..." : "Kirish"}
         </button>
         <div className="auth-divider">yoki</div>
         <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)" }}>
           Hisob yo'qmi? <span className="auth-link" onClick={onGoRegister}>Ro'yxatdan o'ting</span>
         </div>
         <div style={{ textAlign: "center", marginTop: 10 }}>
-          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>← Bosh sahifaga qaytish</span>
+          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>Bosh sahifaga qaytish</span>
         </div>
 
       </div>
@@ -1235,14 +1235,14 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
             <input className="field" type={f.t} placeholder={f.p} value={f.v} onChange={e => f.s(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
           </div>
         ))}
-        <button className="btn btn-primary" style={{ width: "100%", marginTop: 4 }} onClick={submit} disabled={loading}>
-          {loading ? "Yaratilmoqda..." : "Hisob yaratish →"}
+        <button className="btn btn-primary" style={{ width: "100%", marginTop: 4, justifyContent: "center" }} onClick={submit} disabled={loading}>
+          {loading ? "Yaratilmoqda..." : "Hisob yaratish"}
         </button>
         <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
           Hisob bormi? <span className="auth-link" onClick={onGoLogin}>Kiring</span>
         </div>
         <div style={{ textAlign: "center", marginTop: 6 }}>
-          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>← Bosh sahifaga</span>
+          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>Bosh sahifaga</span>
         </div>
         <div style={{ marginTop: 14, fontSize: 10, color: "var(--muted)", textAlign: "center", lineHeight: 1.6 }}>
           Ro'yxatdan o'tish orqali siz <span style={{ color: "var(--teal)" }}>Foydalanish shartlari</span> va <span style={{ color: "var(--teal)" }}>Maxfiylik siyosati</span>ga rozilik bildirasiz.
@@ -1291,7 +1291,7 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 
         {step === "done" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+            <div style={{ fontSize: 48, marginBottom: 16 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, marginBottom: 8 }}>To'lov qabul qilindi!</div>
             <div style={{ color: "var(--muted)", fontSize: 13 }}>{plan.nameUz} tarifi faollashtirildi</div>
           </div>
@@ -1357,7 +1357,7 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 
             <button className="btn btn-primary" style={{ width: "100%" }} onClick={pay}
               disabled={!card.num || card.num.replace(/\s/g, "").length < 16}>
-              🔒 {price.toLocaleString("uz-UZ")} so'm to'lash
+              {price.toLocaleString("uz-UZ")} so'm to'lash
             </button>
             <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
               256-bit SSL shifrlash · Xavfsiz to'lov
@@ -1403,7 +1403,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
 
       {/* Tab navigation */}
       <div className="flex gap6 mb20">
-        {[{ id: "profile", l: "◐ Profil" }, { id: "billing", l: "◆ Tarif & To'lov" }, { id: "history", l: "◰ To'lov tarixi" }].map(t => (
+        {[{ id: "profile", l: "◐ Profil" }, { id: "billing", l: " Tarif & To'lov" }, { id: "history", l: "◰ To'lov tarixi" }].map(t => (
           <button key={t.id} className="btn btn-ghost btn-sm"
             style={tab === t.id ? { borderColor: "var(--gold)", color: "var(--gold)", background: "rgba(232,184,75,0.08)" } : {}}
             onClick={() => setTab(t.id)}>{t.l}</button>
@@ -1470,7 +1470,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
               </div>
               {user.plan === "free" && (
                 <button className="btn btn-primary btn-sm" style={{ marginTop: 14, width: "100%" }} onClick={() => setTab("billing")}>
-                  ⬆ Yangilash
+                  Yangilash
                 </button>
               )}
             </div>
@@ -1738,10 +1738,10 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
   const avgRevPerUser = paidUsers > 0 ? Math.round(totalRevenue / paidUsers) : 0;
 
   const statCards = [
-    { l: "Jami foydalanuvchi", v: total, sub: `${activeToday} bugun faol`, c: "var(--teal)", ac: "#00C9BE", i: "👥" },
-    { l: "Haftalik faol", v: activeWeek, sub: `${blocked} bloklangan`, c: "var(--green)", ac: "#4ADE80", i: "📈" },
+    { l: "Jami foydalanuvchi", v: total, sub: `${activeToday} bugun faol`, c: "var(--teal)", ac: "#00C9BE", i: "" },
+    { l: "Haftalik faol", v: activeWeek, sub: `${blocked} bloklangan`, c: "var(--green)", ac: "#4ADE80", i: "" },
     { l: "Jami daromad", v: totalRevenue.toLocaleString("uz-UZ") + " so'm", sub: allPayments.length + " ta to'lov", c: "var(--gold)", ac: "#E8B84B", i: "💰" },
-    { l: "Bu oylik daromad", v: thisMonthRevenue.toLocaleString("uz-UZ") + " so'm", sub: revenueGrowth > 0 ? `↑ ${revenueGrowth}% o'sish` : revenueGrowth < 0 ? `↓ ${Math.abs(revenueGrowth)}% kamayish` : "Yangi oy", c: "var(--purple)", ac: "#A78BFA", i: "📊" },
+    { l: "Bu oylik daromad", v: thisMonthRevenue.toLocaleString("uz-UZ") + " so'm", sub: revenueGrowth > 0 ? `↑ ${revenueGrowth}% o'sish` : revenueGrowth < 0 ? `↓ ${Math.abs(revenueGrowth)}% kamayish` : "Yangi oy", c: "var(--purple)", ac: "#A78BFA", i: "" },
   ];
 
   if (loading) {
@@ -1761,7 +1761,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
         <div className="modal-overlay" onClick={() => setConfirmDelete(null)}>
           <div className="modal-box" style={{ maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>️</div>
               <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 800, marginBottom: 8 }}>Foydalanuvchini o'chirish</div>
               <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}><strong style={{ color: "var(--text)" }}>{confirmDelete.name}</strong> — barcha ma'lumotlari o'chadi. Bu amalni qaytarib bo'lmaydi.</div>
               <div className="flex gap10" style={{ justifyContent: "center" }}>
@@ -1777,7 +1777,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
       <div className="flex aic jb mb20" style={{ flexWrap: "wrap", gap: 10 }}>
         <div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "var(--red)" }}>⬡</span> Admin Panel
+            <span style={{ color: "var(--red)" }}></span> Admin Panel
           </div>
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{currentUser.email} · {new Date().toLocaleString("uz-UZ")}</div>
         </div>
@@ -1791,13 +1791,13 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
       {/* Tabs */}
       <div className="flex gap6 mb20" style={{ flexWrap: "wrap" }}>
         {[
-          { id: "overview", l: "◎ Statistika" },
-          { id: "analytics", l: "◆ Analytics" },
+          { id: "overview", l: " Statistika" },
+          { id: "analytics", l: " Analytics" },
           { id: "users", l: `◐ Foydalanuvchilar (${total})` },
           { id: "payments", l: `◰ To'lovlar (${allPayments.length})` },
           { id: "ai_config", l: "🤖 AI Sozlama" },
-          { id: "tariffs", l: "💎 Tariflar" },
-          { id: "system", l: "◈ Tizim" },
+          { id: "tariffs", l: " Tariflar" },
+          { id: "system", l: " Tizim" },
         ].map(t => (
           <button key={t.id} className="btn btn-ghost btn-sm"
             style={tab === t.id ? { borderColor: "var(--red)", color: "var(--red)", background: "rgba(248,113,133,0.07)" } : {}}
@@ -1830,7 +1830,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           <div className="g4 mb16">
             {[
               { l: "Pullik foydalanuvchilar", v: paidUsers, sub: `${conversionRate}% konversiya`, c: "var(--gold)", i: "⭐" },
-              { l: "O'rtacha daromad (har biri)", v: avgRevPerUser.toLocaleString("uz-UZ") + " so'm", sub: "Pullik foydalanuvchilar", c: "var(--teal)", i: "💎" },
+              { l: "O'rtacha daromad (har biri)", v: avgRevPerUser.toLocaleString("uz-UZ") + " so'm", sub: "Pullik foydalanuvchilar", c: "var(--teal)", i: "" },
               { l: "Jami manbalar", v: totalSources, sub: "Barcha foydalanuvchilar", c: "var(--green)", i: "📂" },
               { l: "Jami yozuvlar", v: totalDataRows.toLocaleString(), sub: "Ma'lumotlar", c: "var(--purple)", i: "🗃" },
             ].map((s, i) => (
@@ -2152,7 +2152,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
               {/* Joriy holat */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: currentGlobal?.apiKey ? "rgba(0,201,190,0.08)" : "rgba(248,113,113,0.08)", border: `1px solid ${currentGlobal?.apiKey ? "rgba(0,201,190,0.25)" : "rgba(248,113,113,0.25)"}`, borderRadius: 10, marginBottom: 18 }}>
-                <span style={{ fontSize: 20 }}>{currentGlobal?.apiKey ? "✅" : "❌"}</span>
+                <span style={{ fontSize: 20 }}>{currentGlobal?.apiKey ? "" : "❌"}</span>
                 <div className="f1">
                   <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: currentGlobal?.apiKey ? "var(--green)" : "var(--red)" }}>
                     {currentGlobal?.apiKey ? `${AI_PROVIDERS[currentGlobal.provider]?.name || currentGlobal.provider} ulangan — tizim ishlaydi` : "Global AI ulanmagan — foydalanuvchilar AI ishlatib bo'lmaydi"}
@@ -2213,7 +2213,7 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
                 {[
                   { icon: "🆓", title: "Bepul Foydalanish", desc: "Siz ulagan global AI dan hamma bepul foydalanadi. Tarif limitlariga qarab — Free: 5, Starter: 100, Pro: 500, Enterprise: ∞ so'rov/oy", c: "var(--green)" },
                   { icon: "🔑", title: "Shaxsiy API Kalit", desc: "Foydalanuvchi o'z API kalitini kiritsa — u cheksiz so'rov yuboradi, limit hisoblanmaydi. Istalgan provayderdan foydalanadi", c: "var(--gold)" },
-                  { icon: "💎", title: "Tarif Sotish", desc: "Foydalanuvchilar yuqori tarif olsa — ko'proq AI so'rov limiti oladi. Enterprise — cheksiz. Yoki o'z API kaliti bilan cheksiz", c: "var(--purple)" },
+                  { icon: "", title: "Tarif Sotish", desc: "Foydalanuvchilar yuqori tarif olsa — ko'proq AI so'rov limiti oladi. Enterprise — cheksiz. Yoki o'z API kaliti bilan cheksiz", c: "var(--purple)" },
                 ].map((s, i) => (
                   <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "14px 16px", border: `1px solid ${s.c}20` }}>
                     <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
@@ -2310,12 +2310,12 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           <div className="section-hd mb12">Tizim Ma'lumotlari</div>
           <div className="g3 mb16">
             {[
-              { l: "Jami Foydalanuvchilar", v: total, c: "var(--teal)", i: "👥" },
+              { l: "Jami Foydalanuvchilar", v: total, c: "var(--teal)", i: "" },
               { l: "Jami Manbalar", v: totalSources, c: "var(--green)", i: "📂" },
               { l: "Jami Yozuvlar", v: totalDataRows.toLocaleString(), c: "var(--gold)", i: "🗃" },
               { l: "Pullik Foydalanuvchilar", v: paidUsers, c: "var(--purple)", i: "⭐" },
-              { l: "Konversiya", v: conversionRate + "%", c: "var(--teal)", i: "📈" },
-              { l: "O'rtacha Daromad", v: avgRevPerUser.toLocaleString() + " so'm", c: "var(--gold)", i: "💎" },
+              { l: "Konversiya", v: conversionRate + "%", c: "var(--teal)", i: "" },
+              { l: "O'rtacha Daromad", v: avgRevPerUser.toLocaleString() + " so'm", c: "var(--gold)", i: "" },
             ].map((s, i) => (
               <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${s.c}80,transparent)` }} />
@@ -3090,7 +3090,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             `${label} ${page}-sahifa`
           );
           if (!res || !res.ok) {
-            push(`⚠ ${label}: ${page}-sahifada xato (HTTP ${res?.status || "timeout"}), ${all.length} ta yuklandi`, "warn");
+            push(` ${label}: ${page}-sahifada xato (HTTP ${res?.status || "timeout"}), ${all.length} ta yuklandi`, "warn");
             failed = true;
             break;
           }
@@ -3107,16 +3107,16 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       };
 
       // 3. BARCHA ENDPOINTLARNI KETMA-KET YUKLASH (rate limit uchun)
-      push("📥 Lidlar yuklanmoqda...", "info");
+      push(" Lidlar yuklanmoqda...", "info");
       const lids = await fetchAllPages("lids", "Lidlar");
       await delay(1000);
-      push("📥 Guruhlar yuklanmoqda...", "info");
+      push(" Guruhlar yuklanmoqda...", "info");
       const groups = await fetchAllPages("groups", "Guruhlar");
       await delay(1000);
-      push("📥 O'quvchilar yuklanmoqda...", "info");
+      push(" O'quvchilar yuklanmoqda...", "info");
       const students = await fetchAllPages("students", "O'quvchilar");
       await delay(1000);
-      push("📥 O'qituvchilar yuklanmoqda...", "info");
+      push(" O'qituvchilar yuklanmoqda...", "info");
       const teachers = await fetchAllPages("teachers", "O'qituvchilar");
       await delay(1000);
       const trashedStudents = await fetchAllPages("trashedStudents", "O'chirilgan").catch(() => []);
@@ -3685,10 +3685,10 @@ function DataHubPage({ sources, setSources, push, user }) {
       {/* Stats */}
       <div className="g4 mb20">
         {[
-          { l: "Jami Manbalar", v: sources.length, c: "var(--teal)", i: "⬢" },
+          { l: "Jami Manbalar", v: sources.length, c: "var(--teal)", i: "" },
           { l: "Aktiv Manbalar", v: connectedSources.length, c: "var(--green)", i: "✓" },
-          { l: "Jami Yozuvlar", v: totalRows.toLocaleString(), c: "var(--gold)", i: "◆" },
-          { l: "Manba Turlari", v: [...new Set(sources.map(s => s.type))].length, c: "var(--purple)", i: "◉" },
+          { l: "Jami Yozuvlar", v: totalRows.toLocaleString(), c: "var(--gold)", i: "" },
+          { l: "Manba Turlari", v: [...new Set(sources.map(s => s.type))].length, c: "var(--purple)", i: "" },
         ].map((c, i) => (
           <div key={i} className="card" style={{ marginBottom: 0 }}>
             <div className="card-title">{c.i} {c.l}</div>
@@ -3741,7 +3741,7 @@ function DataHubPage({ sources, setSources, push, user }) {
       {/* Source list */}
       {sources.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: 40 }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>⬢</div>
+          <div style={{ fontSize: 32, marginBottom: 10 }}></div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 15, marginBottom: 6 }}>Ma'lumot Manbasi Yo'q</div>
           <div className="text-muted text-sm">"+ Yangi Manba Qo'shish" tugmasini bosing</div>
         </div>
@@ -3838,18 +3838,18 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
   const QUICK_CHARTS = useMemo(() => {
     if (!workingSource) return [];
     if (workingSource.type === "crm") return [
-      { icon: "📊", text: "O'quv markaz umumiy ko'rsatkichlari: lidlar, guruhlar, o'quvchilar, o'qituvchilar, daromad, maosh", c: "#8B5CF6" },
+      { icon: "", text: "O'quv markaz umumiy ko'rsatkichlari: lidlar, guruhlar, o'quvchilar, o'qituvchilar, daromad, maosh", c: "#8B5CF6" },
       { icon: "💰", text: "Moliyaviy tahlil: daromad, maosh xarajati, foyda foizi, guruh narxlari, top daromadli guruhlar", c: "#4ADE80" },
       { icon: "🎯", text: "Lidlar pipeline tahlili: qaysi bosqichda nechta lid, kunlik yangi lidlar trendi, konversiya", c: "#F87171" },
       { icon: "📚", text: "Guruhlar to'liqligi: har bir guruhda nechta o'quvchi, to'la/bo'sh guruhlar, filial bo'yicha", c: "#60A5FA" },
       { icon: "👨‍🏫", text: "O'qituvchilar yuklama: nechtadan guruh, maosh, samaradorlik, fan bo'yicha taqsimot", c: "#FBBF24" },
       { icon: "🏫", text: "Filiallar solishtirma: o'quvchi soni, guruh soni, daromad, o'qituvchilar — har bir filial", c: "#A78BFA" },
       { icon: "👤", text: "O'quvchilar demografi: jinsi, yoshi, fanlar bo'yicha, ko'p guruhli o'quvchilar", c: "#E879F9" },
-      { icon: "📈", text: "O'sish tendensiyasi: kunlik yangi lidlar, o'quvchilar qo'shilish dinamikasi", c: "#00C9BE" },
+      { icon: "", text: "O'sish tendensiyasi: kunlik yangi lidlar, o'quvchilar qo'shilish dinamikasi", c: "#00C9BE" },
     ];
     return [
-      { icon: "📊", text: "Umumiy statistika va asosiy raqamlar: jami, o'rtacha, min, max ko'rsatkichlar", c: "#00C9BE" },
-      { icon: "📈", text: "Tendensiya va o'zgarish: vaqt bo'yicha trend, o'sish yoki pasayish", c: "#4ADE80" },
+      { icon: "", text: "Umumiy statistika va asosiy raqamlar: jami, o'rtacha, min, max ko'rsatkichlar", c: "#00C9BE" },
+      { icon: "", text: "Tendensiya va o'zgarish: vaqt bo'yicha trend, o'sish yoki pasayish", c: "#4ADE80" },
       { icon: "🏆", text: "Top va eng yaxshi ko'rsatkichlar: eng yuqori qiymatlar, reyting", c: "#FBBF24" },
       { icon: "📉", text: "Solishtirma tahlil: kategoriyalar bo'yicha solishtirish", c: "#60A5FA" },
       { icon: "💰", text: "Moliyaviy ko'rsatkichlar: daromad, xarajat, foyda, rentabellik", c: "#4ADE80" },
@@ -3989,7 +3989,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
   if (!connectedSources.length) return (
     <div className="card" style={{ textAlign: "center", padding: 48 }}>
-      <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+      <div style={{ fontSize: 40, marginBottom: 14 }}></div>
       <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Grafiklar avtomatik yaratiladi</div>
       <div className="text-muted text-sm">Data Hub dan manba ulang — Excel, Instagram, Telegram yoki API</div>
     </div>
@@ -4056,7 +4056,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
                   <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 1s linear infinite", display: "inline-block" }} />
                   Tahlil...
                 </span>
-              ) : "📊 Generatsiya"}
+              ) : " Generatsiya"}
             </button>
           </div>
           {!aiConfig?.apiKey && <div className="text-muted text-xs mt6">AI ulangan emas. Sozlamalar bo'limidan API kalit kiriting.</div>}
@@ -4078,10 +4078,10 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
       {allCards.length > 0 && (
         <div className="g4 mb14">
           {[
-            { l: "Yozuvlar", v: (workingSource?.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "◆" },
-            { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "📊" },
-            { l: "Statistika", v: allCards.filter(c => c.type === "stats" || c.type === "highlight" || c.type === "gauge").length, c: "var(--gold)", i: "📈" },
-            { l: "Jami Kartalar", v: allCards.length, c: "var(--purple)", i: "◈" },
+            { l: "Yozuvlar", v: (workingSource?.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "" },
+            { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "" },
+            { l: "Statistika", v: allCards.filter(c => c.type === "stats" || c.type === "highlight" || c.type === "gauge").length, c: "var(--gold)", i: "" },
+            { l: "Jami Kartalar", v: allCards.length, c: "var(--purple)", i: "" },
           ].map((c, i) => (
             <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.c}80,transparent)` }} />
@@ -4165,7 +4165,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
   const chatKey = "u_" + (user?.id || "anon") + "_chat_h";
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [activeSrcIds, setActiveSrcIds] = useState(() => connectedSources.map(s => s.id));
-  const [messages, setMessages] = useState(() => LS.get(chatKey, [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing. 📊" }]));
+  const [messages, setMessages] = useState(() => LS.get(chatKey, [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing. " }]));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [qCat, setQCat] = useState("all");
@@ -4280,38 +4280,38 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
 
   // Manba turiga qarab aqlli savollar
   const QUICK_BASE = [
-    { icon: "📊", text: "Umumiy biznes tahlili qil", cat: "tahlil", c: "#00C9BE" },
-    { icon: "📈", text: "Daromad tendensiyasini ko'rsat", cat: "tahlil", c: "#4ADE80" },
+    { icon: "", text: "Umumiy biznes tahlili qil", cat: "tahlil", c: "#00C9BE" },
+    { icon: "", text: "Daromad tendensiyasini ko'rsat", cat: "tahlil", c: "#4ADE80" },
     { icon: "🔍", text: "Eng yaxshi va yomon ko'rsatkichlar", cat: "tahlil", c: "#FBBF24" },
     { icon: "🎯", text: "SWOT tahlili yoz", cat: "strategiya", c: "#A78BFA" },
-    { icon: "🚀", text: "O'sish strategiyasi taklif qil", cat: "strategiya", c: "#60A5FA" },
+    { icon: "", text: "O'sish strategiyasi taklif qil", cat: "strategiya", c: "#60A5FA" },
     { icon: "💰", text: "Xarajatlarni optimallashtirish", cat: "moliya", c: "#F87171" },
     { icon: "🔮", text: "3 oylik prognoz ber", cat: "prognoz", c: "#E879F9" },
-    { icon: "⚡", text: "Tezkor xulosa: asosiy raqamlar", cat: "tahlil", c: "#FB923C" },
+    { icon: "", text: "Tezkor xulosa: asosiy raqamlar", cat: "tahlil", c: "#FB923C" },
   ];
   const QUICK_INSTAGRAM = [
     { icon: "📸", text: "Instagram engagement tahlili", cat: "instagram", c: "#E879F9" },
     { icon: "❤️", text: "Qaysi postlar eng ko'p like olgan?", cat: "instagram", c: "#F87171" },
-    { icon: "💬", text: "Izohlar tahlili — auditoriya qiziqishi", cat: "instagram", c: "#FBBF24" },
+    { icon: "", text: "Izohlar tahlili — auditoriya qiziqishi", cat: "instagram", c: "#FBBF24" },
     { icon: "📅", text: "Qaysi kunlarda post eng yaxshi ishlaydi?", cat: "instagram", c: "#4ADE80" },
     { icon: "🎬", text: "Video vs Rasm — qaysi biri samaraliroq?", cat: "instagram", c: "#60A5FA" },
-    { icon: "📊", text: "Haftalik engagement dinamikasi", cat: "instagram", c: "#00C9BE" },
+    { icon: "", text: "Haftalik engagement dinamikasi", cat: "instagram", c: "#00C9BE" },
     { icon: "🏆", text: "Top 5 eng yaxshi post va sabablari", cat: "instagram", c: "#FB923C" },
-    { icon: "👥", text: "Auditoriya o'sish tezligini baholash", cat: "instagram", c: "#A78BFA" },
-    { icon: "📝", text: "Kontent strategiyasi tavsiyalari", cat: "strategiya", c: "#EC4899" },
+    { icon: "", text: "Auditoriya o'sish tezligini baholash", cat: "instagram", c: "#A78BFA" },
+    { icon: "", text: "Kontent strategiyasi tavsiyalari", cat: "strategiya", c: "#EC4899" },
     { icon: "⏰", text: "Eng yaxshi post vaqtini aniqlash", cat: "instagram", c: "#38BDF8" },
   ];
   const QUICK_TELEGRAM = [
     { icon: "✈️", text: "Telegram kanal statistikasini tahlil qil", cat: "telegram", c: "#38BDF8" },
-    { icon: "👥", text: "Obunachilar o'sishi va dinamikasi", cat: "telegram", c: "#E879F9" },
+    { icon: "", text: "Obunachilar o'sishi va dinamikasi", cat: "telegram", c: "#E879F9" },
     { icon: "👁", text: "Qaysi postlar eng ko'p ko'rilgan?", cat: "telegram", c: "#4ADE80" },
     { icon: "🕐", text: "Qaysi soatlarda post chiqarish samarali?", cat: "telegram", c: "#FBBF24" },
     { icon: "🔄", text: "Eng ko'p ulashilgan postlar tahlili", cat: "telegram", c: "#F87171" },
-    { icon: "📈", text: "Kanal engagement rate va tavsiyalar", cat: "telegram", c: "#00C9BE" },
+    { icon: "", text: "Kanal engagement rate va tavsiyalar", cat: "telegram", c: "#00C9BE" },
   ];
   const QUICK_DATA = [
     { icon: "📋", text: "Ma'lumotlar sifatini tekshir", cat: "tahlil", c: "#00C9BE" },
-    { icon: "📊", text: "Ustunlar bo'yicha statistika", cat: "tahlil", c: "#4ADE80" },
+    { icon: "", text: "Ustunlar bo'yicha statistika", cat: "tahlil", c: "#4ADE80" },
     { icon: "🔗", text: "Korrelyatsiyalarni topib ber", cat: "tahlil", c: "#A78BFA" },
     { icon: "📉", text: "Anomaliyalar va og'ishlarni aniqla", cat: "tahlil", c: "#F87171" },
     { icon: "📑", text: "Ma'lumot bo'yicha hisobot yoz", cat: "hisobot", c: "#FBBF24" },
@@ -4324,10 +4324,10 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
     { icon: "👨‍🏫", text: "O'qituvchilar yuklamasi va samaradorligi", cat: "crm", c: "#FBBF24" },
     { icon: "🏫", text: "Filiallar bo'yicha solishtirma tahlil", cat: "crm", c: "#60A5FA" },
     { icon: "💰", text: "Daromad va maosh nisbati — foyda tahlili", cat: "crm", c: "#4ADE80" },
-    { icon: "📈", text: "O'quvchilar o'sish tendensiyasi", cat: "crm", c: "#00C9BE" },
+    { icon: "", text: "O'quvchilar o'sish tendensiyasi", cat: "crm", c: "#00C9BE" },
     { icon: "📖", text: "Qaysi fanlar eng mashhur?", cat: "crm", c: "#A78BFA" },
     { icon: "👤", text: "O'quvchilar demografi tahlili (jins, yosh)", cat: "crm", c: "#E879F9" },
-    { icon: "⚡", text: "CRM samaradorlik hisoboti yoz", cat: "crm", c: "#FB923C" },
+    { icon: "", text: "CRM samaradorlik hisoboti yoz", cat: "crm", c: "#FB923C" },
   ];
 
   // Tanlangan manbalarga qarab savollar
@@ -4357,7 +4357,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey }) {
         <span style={{ color: prov.color, fontSize: 15 }}>{prov.icon}</span>
         <span className="text-xs text-muted">Faol:</span>
         <span style={{ fontSize: 11.5, color: prov.color, fontFamily: "var(--fh)", fontWeight: 600 }}>{prov.name} — {aiConfig.model}</span>
-        {!aiConfig.apiKey && <span className="badge b-warn ml-auto">⚠ Kalit kerak</span>}
+        {!aiConfig.apiKey && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
         {aiConfig.apiKey && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
         <div style={{ marginLeft: aiConfig.apiKey ? "8px" : "auto", display: "flex", gap: 4 }}>
           <button className="chat-export-btn" onClick={copyChat} title="Nusxalash">📋 Nusxa</button>
@@ -4490,28 +4490,28 @@ function AnalyticsPage({ aiConfig, sources }) {
   const hasTG = connectedSources.some(s => s.type === "telegram");
 
   const BASE_MODS = [
-    { l: "📈 Savdo Tahlili", p: "Savdo ko'rsatkichlarini tahlil qil. Daromad tendensiyasi, o'sish imkoniyatlari, zaif tomonlar. Jadval formatida ko'rsat.", cat: "biznes", color: "#4ADE80", icon: "📈" },
-    { l: "👥 Mijozlar Tahlili", p: "Mijozlar bazasini tahlil qil. Segmentatsiya, LTV, churn risk, takroriy xaridlar.", cat: "biznes", color: "#60A5FA", icon: "👥" },
+    { l: " Savdo Tahlili", p: "Savdo ko'rsatkichlarini tahlil qil. Daromad tendensiyasi, o'sish imkoniyatlari, zaif tomonlar. Jadval formatida ko'rsat.", cat: "biznes", color: "#4ADE80", icon: "" },
+    { l: " Mijozlar Tahlili", p: "Mijozlar bazasini tahlil qil. Segmentatsiya, LTV, churn risk, takroriy xaridlar.", cat: "biznes", color: "#60A5FA", icon: "" },
     { l: "💰 Xarajatlar Tahlili", p: "Xarajatlar tuzilmasini tahlil qil. Tejash imkoniyatlari, ROI, byudjet tavsiyalari.", cat: "moliya", color: "#FB923C", icon: "💰" },
     { l: "🧑‍💼 Xodimlar KPI", p: "Xodimlar unumdorligi va KPI tahlili. Eng samarali va muammoli tomonlar.", cat: "biznes", color: "#A78BFA", icon: "🧑‍💼" },
     { l: "🎯 SWOT Tahlil", p: "To'liq SWOT tahlili yoz: kuchli tomonlar, zaif tomonlar, imkoniyatlar, xatarlar. Har birini 3-5 ta band bilan.", cat: "strategiya", color: "#E879F9", icon: "🎯" },
     { l: "🔮 3 Oy Prognoz", p: "Mavjud trend asosida keyingi 3 oy uchun bashorat yoz. Aniq raqamlar bilan. Eng yaxshi va eng yomon senariylar.", cat: "prognoz", color: "#38BDF8", icon: "🔮" },
-    { l: "📊 KPI Dashboard", p: "Asosiy KPI ko'rsatkichlarini aniqlash va jadval formatida chiqarish. Har bir KPI uchun hozirgi holat, maqsad, farq.", cat: "biznes", color: "#00C9BE", icon: "📊" },
-    { l: "⚡ Tezkor Xulosa", p: "Ma'lumotlarning eng muhim 5-7 ta xulosasini ber. Qisqa, aniq, raqamlarga asoslangan.", cat: "tezkor", color: "#FBBF24", icon: "⚡" },
+    { l: " KPI Dashboard", p: "Asosiy KPI ko'rsatkichlarini aniqlash va jadval formatida chiqarish. Har bir KPI uchun hozirgi holat, maqsad, farq.", cat: "biznes", color: "#00C9BE", icon: "" },
+    { l: " Tezkor Xulosa", p: "Ma'lumotlarning eng muhim 5-7 ta xulosasini ber. Qisqa, aniq, raqamlarga asoslangan.", cat: "tezkor", color: "#FBBF24", icon: "" },
   ];
 
   const IG_MODS = [
     { l: "📸 Instagram Tahlil", p: "Instagram akkaunt tahlili: engagement rate, eng yaxshi postlar, auditoriya faolligi, kontent strategiyasi tavsiyalari.", cat: "instagram", color: "#E879F9", icon: "📸" },
     { l: "❤️ Engagement Tahlil", p: "Har bir post uchun engagement rate hisoblash. Qaysi turdagi postlar (rasm, video, karusel) eng yaxshi ishlaydi? Jadval bilan.", cat: "instagram", color: "#F87171", icon: "❤️" },
     { l: "📅 Post Vaqti Tahlil", p: "Qaysi kunlar va soatlarda postlar eng ko'p like/izoh oladi? Optimal post qilish jadvalini tavsiya qil.", cat: "instagram", color: "#4ADE80", icon: "📅" },
-    { l: "📝 Kontent Strategiya", p: "Kontent turlarini tahlil qil. Qaysi mavzular va formatlar ishlaydi? 30 kunlik kontent kalendar taklif qil.", cat: "instagram", color: "#EC4899", icon: "📝" },
+    { l: " Kontent Strategiya", p: "Kontent turlarini tahlil qil. Qaysi mavzular va formatlar ishlaydi? 30 kunlik kontent kalendar taklif qil.", cat: "instagram", color: "#EC4899", icon: "" },
     { l: "🏆 Raqobatchilar", p: "Shu sohada raqobatchilar tahlili uchun tavsiyalar. Nima qilish kerak o'sish uchun?", cat: "instagram", color: "#FB923C", icon: "🏆" },
   ];
 
   const TG_MODS = [
     { l: "✈️ Kanal Tahlili", p: "Telegram kanal statistikasini tahlil qil: obunachilar, ko'rishlar, engagement rate, o'sish tendensiyasi. Qaysi kontent turi samaraliroq?", cat: "telegram", color: "#38BDF8", icon: "✈️" },
     { l: "👁 Post Samaradorligi", p: "Kanal postlarini tahlil qil: qaysi postlar eng ko'p ko'rilgan va ulashilgan? Kontent turlari bo'yicha solishtir (matn/rasm/video). Optimal post uzunligi va chiqarish vaqtini aniqlash.", cat: "telegram", color: "#4ADE80", icon: "👁" },
-    { l: "👥 Auditoriya Tahlili", p: "Telegram kanal auditoriyasi tahlili: obunachilar o'sishi, engagement rate trendi, ko'rish/obunachi nisbati. Auditoriyani ushlab turish strategiyalari.", cat: "telegram", color: "#E879F9", icon: "👥" },
+    { l: " Auditoriya Tahlili", p: "Telegram kanal auditoriyasi tahlili: obunachilar o'sishi, engagement rate trendi, ko'rish/obunachi nisbati. Auditoriyani ushlab turish strategiyalari.", cat: "telegram", color: "#E879F9", icon: "" },
   ];
 
   const CRM_MODS = [
@@ -4555,7 +4555,7 @@ function AnalyticsPage({ aiConfig, sources }) {
           🧠 AI Tahlil Modullari
         </button>
         <button className={`btn ${anaTab === "chartlar" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAnaTab("chartlar")}>
-          📊 Vizual Tahlil (Grafiklar)
+          Vizual Tahlil (Grafiklar)
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba ulangan</span>
@@ -4568,7 +4568,7 @@ function AnalyticsPage({ aiConfig, sources }) {
       {anaTab === "tahlil" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span><div><b>Data Hub</b> dan manba ulang — tahlil shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — tahlil shu ma'lumotlar asosida ishlaydi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(255,209,102,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
@@ -4666,7 +4666,7 @@ function AnalyticsPage({ aiConfig, sources }) {
             {/* Aloqador chartlar */}
             {relatedCharts.length > 0 && (
               <div>
-                <div className="section-hd mb10">📊 Aloqador Grafiklar</div>
+                <div className="section-hd mb10"> Aloqador Grafiklar</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
                   {relatedCharts.map(card => (
                     <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
@@ -4700,7 +4700,7 @@ function AnalyticsPage({ aiConfig, sources }) {
 
         {connectedSources.length === 0 && (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+            <div style={{ fontSize: 40, marginBottom: 14 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Grafiklar avtomatik yaratiladi</div>
             <div className="text-muted text-sm">Data Hub dan manba ulang — Excel, Instagram, Telegram yoki API</div>
           </div>
@@ -4710,10 +4710,10 @@ function AnalyticsPage({ aiConfig, sources }) {
         {workingSource && (
           <div className="g4 mb14">
             {[
-              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "◆" },
-              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "📊" },
-              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "📈" },
-              { l: "Jami Kartalar", v: allCards.length, c: "var(--purple)", i: "◈" },
+              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "" },
+              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "" },
+              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "" },
+              { l: "Jami Kartalar", v: allCards.length, c: "var(--purple)", i: "" },
             ].map((c, i) => (
               <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.c}80,transparent)` }} />
@@ -4845,11 +4845,11 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: d => `Bugun ${d} uchun kundalik biznes hisobot yoz. Bo'limlar: 1) Bugungi asosiy ko'rsatkichlar (jadval) 2) Muammolar va xatarlar 3) Imkoniyatlar 4) Ertangi kun uchun aniq tavsiyalar. Har bo'limni raqamla.`
     },
     {
-      icon: "📊", l: "Haftalik Hisobot", d: "Haftalik tendensiya, maqsadlarga erishish", cat: "davr", color: "#60A5FA",
+      icon: "", l: "Haftalik Hisobot", d: "Haftalik tendensiya, maqsadlarga erishish", cat: "davr", color: "#60A5FA",
       fn: () => "Haftalik biznes hisobot yoz. Bo'limlar: 1) Haftalik asosiy natijalar (jadval) 2) O'tgan hafta bilan taqqoslash (+/-%) 3) Maqsadlarga erishish foizi 4) Muammoli sohalar 5) Kelgusi hafta rejalari va maqsadlar."
     },
     {
-      icon: "📈", l: "Oylik Hisobot", d: "Moliyaviy natijalar va strategik rejalar", cat: "davr", color: "#A78BFA",
+      icon: "", l: "Oylik Hisobot", d: "Moliyaviy natijalar va strategik rejalar", cat: "davr", color: "#A78BFA",
       fn: () => "Oylik moliyaviy va operatsion hisobot yoz. Bo'limlar: 1) Moliyaviy natijalar (jadval) 2) Mijozlar ko'rsatkichlari 3) Jamoaviy unumdorlik 4) Oy maqsadlari bajarilishi (%) 5) Keyingi oy strategiyasi va KPI maqsadlari."
     },
     {
@@ -4857,7 +4857,7 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: () => "Choraklik (3 oylik) hisobot yoz. Bo'limlar: 1) Chorak davomidagi umumiy natijalar 2) Eng muhim yutuqlar va muvaffaqiyatsizliklar 3) KPI jadval (maqsad vs haqiqiy) 4) Keyingi chorak strategiyasi."
     },
     {
-      icon: "⚠️", l: "Xavf va Risk Tahlili", d: "Xatarlar, ehtimollik va oldini olish", cat: "tahlil", color: "#F87171",
+      icon: "️", l: "Xavf va Risk Tahlili", d: "Xatarlar, ehtimollik va oldini olish", cat: "tahlil", color: "#F87171",
       fn: () => "Biznes xatarlari va risk tahlili. Har xatar uchun jadval: Xatar nomi | Ehtimolligi (1-10) | Ta'sir darajasi (1-10) | Risk balli | Oldini olish chorasi | Mas'ul shaxs. Kamida 8 ta xatarni ko'rsat."
     },
     {
@@ -4869,7 +4869,7 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: () => "To'liq moliyaviy tahlil hisoboti. Bo'limlar: 1) Daromad tuzilmasi (jadval) 2) Xarajatlar taqsimoti 3) Foyda marginlari 4) Cash flow bashorat 5) Tejash imkoniyatlari (aniq summa bilan) 6) Investitsiya tavsiyalari."
     },
     {
-      icon: "👥", l: "Mijozlar Hisoboti", d: "Segmentatsiya, LTV va retention", cat: "tahlil", color: "#38BDF8",
+      icon: "", l: "Mijozlar Hisoboti", d: "Segmentatsiya, LTV va retention", cat: "tahlil", color: "#38BDF8",
       fn: () => "Mijozlar tahlili hisoboti. Bo'limlar: 1) Mijozlar segmentatsiyasi (jadval) 2) Har segment uchun LTV 3) Retention rate 4) Churn risk 5) Eng qimmatli mijozlar profili 6) Mijoz jalb qilish strategiyasi."
     },
     {
@@ -4877,7 +4877,7 @@ function ReportsPage({ aiConfig, sources, user }) {
       fn: () => "Raqobat tahlili hisoboti. Bo'limlar: 1) Bozor umumiy holati 2) Asosiy raqobatchilar va ularning kuchli/zaif tomonlari (jadval) 3) Bizning ustunliklarimiz 4) Bozor ulushi bashorat 5) Raqobat strategiyasi."
     },
     {
-      icon: "🚀", l: "Strategik Reja", d: "Qisqa va uzoq muddatli strategiya", cat: "strategiya", color: "#FBBF24",
+      icon: "", l: "Strategik Reja", d: "Qisqa va uzoq muddatli strategiya", cat: "strategiya", color: "#FBBF24",
       fn: () => "Strategik reja hisoboti. Bo'limlar: 1) Hozirgi holat (SWOT jadval) 2) Qisqa muddatli maqsadlar (1-3 oy) 3) O'rta muddatli maqsadlar (3-6 oy) 4) Uzoq muddatli strategiya (6-12 oy) 5) Har maqsad uchun KPI va mas'ul shaxs."
     },
   ];
@@ -4931,7 +4931,7 @@ function ReportsPage({ aiConfig, sources, user }) {
           📋 Tarix ({savedReports.length})
         </button>
         <button className={`btn ${repTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setRepTab("vizual")}>
-          📊 Vizual Grafiklar
+          Vizual Grafiklar
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba</span>
@@ -4944,7 +4944,7 @@ function ReportsPage({ aiConfig, sources, user }) {
       {repTab === "hisobotlar" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span><div><b>Data Hub</b> dan manba ulang — hisobotlar shu ma'lumotlar asosida yaratiladi</div>
+          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — hisobotlar shu ma'lumotlar asosida yaratiladi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(255,209,102,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
@@ -5032,8 +5032,8 @@ function ReportsPage({ aiConfig, sources, user }) {
                 </div>
                 <div className="flex gap4 flex-wrap">
                   <button className="chat-export-btn" onClick={() => copyText()} title="Nusxalash">📋 Nusxa</button>
-                  <button className="chat-export-btn" onClick={() => exportTXT()} title="TXT yuklab olish">📝 TXT</button>
-                  <button className="chat-export-btn" onClick={() => exportExcel()} title="Excel yuklab olish" style={{ borderColor: "rgba(0,201,190,0.3)", color: "var(--teal)" }}>📊 Excel</button>
+                  <button className="chat-export-btn" onClick={() => exportTXT()} title="TXT yuklab olish"> TXT</button>
+                  <button className="chat-export-btn" onClick={() => exportExcel()} title="Excel yuklab olish" style={{ borderColor: "rgba(0,201,190,0.3)", color: "var(--teal)" }}> Excel</button>
                   <button className="chat-export-btn" onClick={() => exportPDF()} title="PDF chop etish" style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}>🖨 PDF</button>
                   <button className="chat-export-btn" onClick={() => setReport("")} title="Yopish">✕</button>
                 </div>
@@ -5044,7 +5044,7 @@ function ReportsPage({ aiConfig, sources, user }) {
             {/* Aloqador chartlar */}
             {relatedCharts.length > 0 && (
               <div>
-                <div className="section-hd mb10">📊 Aloqador Grafiklar</div>
+                <div className="section-hd mb10"> Aloqador Grafiklar</div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
                   {relatedCharts.map(card => (
                     <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
@@ -5100,8 +5100,8 @@ function ReportsPage({ aiConfig, sources, user }) {
                 </div>
                 <div className="flex gap4" style={{ flexShrink: 0 }}>
                   <button className="chat-export-btn" onClick={() => { setReport(r.text); setLabel(r.label); setRepTab("hisobotlar"); }} title="Ko'rish">👁 Ko'rish</button>
-                  <button className="chat-export-btn" onClick={() => exportTXT(r.text, r.label)} title="TXT">📝</button>
-                  <button className="chat-export-btn" onClick={() => exportExcel(r.text, r.label)} title="Excel">📊</button>
+                  <button className="chat-export-btn" onClick={() => exportTXT(r.text, r.label)} title="TXT"></button>
+                  <button className="chat-export-btn" onClick={() => exportExcel(r.text, r.label)} title="Excel"></button>
                   <button className="chat-export-btn" onClick={() => exportPDF(r.text, r.label)} title="PDF">🖨</button>
                   <button className="chat-export-btn" onClick={() => {
                     const updated = savedReports.filter(x => x.id !== r.id);
@@ -5144,7 +5144,7 @@ function ReportsPage({ aiConfig, sources, user }) {
 
         {connectedSources.length === 0 && (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+            <div style={{ fontSize: 40, marginBottom: 14 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Grafiklar avtomatik yaratiladi</div>
             <div className="text-muted text-sm">Data Hub dan manba ulang</div>
           </div>
@@ -5154,10 +5154,10 @@ function ReportsPage({ aiConfig, sources, user }) {
         {workingSource && (
           <div className="g4 mb14">
             {[
-              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "◆" },
-              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "📊" },
-              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "📈" },
-              { l: "Jami", v: allCards.length, c: "var(--purple)", i: "◈" },
+              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "" },
+              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "" },
+              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "" },
+              { l: "Jami", v: allCards.length, c: "var(--purple)", i: "" },
             ].map((c, i) => (
               <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.c}80,transparent)` }} />
@@ -5188,9 +5188,9 @@ function ReportsPage({ aiConfig, sources, user }) {
 // ─────────────────────────────────────────────────────────────
 const ALERT_TYPES = {
   danger: { label: "Xavfli", color: "#FB7185", bg: "rgba(251,113,133,0.06)", border: "rgba(251,113,133,0.22)", icon: "🚨", glow: "rgba(251,113,133,0.08)" },
-  warning: { label: "Ogohlantirish", color: "#D4A853", bg: "rgba(212,168,83,0.06)", border: "rgba(212,168,83,0.22)", icon: "⚠️", glow: "rgba(212,168,83,0.08)" },
+  warning: { label: "Ogohlantirish", color: "#D4A853", bg: "rgba(212,168,83,0.06)", border: "rgba(212,168,83,0.22)", icon: "️", glow: "rgba(212,168,83,0.08)" },
   info: { label: "Ma'lumot", color: "#00D4C8", bg: "rgba(0,212,200,0.06)", border: "rgba(0,212,200,0.18)", icon: "ℹ️", glow: "rgba(0,212,200,0.06)" },
-  success: { label: "Ijobiy", color: "#34D399", bg: "rgba(52,211,153,0.06)", border: "rgba(52,211,153,0.18)", icon: "✅", glow: "rgba(52,211,153,0.06)" },
+  success: { label: "Ijobiy", color: "#34D399", bg: "rgba(52,211,153,0.06)", border: "rgba(52,211,153,0.18)", icon: "", glow: "rgba(52,211,153,0.06)" },
 };
 
 function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAlert, push }) {
@@ -5282,7 +5282,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       prompt: "Ma'lumotlarda tushish tendensiyalari, anomaliyalar va kutilmagan o'zgarishlarni aniqlash. Har bir muammo uchun sabab va tavsiya."
     },
     {
-      icon: "📈", l: "O'sish Imkoniyatlari", d: "Ijobiy trend va yashirin imkoniyatlar", color: "#34D399", count: "3-5", cat: "imkoniyat",
+      icon: "", l: "O'sish Imkoniyatlari", d: "Ijobiy trend va yashirin imkoniyatlar", color: "#34D399", count: "3-5", cat: "imkoniyat",
       prompt: "Ma'lumotlarda o'sish imkoniyatlari, ijobiy tendensiyalar va foydalanilmagan potentsialni aniqlash. Har bir imkoniyat uchun aniq tavsiya."
     },
     {
@@ -5290,11 +5290,11 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       prompt: "Moliyaviy ko'rsatkichlarni tahlil qilib, xarajat anomaliyalari, byudjet xatarlari, noto'g'ri tendensiyalarni aniqlash."
     },
     {
-      icon: "👥", l: "Mijoz Sifati", d: "Mijozlar faolligi va yo'qolish riski", color: "#60A5FA", count: "2-4", cat: "mijoz",
+      icon: "", l: "Mijoz Sifati", d: "Mijozlar faolligi va yo'qolish riski", color: "#60A5FA", count: "2-4", cat: "mijoz",
       prompt: "Mijozlar bilan bog'liq ko'rsatkichlarni tahlil qilib, yo'qolish riski, faollik pasayishi, takroriy xarid tendensiyalarini aniqlash."
     },
     {
-      icon: "⚡", l: "Operatsion Muammolar", d: "Samaradorlik va bottleneck lar", color: "#A78BFA", count: "2-4", cat: "operatsion",
+      icon: "", l: "Operatsion Muammolar", d: "Samaradorlik va bottleneck lar", color: "#A78BFA", count: "2-4", cat: "operatsion",
       prompt: "Operatsion samaradorlik ko'rsatkichlarini tahlil qilib, bottleneck, kechikish, samaradorlik pasayishini aniqlash."
     },
   ];
@@ -5345,7 +5345,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
           🔍 AI Tekshirish
         </button>
         <button className={`btn ${alertTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAlertTab("vizual")}>
-          📊 Vizual Monitoring
+          Vizual Monitoring
         </button>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{prov.icon} {prov.name}</span>
@@ -5363,7 +5363,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
             { l: "Jami", v: alerts.length, c: "var(--text)", i: "📋", bg: "var(--s1)" },
             { l: "O'qilmagan", v: unread, c: "var(--gold)", i: "🔔", bg: unread > 0 ? "rgba(212,168,83,0.04)" : "var(--s1)" },
             { l: "Xavfli", v: dangerCount, c: "var(--red)", i: "🚨", bg: dangerCount > 0 ? "rgba(251,113,133,0.04)" : "var(--s1)" },
-            { l: "Ijobiy", v: successCount, c: "var(--green)", i: "✅", bg: "var(--s1)" },
+            { l: "Ijobiy", v: successCount, c: "var(--green)", i: "", bg: "var(--s1)" },
           ].map((s, i) => (
             <div key={i} style={{ background: s.bg, border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", position: "relative", overflow: "hidden", transition: "all .25s" }}>
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${s.c}80,transparent)` }} />
@@ -5381,7 +5381,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {/* Tezkor harakatlar */}
         <div className="flex gap8 mb14 aic flex-wrap">
           <button className="btn btn-primary btn-sm" onClick={() => runCheck()} disabled={loading || !aiConfig.apiKey || !connectedSources.length}>
-            {loading && !checkType ? "⏳ Tekshirilmoqda..." : "◬ Tezkor AI Tekshirish"}
+            {loading && !checkType ? "⏳ Tekshirilmoqda..." : " Tezkor AI Tekshirish"}
           </button>
           {unread > 0 && <button className="btn btn-ghost btn-sm" onClick={markAllRead}>✓ Barchasini o'qildi</button>}
           {alerts.length > 0 && <button className="btn btn-danger btn-sm" onClick={() => { if (confirm("Barcha ogohlantirishlarni o'chirish?")) { alerts.forEach(a => deleteAlert(a.id)); } }}>🗑 Hammasini tozalash</button>}
@@ -5392,7 +5392,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
           <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
         {aiConfig.apiKey && !connectedSources.length && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span><div><b>Data Hub</b> dan manba ulang — AI monitoring shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — AI monitoring shu ma'lumotlar asosida ishlaydi</div>
         </div>}
 
         {/* Filtrlar */}
@@ -5421,7 +5421,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
             <div style={{ fontSize: 44, marginBottom: 16 }}>🔔</div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Hali ogohlantirish yo'q</div>
             <div className="text-muted text-sm mb16">AI Tekshirish boshlang — ma'lumotlaringizni tahlil qilib, muhim ogohlantirishlarni yaratadi</div>
-            <button className="btn btn-primary" onClick={() => runCheck()} disabled={loading}>◬ Hozir Tekshirish</button>
+            <button className="btn btn-primary" onClick={() => runCheck()} disabled={loading}> Hozir Tekshirish</button>
           </div>
         )}
 
@@ -5478,7 +5478,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       {alertTab === "tekshirish" && (<div>
         {/* Ogohlantirish */}
         {connectedSources.length === 0 && <div className="notice" style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 10, color: "var(--muted)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>⚠️</span><div><b>Data Hub</b> dan manba ulang — tekshirish shu ma'lumotlar asosida ishlaydi</div>
+          <span style={{ fontSize: 18 }}>️</span><div><b>Data Hub</b> dan manba ulang — tekshirish shu ma'lumotlar asosida ishlaydi</div>
         </div>}
         {!aiConfig.apiKey && <div className="notice" style={{ padding: "12px 16px", border: "1px solid rgba(212,168,83,0.3)", borderRadius: 10, color: "var(--gold)", fontSize: 12, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 18 }}>🔑</span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
@@ -5557,7 +5557,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {/* Aloqador chartlar */}
         {checkResult && !loading && relatedCharts.length > 0 && (
           <div>
-            <div className="section-hd mb10">📊 Aloqador Grafiklar</div>
+            <div className="section-hd mb10"> Aloqador Grafiklar</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
               {relatedCharts.map(card => (
                 <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
@@ -5612,7 +5612,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 
         {connectedSources.length === 0 && (
           <div className="card" style={{ textAlign: "center", padding: 48 }}>
-            <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+            <div style={{ fontSize: 40, marginBottom: 14 }}></div>
             <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Vizual monitoring</div>
             <div className="text-muted text-sm">Data Hub dan manba ulang</div>
           </div>
@@ -5639,10 +5639,10 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {workingSource && (
           <div className="g4 mb14">
             {[
-              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "◆" },
-              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "📊" },
-              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "📈" },
-              { l: "Jami", v: allCards.length, c: "var(--purple)", i: "◈" },
+              { l: "Yozuvlar", v: (workingSource.data?.length || 0).toLocaleString(), c: "var(--teal)", i: "" },
+              { l: "Grafiklar", v: allCards.filter(c => c.type === "chart").length, c: "var(--green)", i: "" },
+              { l: "Statistika", v: allCards.filter(c => c.type === "stats").length, c: "var(--gold)", i: "" },
+              { l: "Jami", v: allCards.length, c: "var(--purple)", i: "" },
             ].map((c, i) => (
               <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", overflow: "hidden" }}>
                 <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.c}80,transparent)` }} />
@@ -5722,7 +5722,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         border: `1px solid ${effectiveAI.apiKey ? "rgba(0,201,190,0.2)" : "rgba(248,113,113,0.2)"}`,
         borderRadius: 14, marginBottom: 18
       }}>
-        <div style={{ fontSize: 28 }}>{effectiveAI.apiKey ? "🤖" : "⚠️"}</div>
+        <div style={{ fontSize: 28 }}>{effectiveAI.apiKey ? "🤖" : "️"}</div>
         <div className="f1">
           <div style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 800, color: effectiveAI.apiKey ? "var(--green)" : "var(--red)" }}>
             {effectiveAI.apiKey
@@ -5833,8 +5833,8 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
           {[
             { icon: "🆓", title: "Bepul (Global AI)", desc: "Admin ulagan AI dan barcha foydalanuvchilar bepul foydalanadi. Har bir tarif o'z so'rov limitiga ega.", c: "var(--green)" },
             { icon: "🔑", title: "Shaxsiy API", desc: "O'z API kalitingizni ulasangiz — cheksiz so'rov, limit hisoblanmaydi. Istalgan provayderdan.", c: "var(--gold)" },
-            { icon: "💎", title: "Yuqori tarif", desc: "Starter (100), Pro (500), Enterprise (∞) — ko'proq so'rov uchun tarifni yuksaltiring.", c: "var(--purple)" },
-            { icon: "📊", title: "4 AI Provayder", desc: "Claude (aqlli), DeepSeek (arzon), ChatGPT (universal), Gemini (katta kontekst).", c: "var(--teal)" },
+            { icon: "", title: "Yuqori tarif", desc: "Starter (100), Pro (500), Enterprise (∞) — ko'proq so'rov uchun tarifni yuksaltiring.", c: "var(--purple)" },
+            { icon: "", title: "4 AI Provayder", desc: "Claude (aqlli), DeepSeek (arzon), ChatGPT (universal), Gemini (katta kontekst).", c: "var(--teal)" },
           ].map((s, i) => (
             <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: `1px solid ${s.c}15` }}>
               <div style={{ fontSize: 20, marginBottom: 6 }}>{s.icon}</div>
@@ -5869,12 +5869,12 @@ function generateDashboards(source, colSelection) {
       cards.push({
         id: "ig_profile", title: "Profil Statistika", icon: "📸", size: "full", type: "stats",
         stats: [
-          { l: "Obunachilar", v: (summary.followers_count || 0).toLocaleString(), c: "#E879F9", i: "👥" },
-          { l: "Obunalar", v: (summary.follows_count || 0).toLocaleString(), c: "#60A5FA", i: "➕" },
-          { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "📊" },
+          { l: "Obunachilar", v: (summary.followers_count || 0).toLocaleString(), c: "#E879F9", i: "" },
+          { l: "Obunalar", v: (summary.follows_count || 0).toLocaleString(), c: "#60A5FA", i: "" },
+          { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "" },
           { l: "Jami Like", v: (summary.total_likes || 0).toLocaleString(), c: "#F87171", i: "❤️" },
-          { l: "Jami Izoh", v: (summary.total_comments || 0).toLocaleString(), c: "#FBBF24", i: "💬" },
-          { l: "Engagement", v: (summary.total_engagement || 0).toLocaleString(), c: "#00C9BE", i: "🔥" },
+          { l: "Jami Izoh", v: (summary.total_comments || 0).toLocaleString(), c: "#FBBF24", i: "" },
+          { l: "Engagement", v: (summary.total_engagement || 0).toLocaleString(), c: "#00C9BE", i: "" },
         ]
       });
       // 2. Engagement rate gauge
@@ -5885,10 +5885,10 @@ function generateDashboards(source, colSelection) {
       });
       // 3. O'rtacha like/izoh
       cards.push({
-        id: "ig_avg", title: "O'rtacha Ko'rsatkichlar", icon: "📊", type: "stats",
+        id: "ig_avg", title: "O'rtacha Ko'rsatkichlar", icon: "", type: "stats",
         stats: [
           { l: "O'rtacha Like", v: (summary.avg_likes_per_post || 0).toLocaleString(), c: "#F87171", i: "❤️" },
-          { l: "O'rtacha Izoh", v: (summary.avg_comments_per_post || 0).toLocaleString(), c: "#FBBF24", i: "💬" },
+          { l: "O'rtacha Izoh", v: (summary.avg_comments_per_post || 0).toLocaleString(), c: "#FBBF24", i: "" },
           { l: "Yuklangan Post", v: (summary.fetched_posts || 0).toLocaleString(), c: "#60A5FA", i: "📸" },
         ]
       });
@@ -5900,7 +5900,7 @@ function generateDashboards(source, colSelection) {
         name: p.date?.slice(5) || "", likes: p.likes || 0, comments: p.comments || 0
       }));
       cards.push({
-        id: "ig_trend", title: "Engagement Trendi", icon: "📈", type: "chart", chartType: "area",
+        id: "ig_trend", title: "Engagement Trendi", icon: "", type: "chart", chartType: "area",
         data: trendData, keys: ["likes", "comments"], xKey: "name", colors: ["#F87171", "#FBBF24"]
       });
 
@@ -5913,7 +5913,7 @@ function generateDashboards(source, colSelection) {
 
       // 6. Izohlar (bar)
       cards.push({
-        id: "ig_comments_bar", title: "Postlar bo'yicha Izoh", icon: "💬", type: "chart", chartType: "bar",
+        id: "ig_comments_bar", title: "Postlar bo'yicha Izoh", icon: "", type: "chart", chartType: "bar",
         data: posts.slice(0, 15).map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, comments: p.comments || 0 })),
         keys: ["comments"], xKey: "name", colors: ["#FBBF24"]
       });
@@ -5922,7 +5922,7 @@ function generateDashboards(source, colSelection) {
       const typeCounts = {};
       posts.forEach(p => { typeCounts[p.type || "OTHER"] = (typeCounts[p.type || "OTHER"] || 0) + 1; });
       cards.push({
-        id: "ig_types", title: "Post Turlari", icon: "◉", type: "chart", chartType: "pie",
+        id: "ig_types", title: "Post Turlari", icon: "", type: "chart", chartType: "pie",
         data: Object.entries(typeCounts).map(([name, value]) => ({ name: name === "VIDEO" ? "Video" : name === "IMAGE" ? "Rasm" : name === "CAROUSEL_ALBUM" ? "Karusel" : name, value })),
         colors: C
       });
@@ -5977,7 +5977,7 @@ function generateDashboards(source, colSelection) {
           weekly.push({ name: `Hafta ${Math.floor(i / 7) + 1}`, likes: wLikes, comments: wComments });
         }
         cards.push({
-          id: "ig_weekly", title: "Haftalik Engagement", icon: "📊", type: "chart", chartType: "area",
+          id: "ig_weekly", title: "Haftalik Engagement", icon: "", type: "chart", chartType: "area",
           data: weekly.reverse(), keys: ["likes", "comments"], xKey: "name", colors: ["#F87171", "#FBBF24"]
         });
       }
@@ -5996,12 +5996,12 @@ function generateDashboards(source, colSelection) {
       cards.push({
         id: "tg_profile", title: "Kanal Statistikasi", icon: "✈️", size: "full", type: "stats",
         stats: [
-          { l: "Obunachilar", v: (summary.member_count || 0).toLocaleString(), c: "#38BDF8", i: "👥" },
-          { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "📝" },
+          { l: "Obunachilar", v: (summary.member_count || 0).toLocaleString(), c: "#38BDF8", i: "" },
+          { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "" },
           { l: "Jami Ko'rishlar", v: (summary.total_views || 0).toLocaleString(), c: "#E879F9", i: "👁" },
-          { l: "O'rt. Ko'rish", v: (summary.avg_views || 0).toLocaleString(), c: "#FBBF24", i: "📊" },
+          { l: "O'rt. Ko'rish", v: (summary.avg_views || 0).toLocaleString(), c: "#FBBF24", i: "" },
           { l: "Jami Ulashish", v: (summary.total_forwards || 0).toLocaleString(), c: "#60A5FA", i: "🔄" },
-          { l: "Engagement", v: (summary.engagement_rate || 0) + "%", c: "#F87171", i: "🔥" },
+          { l: "Engagement", v: (summary.engagement_rate || 0) + "%", c: "#F87171", i: "" },
         ]
       });
 
@@ -6033,14 +6033,14 @@ function generateDashboards(source, colSelection) {
       }));
       if (viewsData.length > 1)
         cards.push({
-          id: "tg_views_trend", title: "Post Ko'rishlar Trendi", icon: "📈", type: "chart", chartType: "bar",
+          id: "tg_views_trend", title: "Post Ko'rishlar Trendi", icon: "", type: "chart", chartType: "bar",
           data: viewsData, keys: ["views"], xKey: "name", colors: ["#38BDF8"]
         });
 
       // 5. Ko'rish va Ulashish solishtirma
       if (viewsData.length > 1)
         cards.push({
-          id: "tg_views_fwd", title: "Ko'rish vs Ulashish", icon: "📊", type: "chart", chartType: "line",
+          id: "tg_views_fwd", title: "Ko'rish vs Ulashish", icon: "", type: "chart", chartType: "line",
           data: viewsData, keys: ["views", "forwards"], xKey: "name", colors: ["#38BDF8", "#E879F9"]
         });
 
@@ -6135,9 +6135,9 @@ function generateDashboards(source, colSelection) {
 
       // 2. O'rtacha ko'rsatkichlar
       cards.push({
-        id: "crm_avg", title: "O'rtacha Ko'rsatkichlar", icon: "📊", type: "stats",
+        id: "crm_avg", title: "O'rtacha Ko'rsatkichlar", icon: "", type: "stats",
         stats: [
-          { l: "Guruh o'lchami", v: summary.avg_group_size || 0, c: "#00C9BE", i: "👥" },
+          { l: "Guruh o'lchami", v: summary.avg_group_size || 0, c: "#00C9BE", i: "" },
           { l: "Guruh narxi", v: fmtNum(summary.avg_group_cost || 0), c: "#E8B84B", i: "💵" },
           { l: "O'chirilgan", v: (summary.trashed_students || 0).toLocaleString(), c: "#94A3B8", i: "🗑" },
         ]
@@ -6271,7 +6271,7 @@ function generateDashboards(source, colSelection) {
       const profit = revenue - salary;
       const profitPct = revenue > 0 ? Math.round((profit / revenue) * 100) : 0;
       cards.push({
-        id: "crm_profit_gauge", title: "Foyda Foizi", icon: "💎", type: "gauge",
+        id: "crm_profit_gauge", title: "Foyda Foizi", icon: "", type: "gauge",
         value: profitPct, max: 100, label: `${profitPct}% foyda`, color: profitPct > 30 ? "#4ADE80" : profitPct > 10 ? "#FBBF24" : "#F87171"
       });
     }
@@ -6317,10 +6317,10 @@ function generateDashboards(source, colSelection) {
   const statItems = numKeys.slice(0, 6).map((k, i) => {
     const vals = genData.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")) || 0);
     const sum = vals.reduce((a, b) => a + b, 0);
-    return { l: k, v: fmtNum(Math.round(sum)), c: C[i % C.length], i: "📊" };
+    return { l: k, v: fmtNum(Math.round(sum)), c: C[i % C.length], i: "" };
   });
   if (statItems.length > 0)
-    cards.push({ id: "gen_stats", title: "Umumiy Statistika", icon: "📊", size: "full", type: "stats", stats: statItems });
+    cards.push({ id: "gen_stats", title: "Umumiy Statistika", icon: "", size: "full", type: "stats", stats: statItems });
 
   // 2. Top qiymatlar (bar chart) — eng asosiy raqamli ustun bo'yicha
   if (numKeys[0]) {
@@ -6339,7 +6339,7 @@ function generateDashboards(source, colSelection) {
       [numKeys[0]]: parseFloat(String(r[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0
     }));
     cards.push({
-      id: "gen_line_0", title: `${numKeys[0]} Trendi`, icon: "📈", type: "chart", chartType: "line",
+      id: "gen_line_0", title: `${numKeys[0]} Trendi`, icon: "", type: "chart", chartType: "line",
       data: lineData, keys: [numKeys[0]], xKey: "name", colors: [C[0]]
     });
   }
@@ -6356,7 +6356,7 @@ function generateDashboards(source, colSelection) {
     const pieData = sorted.slice(0, 10).map(([name, value]) => ({ name, value }));
     if (pieData.length >= 2 && pieData.length <= 12)
       cards.push({
-        id: `gen_pie_${i}`, title: `${k} Taqsimoti`, icon: "◉", type: "chart", chartType: "pie",
+        id: `gen_pie_${i}`, title: `${k} Taqsimoti`, icon: "", type: "chart", chartType: "pie",
         data: pieData, colors: C
       });
   });
@@ -6369,7 +6369,7 @@ function generateDashboards(source, colSelection) {
       return row;
     });
     cards.push({
-      id: "gen_area_all", title: "Solishtirma Trend", icon: "◬", type: "chart", chartType: "area",
+      id: "gen_area_all", title: "Solishtirma Trend", icon: "", type: "chart", chartType: "area",
       data: areaData, keys: numKeys.slice(0, 4), xKey: "name", colors: C
     });
   }
@@ -6395,8 +6395,8 @@ function generateDashboards(source, colSelection) {
 
 // ── Dashboard karta rendereri (har bir chart turini chizadi) ──
 const CHART_TYPE_OPTIONS = [
-  { id: "line", l: "〜 Chiziq" }, { id: "bar", l: "▨ Ustun" }, { id: "area", l: "◬ Maydon" },
-  { id: "pie", l: "◉ Doira" }, { id: "scatter", l: "⋯ Tarqoq" }, { id: "stackedbar", l: "▦ Stacked" },
+  { id: "line", l: "〜 Chiziq" }, { id: "bar", l: "▨ Ustun" }, { id: "area", l: " Maydon" },
+  { id: "pie", l: " Doira" }, { id: "scatter", l: "⋯ Tarqoq" }, { id: "stackedbar", l: "▦ Stacked" },
 ];
 
 // X-axis uchun qisqa label render — matnni 12 belgigacha cheklash, burchak bilan
@@ -6636,9 +6636,9 @@ function DashboardPage({ sources, aiConfig, setPage }) {
       {/* ── Umumiy stat cards ── */}
       <div className="g4 mb16">
         {[
-          { l: "Aktiv Manbalar", v: connected.length, s: `/ ${sources.length} manba`, c: "var(--green)", i: "⬢", acc: "#4ADE80" },
-          { l: "Jami Yozuvlar", v: total.toLocaleString(), s: total > 0 ? "Yuklangan" : "Data yuklang", c: "var(--teal)", i: "◆", acc: "#00C9BE" },
-          { l: "Dashboard Kartalar", v: dashCards.length, s: "avtomatik yaratilgan", c: "var(--gold)", i: "◈", acc: "#E8B84B" },
+          { l: "Aktiv Manbalar", v: connected.length, s: `/ ${sources.length} manba`, c: "var(--green)", i: "", acc: "#4ADE80" },
+          { l: "Jami Yozuvlar", v: total.toLocaleString(), s: total > 0 ? "Yuklangan" : "Data yuklang", c: "var(--teal)", i: "", acc: "#00C9BE" },
+          { l: "Dashboard Kartalar", v: dashCards.length, s: "avtomatik yaratilgan", c: "var(--gold)", i: "", acc: "#E8B84B" },
           { l: "AI Provayder", v: prov.name, s: aiConfig.apiKey ? (aiConfig.isPersonal ? "Shaxsiy kalit" : "Global AI") : "Ulanmagan", c: prov.color, i: prov.icon, acc: prov.color },
         ].map((c, i) => (
           <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px", position: "relative", overflow: "hidden", transition: "all .22s", cursor: "default" }}
@@ -6657,10 +6657,10 @@ function DashboardPage({ sources, aiConfig, setPage }) {
       <div className="section-hd mb10">Tezkor Amallar</div>
       <div className="g4 mb20">
         {[
-          { ico: "◈", lbl: "Grafiklar", desc: "Batafsil vizualizatsiya", page: "charts", c: "var(--teal)", acc: "#00C9BE" },
-          { ico: "◉", lbl: "AI Chat", desc: "Savol-javob", page: "chat", c: "var(--green)", acc: "#4ADE80" },
-          { ico: "◆", lbl: "Tahlil", desc: "6 xil modul", page: "analytics", c: "var(--gold)", acc: "#E8B84B" },
-          { ico: "◬", lbl: "Alertlar", desc: "AI monitoring", page: "alerts", c: "var(--red)", acc: "#F87171" },
+          { ico: "", lbl: "Grafiklar", desc: "Batafsil vizualizatsiya", page: "charts", c: "var(--teal)", acc: "#00C9BE" },
+          { ico: "", lbl: "AI Chat", desc: "Savol-javob", page: "chat", c: "var(--green)", acc: "#4ADE80" },
+          { ico: "", lbl: "Tahlil", desc: "6 xil modul", page: "analytics", c: "var(--gold)", acc: "#E8B84B" },
+          { ico: "", lbl: "Alertlar", desc: "AI monitoring", page: "alerts", c: "var(--red)", acc: "#F87171" },
         ].map((a, i) => (
           <div key={i} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all .2s" }}
             onClick={() => setPage(a.page)}
@@ -6693,10 +6693,10 @@ function DashboardPage({ sources, aiConfig, setPage }) {
       {/* ── Ma'lumot yo'q holat ── */}
       {connected.length === 0 && (
         <div className="card" style={{ textAlign: "center", padding: 48 }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+          <div style={{ fontSize: 40, marginBottom: 14 }}></div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dashboard avtomatik yaratiladi</div>
           <div className="text-muted text-sm mb16">Data Hub dan manba ulang — Excel, Instagram, Telegram yoki API</div>
-          <button className="btn btn-primary" onClick={() => setPage("datahub")}>⬢ Data Hub ga o'tish</button>
+          <button className="btn btn-primary" onClick={() => setPage("datahub")}> Data Hub ga o'tish</button>
         </div>
       )}
 
@@ -6715,14 +6715,14 @@ function DashboardPage({ sources, aiConfig, setPage }) {
 // MAIN APP
 // ─────────────────────────────────────────────────────────────
 const NAV = [
-  { id: "settings", ico: "◎", lbl: "AI Sozlamalar", group: "tizim" },
-  { id: "dashboard", ico: "⬡", lbl: "Bosh Sahifa", group: "tizim" },
-  { id: "datahub", ico: "⬢", lbl: "Data Hub", group: "ma'lumot", badge: "sources" },
-  { id: "charts", ico: "◈", lbl: "Grafiklar", group: "ma'lumot" },
-  { id: "chat", ico: "◉", lbl: "AI Maslahat", group: "ai" },
-  { id: "analytics", ico: "◆", lbl: "Tahlil", group: "ai" },
-  { id: "reports", ico: "▣", lbl: "Hisobotlar", group: "ai" },
-  { id: "alerts", ico: "◬", lbl: "AI Ogohlantirishlar", group: "ai", badge: "alerts" },
+  { id: "settings", ico: "", lbl: "AI Sozlamalar", group: "tizim" },
+  { id: "dashboard", ico: "", lbl: "Bosh Sahifa", group: "tizim" },
+  { id: "datahub", ico: "", lbl: "Data Hub", group: "ma'lumot", badge: "sources" },
+  { id: "charts", ico: "", lbl: "Grafiklar", group: "ma'lumot" },
+  { id: "chat", ico: "", lbl: "AI Maslahat", group: "ai" },
+  { id: "analytics", ico: "", lbl: "Tahlil", group: "ai" },
+  { id: "reports", ico: "", lbl: "Hisobotlar", group: "ai" },
+  { id: "alerts", ico: "", lbl: "AI Ogohlantirishlar", group: "ai", badge: "alerts" },
 ];
 
 export default function App() {
@@ -6817,7 +6817,7 @@ export default function App() {
   // ── Auth handlers ──
   const handleAuth = (authUser) => {
     setUser(authUser);
-    push(`Xush kelibsiz, ${authUser.name}! ◈`, "ok");
+    push(`Xush kelibsiz, ${authUser.name}! `, "ok");
     setPage("dashboard");
     // Landing page hash'ini tozalash (#pricing, #features)
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
@@ -6871,22 +6871,22 @@ export default function App() {
             </div>
             <div className="nav" style={{ paddingTop: 14 }}>
               <div className="ni active" onClick={() => setAdminMode(true)}>
-                <span className="ni-ico">⬡</span><span>Admin Panel</span>
+                <span>Admin Panel</span>
               </div>
               <div style={{ height: 12 }} />
               <div className="ni" onClick={() => { setAdminMode(false); setPage("dashboard"); }}>
-                <span className="ni-ico">◈</span><span>Dashboard ga qaytish</span>
+                <span>Dashboard ga qaytish</span>
               </div>
             </div>
             <div className="sidebar-footer">
-              <span style={{ color: "var(--red)" }}>⬡ Admin</span> · {user.name}
+              <span style={{ color: "var(--red)" }}> Admin</span> · {user.name}
             </div>
           </div>
           <div className="main">
             <div className="topbar">
               <div className="flex aic gap10">
                 <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}>☰</button>
-                <div className="page-title" style={{ color: "var(--red)" }}>⬡ Admin Panel</div>
+                <div className="page-title" style={{ color: "var(--red)" }}> Admin Panel</div>
               </div>
               <div className="topbar-right">
                 <span className="badge b-red" style={{ fontFamily: "var(--fh)" }}>Admin: {user.name}</span>
@@ -6949,7 +6949,7 @@ export default function App() {
             <div style={{ margin: "6px 4px 4px", padding: "8px 10px", borderRadius: 8, background: currentPlan.color + "10", border: `1px solid ${currentPlan.color}25`, display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: currentPlan.color, flexShrink: 0 }} />
               <span style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 600, color: currentPlan.color, flex: 1 }}>{currentPlan.nameUz}</span>
-              {user.plan === "free" && <span style={{ fontSize: 9, color: "var(--muted)", cursor: "pointer" }} onClick={() => setPage("profile")}>⬆ Yangilash</span>}
+              {user.plan === "free" && <span style={{ fontSize: 9, color: "var(--muted)", cursor: "pointer" }} onClick={() => setPage("profile")}> Yangilash</span>}
             </div>
 
             {Object.entries(groupedNav).map(([group, items]) => (
@@ -6960,7 +6960,7 @@ export default function App() {
                   return (
                     <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
                       onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
-                      <span className="ni-ico">{item.ico}</span>
+
                       <span>{item.lbl}</span>
                       {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
                     </div>
@@ -6975,7 +6975,7 @@ export default function App() {
                 <div className="nav-group-label">Boshqaruv</div>
                 <div className="ni" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.15)" }}
                   onClick={() => setAdminMode(true)}>
-                  <span className="ni-ico">⬡</span>
+
                   <span>Admin Panel</span>
                   <span className="ni-badge ml-auto warn">{Auth.getUsers().length}</span>
                 </div>
@@ -6988,9 +6988,9 @@ export default function App() {
             <div className="pulse-dot" style={{ background: prov.color }} />
             <div className="f1">
               <div style={{ fontSize: 11, fontWeight: 600, color: prov.color, fontFamily: "var(--fh)" }}>{prov.name}</div>
-              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{aiConfig.apiKey ? "✓ Ulangan" : "⚠ Kalit kerak"}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{aiConfig.apiKey ? "✓ Ulangan" : " Kalit kerak"}</div>
             </div>
-            <span style={{ fontSize: 11, color: prov.color }}>◎</span>
+            <span style={{ fontSize: 11, color: prov.color }}></span>
           </div>
 
           {/* User footer */}
@@ -7039,8 +7039,8 @@ export default function App() {
             const aiLimit = PLANS.free.limits.ai_requests;
             if (aiUsed >= aiLimit - 2) return (
               <div style={{ background: "rgba(232,184,75,0.08)", borderBottom: "1px solid rgba(232,184,75,0.2)", padding: "8px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12, flexShrink: 0 }}>
-                <span style={{ color: "var(--gold)" }}>⚠ Bepul limitga yetayapsiz: {aiUsed}/{aiLimit} AI so'rov</span>
-                <button className="btn btn-primary btn-xs" onClick={() => setPage("profile")}>⬆ Yangilash</button>
+                <span style={{ color: "var(--gold)" }}> Bepul limitga yetayapsiz: {aiUsed}/{aiLimit} AI so'rov</span>
+                <button className="btn btn-primary btn-xs" onClick={() => setPage("profile")}> Yangilash</button>
               </div>
             );
             return null;
