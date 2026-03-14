@@ -4671,7 +4671,7 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed }) {
       const ctx = buildMergedContext([workingSource]);
       const srcType = SOURCE_TYPES[workingSource.type];
 
-      const prompt = `Sen kuchli biznes data tahlilchisi. Foydalanuvchi quyidagi so'rovni berdi:
+      const prompt = `Sen — yuqori malakali biznes data tahlilchisi. Biznes egasi quyidagi GRAFIK so'rovini berdi:
 
 "${query}"
 
@@ -4679,9 +4679,21 @@ MANBA: "${workingSource.name}" (${srcType?.label || workingSource.type}, ${worki
 
 MA'LUMOTLAR:${ctx}
 
-VAZIFA: Foydalanuvchi so'rovi asosida ma'lumotlarni TO'LIQ TAHLIL QIL va natijani quyidagi JSON formatida qaytar.
+VAZIFANG:
+1. Ma'lumotlarni CHUQUR TAHLIL QIL — har bir raqamni hisoblash, solishtirish, foizini chiqar
+2. HAQIQIY, TUSHUNARLI grafiklar yarat — biznes egasi bir qarashda TUSHUNISHI kerak
+3. Har bir grafik SARLAVHASI aniq bo'lsin — "Oylik savdo dinamikasi (mln so'm)" kabi, nima ekanini ko'rsatsin
+4. Grafik DATA aniq, HAQIQIY raqamlardan iborat bo'lsin — taxminiy EMAS
+5. LABEL lar tushunarli bo'lsin — "cat1" emas, "Yanvar", "Guruh A", "Lidlar" kabi
+6. Stats kartada MUHIM KO'RSATKICHLAR bo'lsin — jami, o'rtacha, o'sish %, eng yuqori, eng past
+7. Highlight kartada AMALIY XULOSALAR bo'lsin — muammo va tavsiya
 
-MUHIM: Sen O'ZING hisoblashlar qilishing kerak — ma'lumotlardan ANIQ RAQAMLAR chiqar! Faqat chart turi emas, HAQIQIY DATA bilan chart qaytar.
+GRAFIK QOIDALARI:
+- Pie chart — 3-7 ta segment, kichik segmentlarni "Boshqa" ga birlashtir
+- Bar chart — max 8-10 ta ustun, eng muhimlarini ko'rsat
+- Line chart — vaqt bo'yicha trend, kamida 4 nuqta
+- Raqamlar tushunarli bo'lsin — 1500000 emas, "1.5M" yoki "1,500,000"
+- Har bir grafik biznes egasiga FOYDALI bo'lishi SHART
 
 \`\`\`json
 {
@@ -5100,8 +5112,29 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
     const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name) }, { role: "assistant", content: "" }];
     setMessages(newMsgs); setLoading(true);
+
+    // Professional system prompt
+    const systemPrompt = {
+      role: "system",
+      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi va strategik maslahatchi. Sening maqsading — biznes egasini HAYRATGA SOLADIGAN darajada chuqur, aniq va foydali javoblar berish.
+
+QOIDALAR:
+1. HAMMA JAVOB O'ZBEK TILIDA — professional, ravon, tushunarli
+2. ANIQ RAQAMLAR bilan gapir — "ko'p" emas, "1,247 ta" de. "o'sdi" emas, "23.5% ga o'sdi" de
+3. Har bir javobda AMALIY TAVSIYALAR bo'lsin — nima qilish kerak, qanday yaxshilash mumkin
+4. Ma'lumotlardan INSIGHT lar chiqar — oddiy takrorlash emas, chuqur TAHLIL
+5. Muammolarni ANIQLASH — qayerda pul yo'qolayapti, qayerda imkoniyat bor
+6. SOLISHTIRISH — o'tgan davr bilan, o'rtacha bilan, maqsad bilan
+7. PROGNOZ — kelgusi 1-3 oy uchun bashorat
+8. Javobni STRUKTURALI yoz — sarlavhalar, nuqtalar, raqamlar alohida ajratilgan
+9. Biznes egasi sifatida QAROR QABUL QILISHGA yordam ber
+10. Keraksiz texnik ma'lumot BERMA — faqat biznes qiymati bor narsalarni yoz
+11. Agar ma'lumot yetarli bo'lmasa — qanday ma'lumot kerakligini so'ra
+12. MUHIM: Bitta savolga 300-500 so'z oralig'ida javob ber — na kam, na ko'p`
+    };
+
     try {
-      await callAI([...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
+      await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
         setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
       });
       // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
@@ -5376,7 +5409,17 @@ function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
     setLoading(true); setResult(""); setActiveLabel(mod.l); setActiveMod(mod);
     const ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
-    const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + "\n\nJavobni o'zbek tilida, professional formatda, aniq raqamlar va foizlar bilan ber. Har bir bo'limni sarlavha bilan ajrat.";
+    const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
+
+JAVOB QOIDALARI:
+1. O'ZBEK TILIDA, professional va chuqur
+2. ANIQ RAQAMLAR — "1,247 ta", "23.5%", "3.2M so'm" kabi. "Ko'p/kam" dema
+3. SOLISHTIRISH — o'tgan davr, o'rtacha, maqsad bilan
+4. MUAMMO + TAVSIYA — har bir muammoga aniq yechim
+5. PROGNOZ — kelgusi 1-3 oy uchun
+6. Sarlavhalar bilan bo'limlarga ajrat
+7. Biznes egasi QAROR QABUL QILISHI uchun foydali bo'lsin
+8. 300-500 so'z oralig'ida — ixcham lekin boy`;
     try {
       await callAI([{ role: "user", content: enrichedPrompt }], aiConfig, setResult);
       if (!isPersonal && onAiUsed) onAiUsed();
@@ -5681,7 +5724,18 @@ function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
     const today = new Date().toLocaleDateString("uz-UZ");
     const ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
-    const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "") + "\n\nJavobni o'zbek tilida, professional formatda, sarlavhalar bilan ajratilgan, aniq raqamlar va foizlar bilan ber.";
+    const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "") + `
+
+HISOBOT QOIDALARI:
+1. O'ZBEK TILIDA, professional biznes hisobot formati
+2. Biznes egasi uchun — texnik emas, TUSHUNARLI til
+3. ANIQ RAQAMLAR — har bir da'vo raqam bilan isbotlangan bo'lsin
+4. SOLISHTIRISH — o'tgan davr bilan, maqsad bilan, o'rtacha bilan
+5. MUAMMOLAR aniq ko'rsatilsin — qayerda pul yo'qolayapti, qayerda pasayish bor
+6. Har bir muammoga AMALIY TAVSIYA — nima qilish kerak, qanday yaxshilash
+7. PROGNOZ — kelgusi oy/kvartal uchun kutilayotgan natija
+8. Hisobot oxirida UMUMIY XULOSA — 3-5 gapda asosiy topilmalar
+9. Sarlavhalar, nuqtalar bilan professional format`;
     try {
       let full = "";
       await callAI([{ role: "user", content: prompt }], aiConfig, c => { full = c; setReport(c); });
