@@ -165,7 +165,8 @@ function syncSourceToAPI(source) {
 async function loadSourcesFromAPI() {
   try {
     if(!Token.get()) return null;
-    return await SourcesAPI.getAll();
+    const result = await SourcesAPI.getAll();
+    return Array.isArray(result) ? result : null;
   } catch { return null; }
 }
 
@@ -6655,17 +6656,17 @@ export default function App() {
       apiKey: allKeys[provider]||LS.get(pfx+"apiKey",""),
     });
 
-    // Backend API dan yangilash (background)
+    // Backend API dan yangilash (background, xato bo'lsa jimgina)
     if(Token.get()){
       loadSourcesFromAPI().then(apiSources=>{
-        if(apiSources && apiSources.length > 0){
+        if(Array.isArray(apiSources) && apiSources.length > 0){
           setSources(apiSources);
-          saveSources(apiSources, uid); // LS ni ham yangilash
+          saveSources(apiSources, uid);
         }
-      });
-      AlertsAPI.getAll().then(a=>{ if(a?.length>=0) setAlerts(a); }).catch(()=>{});
+      }).catch(()=>{});
+      AlertsAPI.getAll().then(a=>{ if(Array.isArray(a)) setAlerts(a); }).catch(()=>{});
       AiAPI.getConfig().then(cfg=>{
-        if(cfg) setAiConfig({provider:cfg.provider, model:cfg.model, apiKey:cfg.apiKey});
+        if(cfg && cfg.provider) setAiConfig({provider:cfg.provider, model:cfg.model||"deepseek-chat", apiKey:cfg.apiKey||""});
       }).catch(()=>{});
       GlobalAI.load().catch(()=>{});
     }
@@ -6678,8 +6679,8 @@ export default function App() {
   const hasPersonalKey = !!aiConfig.apiKey;
   const hasGlobalAI = !!(GlobalAI.get()?.apiKey);
   const aiReady = !!effectiveAI.apiKey;
-  const connCount = sources.filter(s=>s.connected&&s.active).length;
-  const unreadAlerts = alerts.filter(a=>!a.read).length;
+  const connCount = (Array.isArray(sources)?sources:[]).filter(s=>s.connected&&s.active).length;
+  const unreadAlerts = (Array.isArray(alerts)?alerts:[]).filter(a=>!a.read).length;
   const currentPlan = PLANS[user?.plan||"free"];
 
   // ── Alert helpers (per-user, LS + API) ──

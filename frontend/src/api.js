@@ -19,23 +19,31 @@ async function apiFetch(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...opts.headers };
   if (_token) headers['Authorization'] = `Bearer ${_token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  } catch (networkErr) {
+    // Network xato (backend ishlamayapti) — jimgina throw
+    throw new Error('Server bilan aloqa yo\'q');
+  }
 
-  // 401 bo'lsa token yaroqsiz
+  // 401 bo'lsa token yaroqsiz — reload QILMAYMIZ (cheksiz loop oldini olish)
   if (res.status === 401) {
     Token.clear();
-    // Sahifani qayta yuklash (login ga o'tish)
-    window.location.reload();
     throw new Error('Sessiya tugadi, qayta kiring');
   }
 
-  const data = await res.json().catch(() => ({}));
+  // 304 yoki bo'sh body
+  if (res.status === 304 || res.headers.get('content-length') === '0') {
+    return null;
+  }
+
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = null; }
 
   if (!res.ok) {
-    throw new Error(data.error || `Server xatosi (${res.status})`);
+    throw new Error(data?.error || `Server xatosi (${res.status})`);
   }
 
   return data;
