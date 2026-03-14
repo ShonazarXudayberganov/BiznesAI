@@ -4670,9 +4670,24 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed }) {
     setLastQuery("");
   }, [workingSource?.id]);
 
-  // Tayyor so'rovlar (CRM, Excel, Sheets, API uchun)
+  // Tayyor so'rovlar (barcha manba turlari uchun)
   const QUICK_CHARTS = useMemo(() => {
     if (!workingSource) return [];
+    if (workingSource.type === "instagram") return [
+      { icon: "", text: "Post turlari bo'yicha engagement solishtirish: rasm, video, carousel", c: "#E879F9" },
+      { icon: "", text: "Eng ko'p like va comment olgan top 10 post tahlili", c: "#F87171" },
+      { icon: "", text: "Hafta kunlari bo'yicha post samaradorligi: qaysi kunda ko'proq engagement", c: "#60A5FA" },
+      { icon: "", text: "Follower o'sish dinamikasi va engagement rate trendi", c: "#4ADE80" },
+      { icon: "", text: "Hashtag va caption tahlili: qaysi hashtaglar ko'proq reach oladi", c: "#FBBF24" },
+      { icon: "", text: "Umumiy Instagram statistikasi: postlar, like, comment, reach, engagement rate", c: "#00C9BE" },
+    ];
+    if (workingSource.type === "telegram") return [
+      { icon: "", text: "Kanal o'sish dinamikasi: a'zolar soni, kunlik o'sish trendi", c: "#38BDF8" },
+      { icon: "", text: "Post ko'rishlar tahlili: o'rtacha, eng yuqori, eng past ko'rishlar", c: "#4ADE80" },
+      { icon: "", text: "Kontent turi bo'yicha samaradorlik: matn, rasm, video, forward", c: "#E879F9" },
+      { icon: "", text: "Faollik vaqti: qaysi soatlarda ko'proq ko'rish va reaksiya", c: "#FBBF24" },
+      { icon: "", text: "Umumiy kanal statistikasi: a'zolar, postlar, ko'rishlar, o'sish %", c: "#00C9BE" },
+    ];
     if (workingSource.type === "crm") return [
       { icon: "", text: "O'quv markaz umumiy ko'rsatkichlari: lidlar, guruhlar, o'quvchilar, o'qituvchilar, daromad, maosh", c: "#8B5CF6" },
       { icon: "", text: "Moliyaviy tahlil: daromad, maosh xarajati, foyda foizi, guruh narxlari, top daromadli guruhlar", c: "#4ADE80" },
@@ -4832,7 +4847,8 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
     return generateDashboards(workingSource);
   }, [workingSource?.id, workingSource?.data?.length, workingSource?.updatedAt, isSpecialSource]);
 
-  const allCards = isSpecialSource ? specialCards : aiCards;
+  // Instagram/Telegram: avval auto-dashboard, keyin AI yaratganlar. Boshqalar: faqat AI
+  const allCards = isSpecialSource ? [...specialCards, ...aiCards] : aiCards;
 
   // Jadval uchun data
   const tableData = useMemo(() => {
@@ -4871,8 +4887,8 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
         })}
       </div>
 
-      {/* ═══ AI SO'ROV PANELI — faqat generic manbalar uchun ═══ */}
-      {!isSpecialSource && workingSource && (
+      {/* ═══ AI SO'ROV PANELI — barcha manbalar uchun ═══ */}
+      {workingSource && (
         <div className="card mb14" style={{ border: "1px solid rgba(0,201,190,0.15)", background: "linear-gradient(135deg,var(--s1),rgba(0,201,190,0.02))" }}>
           <div className="flex aic gap10 mb12">
             <span style={{ fontSize: 22 }}></span>
@@ -5006,9 +5022,9 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {filter !== "table" && allCards.length === 0 && !aiLoading && (
         <div className="card" style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>{isSpecialSource ? "" : ""}</div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>{isSpecialSource ? "Grafiklar uchun data kerak" : "Yuqoridagi so'rovlardan birini tanlang yoki o'zingiz yozing"}</div>
-          <div className="text-muted text-sm mt4">{isSpecialSource ? "Data Hub dan manba ulang" : "AI ma'lumotlaringizni tahlil qilib, raqamlar va grafiklar yaratadi"}</div>
+          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>Yuqoridagi so'rovlardan birini tanlang yoki o'zingiz yozing</div>
+          <div className="text-muted text-sm mt4">AI ma'lumotlaringizni tahlil qilib, raqamlar va grafiklar yaratadi</div>
         </div>
       )}
     </div>
