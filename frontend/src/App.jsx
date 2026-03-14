@@ -4635,7 +4635,7 @@ function GaugeChart({ value = 0, max = 100, label = "", color = "var(--teal)" })
 // Instagram/Telegram → auto-dashboard
 // Boshqa manbalar → foydalanuvchi so'rov yozadi, AI raqamlar hisoblaydi + chartlar qaytaradi
 // ─────────────────────────────────────────────────────────────
-function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed }) {
+function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBackgroundAI }) {
   const [selectedSrc, setSelectedSrc] = useState(null);
   const [filter, setFilter] = useState("all");
   const [chartOverrides, setChartOverrides] = useState({});
@@ -4822,18 +4822,24 @@ QOIDALAR:
 
 FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
-      let result = "";
-      await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
-
-      // JSON parse
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI javobidan JSON topilmadi");
-      const parsed = JSON.parse(jsonMatch[0]);
-      const cards = (parsed.cards || []).map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` }));
-
-      if (!cards.length) throw new Error("AI kartalar yarata olmadi");
-      // Yangi kartalarni eskisining USTIGA qo'shish (eski saqlanadi)
-      setAiCards(prev => [...cards, ...prev]);
+      // Background da ishga tushirish — sahifa o'zgarganda ham davom etadi
+      const srcId = workingSource.id;
+      const curCacheKey = cacheKey;
+      runBackgroundAI(query.substring(0, 40), [{ role: "user", content: prompt }], aiConfig, (result) => {
+        try {
+          const jsonMatch = result.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) return;
+          const parsed = JSON.parse(jsonMatch[0]);
+          const cards = (parsed.cards || []).map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` }));
+          if (!cards.length) return;
+          // Cache ga saqlash (component unmount bo'lgan bo'lishi mumkin)
+          const prev = LS.get(curCacheKey, []);
+          const updated = [...cards, ...(Array.isArray(prev) ? prev : [])];
+          LS.set(curCacheKey, updated);
+          // Agar hali shu sahifada bo'lsa — state ni yangilash
+          setAiCards(updated);
+        } catch {}
+      });
 
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
     } catch (err) {
@@ -8073,6 +8079,36 @@ export default function App() {
   const [sources, setSources] = useState(() => loadSources());
   const { notifs, push } = useNotifs();
 
+  // ── Global AI Task Manager ──
+  // Sahifa o'zgarganda ham AI jarayoni davom etadi
+  const bgTasksRef = useRef([]);
+  const [bgTaskCount, setBgTaskCount] = useState(0);
+
+  const runBackgroundAI = useCallback(async (taskName, messages, config, onDone) => {
+    const taskId = Date.now();
+    bgTasksRef.current.push({ id: taskId, name: taskName, status: "running" });
+    setBgTaskCount(bgTasksRef.current.filter(t => t.status === "running").length);
+    push(`"${taskName}" — AI tahlil boshlandi`, "info");
+
+    try {
+      let result = "";
+      await callAI(messages, config, (chunk) => { result = chunk; });
+      // Task tugadi
+      bgTasksRef.current = bgTasksRef.current.map(t => t.id === taskId ? { ...t, status: "done", result } : t);
+      setBgTaskCount(bgTasksRef.current.filter(t => t.status === "running").length);
+      push(`"${taskName}" — tayyor!`, "ok");
+      if (onDone) onDone(result);
+    } catch (err) {
+      bgTasksRef.current = bgTasksRef.current.map(t => t.id === taskId ? { ...t, status: "error" } : t);
+      setBgTaskCount(bgTasksRef.current.filter(t => t.status === "running").length);
+      push(`"${taskName}" — xato: ${err.message}`, "error");
+    }
+    // Eski tasklarni tozalash (5 daqiqadan keyin)
+    setTimeout(() => {
+      bgTasksRef.current = bgTasksRef.current.filter(t => t.id !== taskId);
+    }, 300000);
+  }, [push]);
+
   // ── User o'zgarganda barcha state'ni reload qilish ──
   // Avval localStorage dan tez yuklash, keyin API dan yangilash
   useEffect(() => {
@@ -8248,7 +8284,7 @@ export default function App() {
     settings: <SettingsPage aiConfig={aiConfig} setAiConfig={setAiConfig} push={push} effectiveAI={effectiveAI} hasPersonalKey={hasPersonalKey} hasGlobalAI={hasGlobalAI} user={user} />,
     dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} />,
     datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} />,
-    charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
+    charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} runBackgroundAI={runBackgroundAI} />,
     chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
     analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
     reports: <ReportsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
@@ -8349,6 +8385,12 @@ export default function App() {
               <div className="page-title">{PAGE_TITLES[page] || page}</div>
             </div>
             <div className="topbar-right">
+              {bgTaskCount > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:8, background:"rgba(0,201,190,0.08)", border:"1px solid rgba(0,201,190,0.2)", fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", fontWeight:600, animation:"pulse-voice 2s ease infinite" }}>
+                  <span style={{ width:8, height:8, borderRadius:"50%", background:"var(--teal)", animation:"pulse-voice 1s ease infinite" }}/>
+                  AI ishlayapti ({bgTaskCount})
+                </div>
+              )}
               {unreadAlerts > 0 && (
                 <button className="btn btn-ghost btn-xs" onClick={() => setPage("alerts")} style={{ borderColor: "var(--gold)", color: "var(--gold)" }}>
                    {unreadAlerts}
