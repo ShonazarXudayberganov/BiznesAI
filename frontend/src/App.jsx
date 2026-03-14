@@ -884,7 +884,9 @@ body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none)
 .topbar{height:56px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0;backdrop-filter:blur(12px);}
 .page-title{font-family:var(--fh);font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.3px;}
 .topbar-right{display:flex;align-items:center;gap:12px}
-.model-chip{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--s2);border-radius:22px;font-size:11px;cursor:pointer;border:1px solid var(--border);transition:all .2s var(--ease);font-family:var(--fm);}
+.model-chip{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--s2);border-radius:10px;font-size:11px;cursor:pointer;border:1px solid var(--border);transition:all .2s var(--ease);font-family:var(--fm);height:34px}
+.tb-item{display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--s2);border-radius:10px;border:1px solid var(--border);height:34px;font-size:11px;font-family:var(--fh);cursor:pointer;transition:all .2s;color:var(--text2);flex-shrink:0}
+.tb-item:hover{border-color:var(--border-hi);background:var(--s3)}
 .model-chip:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
 
 /* ═══ CONTENT ═══ */
@@ -7583,14 +7585,9 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
 
   return (
     <div>
-      <button ref={btnRef} onClick={() => setOpen(!open)} title="Mavzu tanlash"
-        style={{
-          width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border-hi)",
-          background: "var(--s2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all .3s", flexShrink: 0,
-        }}>
-        <div style={{ width: 16, height: 16, borderRadius: "50%", background: prev.grad, boxShadow: `0 0 10px ${prev.accent}50` }} />
-      </button>
+      <div ref={btnRef} className="tb-item" onClick={() => setOpen(!open)} title="Mavzu tanlash" style={{ padding:"0 10px" }}>
+        <div style={{ width: 16, height: 16, borderRadius: "50%", background: prev.grad, boxShadow: `0 0 8px ${prev.accent}40` }} />
+      </div>
       {open && createPortal(
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
@@ -7642,13 +7639,11 @@ function LiveClock() {
   const date = now.toLocaleDateString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric" });
   const time = now.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
   return (
-    <div className="hide-mobile" style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 12px", borderRadius:8, background:"var(--s2)", border:"1px solid var(--border)" }}>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <div style={{ fontFamily:"var(--fm)", fontSize:11, color:"var(--text2)", letterSpacing:0.5 }}>
-        <span style={{ color:"var(--muted)", marginRight:4 }}>{day}</span>
-        <span>{date}</span>
-        <span style={{ color:"var(--teal)", marginLeft:6, fontWeight:600 }}>{time}</span>
-      </div>
+    <div className="tb-item hide-mobile" style={{ cursor:"default", gap:8 }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span style={{ fontFamily:"var(--fm)", fontSize:10, letterSpacing:0.3 }}>
+        <span style={{ color:"var(--muted)" }}>{day}</span> {date} <span style={{ color:"var(--teal)", fontWeight:600 }}>{time}</span>
+      </span>
     </div>
   );
 }
@@ -8674,32 +8669,29 @@ export default function App() {
             </div>
             <div className="topbar-right">
               {bgTaskCount > 0 && (
-                <div onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
-                  style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:8, background:"rgba(0,201,190,0.08)", border:"1px solid rgba(0,201,190,0.2)", fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", animation:"pulse-voice 2s ease infinite" }}>
-                  <span style={{ width:8, height:8, borderRadius:"50%", background:"var(--teal)", animation:"pulse-voice 1s ease infinite" }}/>
-                  AI ishlayapti ({bgTaskCount})
+                <div className="tb-item" onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
+                  style={{ borderColor:"rgba(0,201,190,0.2)", color:"var(--teal)", fontWeight:600, animation:"pulse-voice 2s ease infinite" }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:"var(--teal)", animation:"pulse-voice 1s ease infinite" }}/>
+                  AI ({bgTaskCount})
                 </div>
               )}
               {unreadAlerts > 0 && (
-                <button className="btn btn-ghost btn-xs" onClick={() => setPage("alerts")} style={{ borderColor: "var(--gold)", color: "var(--gold)" }}>
-                   {unreadAlerts}
-                </button>
+                <div className="tb-item" onClick={() => setPage("alerts")} style={{ borderColor:"rgba(212,168,83,0.2)", color:"var(--gold)", fontWeight:600 }}>
+                  {unreadAlerts}
+                </div>
               )}
-              <div className="model-chip" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "30" }}>
+              <div className="tb-item" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "20" }}>
                 <span style={{ color: prov.color }}>{prov.icon}</span>
-                <span style={{ color: prov.color, fontSize: 11 }} className="hide-mobile">{prov.name}</span>
+                <span style={{ color: prov.color, fontWeight:600 }} className="hide-mobile">{prov.name}</span>
                 <span style={{ color: "var(--muted)" }}>·</span>
                 <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
               </div>
               <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
               <LiveClock />
-              <button onClick={handleLogout}
-                style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(248,113,113,0.25)", background:"rgba(248,113,113,0.06)", color:"#FB7185", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}
-                onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.12)";e.currentTarget.style.borderColor="rgba(248,113,113,0.4)"}}
-                onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.06)";e.currentTarget.style.borderColor="rgba(248,113,113,0.25)"}}>
+              <div className="tb-item" onClick={handleLogout} style={{ borderColor:"rgba(248,113,113,0.2)", color:"#FB7185", fontWeight:600 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                 <span className="hide-mobile">Chiqish</span>
-              </button>
+              </div>
             </div>
           </div>
 
