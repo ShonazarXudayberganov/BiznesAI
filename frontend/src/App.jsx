@@ -7912,7 +7912,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
               {anomalies.slice(0, 8).map((a, i) => {
                 const sev = sevColors[a.severity] || sevColors.warning;
                 return (
-                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s" }}
+                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s", minHeight: 170, display: "flex", flexDirection: "column" }}
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${sev.border}`; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
                     {/* Karta header */}
@@ -7946,7 +7946,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
                     </div>
                     {/* Trend badge */}
                     {(a.type === "trend_down" || a.type === "trend_up") && (
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, marginTop: "auto", background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           {a.type === "trend_down" ? <><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></> : <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>}
                         </svg>
