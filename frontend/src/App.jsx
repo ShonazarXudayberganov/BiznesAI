@@ -1027,7 +1027,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .drop-zone.drop-doc.drag{border-color:#F87171;background:linear-gradient(135deg,rgba(248,113,113,0.08),rgba(248,113,113,0.15));box-shadow:0 12px 40px rgba(248,113,113,0.2)}
 
 /* ═══ CHAT ═══ */
-.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px - 28px)}
+.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px - 56px);overflow:hidden}
 .chat-msgs-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
 .chat-msgs{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:6px 2px 14px;}
 .chat-msgs::-webkit-scrollbar{width:3px}
@@ -1130,7 +1130,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
   .pricing-grid{grid-template-columns:1fr 1fr}.feat-grid{grid-template-columns:1fr 1fr}
   .land-stats{grid-template-columns:1fr 1fr}.land-hero{padding:60px 20px 48px;}
   .land-nav,.land-section,.land-stats{padding-left:20px;padding-right:20px}
-  .chat-wrap{height:calc(100vh - 56px - 16px)}.bubble{max-width:88%}
+  .chat-wrap{height:calc(100vh - 56px - 32px)}.bubble{max-width:88%}
   .type-grid{grid-template-columns:repeat(2,1fr)}.content{padding:16px}.topbar{padding:0 16px}
 }
 @media(max-width:480px){
