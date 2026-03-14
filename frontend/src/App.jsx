@@ -769,13 +769,14 @@ async function callAI(messages, config, onChunk) {
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root,[data-theme="dark"]{
+:root,[data-theme="obsidian"]{
   --bg:#05060C;--s1:#0A0C15;--s2:#0E1019;--s3:#12141F;--s4:#181B28;
   --glass:rgba(10,12,21,0.92);
   --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.03);--border-hi:rgba(255,255,255,0.12);
   --gold:#D4A853;--gold2:#E8C47A;--gold-glow:rgba(212,168,83,0.15);
   --teal:#00D4C8;--teal2:#00F5E5;--teal-glow:rgba(0,212,200,0.12);
   --green:#34D399;--red:#FB7185;--purple:#A78BFA;--blue:#60A5FA;--orange:#FB923C;
+  --accent1:#D4A853;--accent2:#00D4C8;
   --text:#E8ECF4;--text2:#94A3B8;--muted:#475569;--muted2:#334155;
   --fh:'Inter',system-ui,-apple-system,sans-serif;
   --fm:'JetBrains Mono','Fira Code',monospace;
@@ -789,33 +790,61 @@ const CSS = `
   --ease:cubic-bezier(0.4,0,0.2,1);
   --ease-spring:cubic-bezier(0.175,0.885,0.32,1.275);
   --chart-grid:rgba(100,160,180,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(15,23,42,0.95);--chart-tip-border:rgba(0,201,190,0.2);
+  --bg-pattern:none;
 }
-[data-theme="light"]{
-  --bg:#1E293B;--s1:#283548;--s2:#334155;--s3:#3D4F65;--s4:#475B75;
-  --glass:rgba(40,53,72,0.94);
-  --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.05);--border-hi:rgba(255,255,255,0.18);
-  --gold:#FFD07A;--gold2:#FFE0A0;--gold-glow:rgba(255,208,122,0.15);
-  --teal:#5EEAD4;--teal2:#99F6E4;--teal-glow:rgba(94,234,212,0.12);
-  --green:#6EE7B7;--red:#FCA5A5;--purple:#D8B4FE;--blue:#A5C8FF;--orange:#FDBA74;
-  --text:#F1F5F9;--text2:#CBD5E1;--muted:#8896A8;--muted2:#64748B;
-  --shadow-sm:0 1px 4px rgba(0,0,0,0.25);
-  --shadow-md:0 4px 16px rgba(0,0,0,0.25),0 2px 4px rgba(0,0,0,0.12);
-  --shadow-lg:0 10px 40px rgba(0,0,0,0.3),0 4px 12px rgba(0,0,0,0.15);
-  --shadow-glow-gold:0 0 24px rgba(255,208,122,0.15),0 0 60px rgba(255,208,122,0.05);
-  --shadow-glow-teal:0 0 24px rgba(94,234,212,0.12),0 0 60px rgba(94,234,212,0.04);
-  --chart-grid:rgba(255,255,255,0.07);--chart-label:#A0B0C0;--chart-tip-bg:rgba(40,53,72,0.96);--chart-tip-border:rgba(94,234,212,0.3);
+/* ═══ OCEAN — Chuqur ko'k okean ═══ */
+[data-theme="ocean"]{
+  --bg:#0A1628;--s1:#0F1D32;--s2:#14253D;--s3:#1A2E4A;--s4:#203857;
+  --glass:rgba(15,29,50,0.94);
+  --border:rgba(100,180,255,0.08);--border2:rgba(100,180,255,0.04);--border-hi:rgba(100,180,255,0.15);
+  --gold:#60A5FA;--gold2:#93C5FD;--gold-glow:rgba(96,165,250,0.15);
+  --teal:#22D3EE;--teal2:#67E8F9;--teal-glow:rgba(34,211,238,0.12);
+  --green:#4ADE80;--red:#FB7185;--purple:#A78BFA;--blue:#60A5FA;--orange:#FBBF24;
+  --accent1:#60A5FA;--accent2:#22D3EE;
+  --text:#E0F2FE;--text2:#7DD3FC;--muted:#3B82A0;--muted2:#1E4060;
+  --shadow-sm:0 1px 3px rgba(0,20,60,0.4);--shadow-md:0 4px 16px rgba(0,20,60,0.4);--shadow-lg:0 10px 40px rgba(0,20,60,0.5);
+  --shadow-glow-gold:0 0 24px rgba(96,165,250,0.15);--shadow-glow-teal:0 0 24px rgba(34,211,238,0.12);
+  --chart-grid:rgba(96,165,250,0.06);--chart-label:#5B98C8;--chart-tip-bg:rgba(15,29,50,0.96);--chart-tip-border:rgba(34,211,238,0.25);
+  --bg-pattern:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2360A5FA' fill-opacity='0.015'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+/* ═══ ROYAL — Binafsha qirollik ═══ */
+[data-theme="royal"]{
+  --bg:#0E0A1A;--s1:#150F28;--s2:#1A1435;--s3:#201A42;--s4:#28224F;
+  --glass:rgba(21,15,40,0.94);
+  --border:rgba(167,139,250,0.1);--border2:rgba(167,139,250,0.04);--border-hi:rgba(167,139,250,0.18);
+  --gold:#E879F9;--gold2:#F0ABFC;--gold-glow:rgba(232,121,249,0.15);
+  --teal:#C084FC;--teal2:#D8B4FE;--teal-glow:rgba(192,132,252,0.12);
+  --green:#4ADE80;--red:#FB7185;--purple:#C084FC;--blue:#818CF8;--orange:#FB923C;
+  --accent1:#E879F9;--accent2:#C084FC;
+  --text:#F3E8FF;--text2:#C4B5FD;--muted:#6D5BA0;--muted2:#4C3D78;
+  --shadow-sm:0 1px 3px rgba(15,0,40,0.4);--shadow-md:0 4px 16px rgba(15,0,40,0.4);--shadow-lg:0 10px 40px rgba(15,0,40,0.5);
+  --shadow-glow-gold:0 0 24px rgba(232,121,249,0.15);--shadow-glow-teal:0 0 24px rgba(192,132,252,0.12);
+  --chart-grid:rgba(167,139,250,0.06);--chart-label:#8B7ABF;--chart-tip-bg:rgba(21,15,40,0.96);--chart-tip-border:rgba(192,132,252,0.25);
+  --bg-pattern:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23A78BFA' fill-opacity='0.02'%3E%3Cpath d='M20 20.5V18H0v-2h20v-2l2 3-2 3zm0-7V11H0V9h20V7l2 3-2 3z'/%3E%3C/g%3E%3C/svg%3E");
+}
+/* ═══ EMBER — Issiq bronza ═══ */
+[data-theme="ember"]{
+  --bg:#120C08;--s1:#1A1210;--s2:#221A16;--s3:#2A221E;--s4:#342C26;
+  --glass:rgba(26,18,16,0.94);
+  --border:rgba(251,191,36,0.08);--border2:rgba(251,191,36,0.04);--border-hi:rgba(251,191,36,0.15);
+  --gold:#FBBF24;--gold2:#FCD34D;--gold-glow:rgba(251,191,36,0.18);
+  --teal:#F59E0B;--teal2:#FBBF24;--teal-glow:rgba(245,158,11,0.12);
+  --green:#4ADE80;--red:#FB7185;--purple:#D4A853;--blue:#F59E0B;--orange:#FB923C;
+  --accent1:#FBBF24;--accent2:#F59E0B;
+  --text:#FEF3C7;--text2:#D4A853;--muted:#92713A;--muted2:#6B5228;
+  --shadow-sm:0 1px 3px rgba(20,10,0,0.5);--shadow-md:0 4px 16px rgba(20,10,0,0.45);--shadow-lg:0 10px 40px rgba(20,10,0,0.5);
+  --shadow-glow-gold:0 0 24px rgba(251,191,36,0.2);--shadow-glow-teal:0 0 24px rgba(245,158,11,0.15);
+  --chart-grid:rgba(251,191,36,0.05);--chart-label:#A08050;--chart-tip-bg:rgba(26,18,16,0.96);--chart-tip-border:rgba(251,191,36,0.3);
+  --bg-pattern:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Ccircle cx='40' cy='40' r='1' fill='%23FBBF24' opacity='.03'/%3E%3Ccircle cx='10' cy='10' r='0.5' fill='%23FBBF24' opacity='.025'/%3E%3Ccircle cx='70' cy='20' r='0.8' fill='%23F59E0B' opacity='.02'/%3E%3C/svg%3E");
 }
 html,body,#root{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
 body::before{content:'';position:fixed;inset:0;background:
-  radial-gradient(ellipse 90% 60% at 15% 5%,rgba(212,168,83,0.035) 0%,transparent 55%),
-  radial-gradient(ellipse 70% 50% at 85% 85%,rgba(0,212,200,0.03) 0%,transparent 55%),
+  var(--bg-pattern),
+  radial-gradient(ellipse 90% 60% at 15% 5%,var(--gold-glow) 0%,transparent 55%),
+  radial-gradient(ellipse 70% 50% at 85% 85%,var(--teal-glow) 0%,transparent 55%),
   radial-gradient(ellipse 50% 40% at 50% 50%,rgba(167,139,250,0.015) 0%,transparent 50%);
   pointer-events:none;z-index:0;}
-[data-theme="light"] body::before{background:
-  radial-gradient(ellipse 90% 60% at 15% 5%,rgba(94,234,212,0.05) 0%,transparent 55%),
-  radial-gradient(ellipse 70% 50% at 85% 85%,rgba(255,208,122,0.04) 0%,transparent 55%),
-  radial-gradient(ellipse 50% 40% at 50% 50%,rgba(216,180,254,0.025) 0%,transparent 50%);}
 
 /* ═══ LAYOUT ═══ */
 .app{position:relative;z-index:1;display:flex;height:100vh;width:100vw;overflow:hidden}
@@ -1141,40 +1170,16 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .sidebar-close-btn:hover{color:var(--text)}
 .mob-overlay{display:none}.hide-mobile{display:inline}
 
-/* ═══ LIGHT THEME OVERRIDES (Premium Slate) ═══ */
-[data-theme="light"] .sidebar{background:#283548;border-right-color:rgba(255,255,255,0.08)}
-[data-theme="light"] .topbar{background:rgba(40,53,72,0.92);border-bottom-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .content{background:#1E293B}
-[data-theme="light"] .card{background:#283548;border-color:rgba(255,255,255,0.08);box-shadow:0 2px 12px rgba(0,0,0,0.15)}
-[data-theme="light"] .field{background:#334155;border-color:rgba(255,255,255,0.1);color:#F1F5F9}
-[data-theme="light"] .field:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(94,234,212,0.15)}
-[data-theme="light"] .btn-primary{background:linear-gradient(135deg,#5EEAD4,#2DD4BF);color:#0F172A;box-shadow:0 2px 16px rgba(94,234,212,0.3)}
-[data-theme="light"] .btn-ghost{border-color:rgba(255,255,255,0.12);color:#CBD5E1}
-[data-theme="light"] .btn-ghost:hover{background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.18)}
-[data-theme="light"] .logo-main span{color:#FFD07A}
-[data-theme="light"] .landing{background:#1E293B}
-[data-theme="light"] .land-nav{background:rgba(30,41,59,0.92);border-bottom-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .land-hero{background:linear-gradient(180deg,#1E293B,#283548)}
-[data-theme="light"] .hero-badge{background:rgba(94,234,212,0.08);border-color:rgba(94,234,212,0.2)}
-[data-theme="light"] .grad{background:linear-gradient(135deg,#5EEAD4,#FFD07A);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="light"] .stat-block{background:#283548;border-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .feat-card{background:#283548;border-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .feat-ico{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .plan-card{background:#283548;border-color:rgba(255,255,255,0.08)}
-[data-theme="light"] .plan-card.popular{border-color:rgba(94,234,212,0.35);box-shadow:0 8px 32px rgba(94,234,212,0.1)}
-[data-theme="light"] .billing-pill{background:#334155}
-[data-theme="light"] .msg .bubble{background:#334155;border-color:rgba(255,255,255,0.07)}
-[data-theme="light"] .msg.user .bubble{background:rgba(94,234,212,0.1);border-color:rgba(94,234,212,0.18)}
-[data-theme="light"] .notif{background:#283548;border-color:rgba(255,255,255,0.1);box-shadow:0 4px 16px rgba(0,0,0,0.25)}
-[data-theme="light"] .modal-overlay{background:rgba(0,0,0,0.45)}
-[data-theme="light"] .modal-box{background:#283548;border-color:rgba(255,255,255,0.12)}
-[data-theme="light"] .chat-input-row{background:rgba(40,53,72,0.92);border-color:rgba(255,255,255,0.1)}
-[data-theme="light"] .drop-zone{border-color:rgba(94,234,212,0.2);background:linear-gradient(135deg,rgba(94,234,212,0.03),rgba(94,234,212,0.06))}
-[data-theme="light"] .drop-zone:hover{border-color:rgba(94,234,212,0.4);background:linear-gradient(135deg,rgba(94,234,212,0.05),rgba(94,234,212,0.1))}
-[data-theme="light"] select.field{background:#334155}
-[data-theme="light"] .nav-btn{color:#CBD5E1}
-[data-theme="light"] .nav-btn:hover{background:rgba(94,234,212,0.08);color:#5EEAD4}
-[data-theme="light"] .nav-btn.active{background:rgba(94,234,212,0.1);color:#5EEAD4;border-color:rgba(94,234,212,0.25)}
+/* ═══ THEME-SPECIFIC ACCENTS ═══ */
+[data-theme="ocean"] .logo-main span{color:#60A5FA}
+[data-theme="ocean"] .grad{background:linear-gradient(135deg,#60A5FA,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="ocean"] .btn-primary{background:linear-gradient(135deg,#3B82F6,#2563EB);box-shadow:0 2px 12px rgba(59,130,246,0.3)}
+[data-theme="royal"] .logo-main span{color:#E879F9}
+[data-theme="royal"] .grad{background:linear-gradient(135deg,#E879F9,#C084FC);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="royal"] .btn-primary{background:linear-gradient(135deg,#A855F7,#7C3AED);box-shadow:0 2px 12px rgba(168,85,247,0.3)}
+[data-theme="ember"] .logo-main span{color:#FBBF24}
+[data-theme="ember"] .grad{background:linear-gradient(135deg,#FBBF24,#F59E0B);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="ember"] .btn-primary{background:linear-gradient(135deg,#F59E0B,#D97706);box-shadow:0 2px 12px rgba(245,158,11,0.3)}
 
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
@@ -1227,7 +1232,7 @@ function NotifBanner({ notifs }) {
 function LandingPage({ onLogin, onRegister }) {
   const [billing, setBilling] = useState("monthly");
   const [openFaq, setOpenFaq] = useState(null);
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, setTheme, toggle: toggleTheme } = useTheme();
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 
   // SVG icon helper — gradient rangdor iconlar
@@ -1292,7 +1297,7 @@ function LandingPage({ onLogin, onRegister }) {
             <button key={n.id} onClick={()=>scrollTo(n.id)} style={{fontSize:13,color:"var(--text2)",background:"none",border:"none",fontFamily:"var(--fh)",fontWeight:500,padding:"6px 12px",cursor:"pointer",transition:"color .2s"}}
               onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</button>
           ))}
-          <ThemeToggle theme={theme} toggle={toggleTheme} size="sm" />
+          <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
           <button className="btn btn-ghost btn-sm" onClick={onLogin}>Kirish</button>
           <button className="btn btn-primary btn-sm" onClick={onRegister}>Bepul boshlash</button>
         </div>
@@ -7509,38 +7514,65 @@ function AiProgressBar({ loading }) {
 // ─────────────────────────────────────────────────────────────
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
+const THEMES = [
+  { id: "obsidian", name: "Obsidian", desc: "Qora + Oltin", colors: ["#05060C","#0A0C15","#D4A853","#00D4C8"] },
+  { id: "ocean", name: "Ocean", desc: "Okean ko'k", colors: ["#0A1628","#0F1D32","#60A5FA","#22D3EE"] },
+  { id: "royal", name: "Royal", desc: "Qirollik binafsha", colors: ["#0E0A1A","#150F28","#E879F9","#C084FC"] },
+  { id: "ember", name: "Ember", desc: "Issiq bronza", colors: ["#120C08","#1A1210","#FBBF24","#F59E0B"] },
+];
+
 function useTheme() {
-  const [theme, setThemeState] = useState(() => localStorage.getItem("bai_theme") || "dark");
+  const [theme, setThemeState] = useState(() => localStorage.getItem("bai_theme") || "obsidian");
   const setTheme = useCallback((t) => {
     setThemeState(t);
     localStorage.setItem("bai_theme", t);
     document.documentElement.setAttribute("data-theme", t);
   }, []);
   useEffect(() => { document.documentElement.setAttribute("data-theme", theme); }, []);
-  return { theme, setTheme, toggle: () => setTheme(theme === "dark" ? "light" : "dark") };
+  const nextTheme = () => {
+    const idx = THEMES.findIndex(t => t.id === theme);
+    setTheme(THEMES[(idx + 1) % THEMES.length].id);
+  };
+  return { theme, setTheme, toggle: nextTheme };
 }
 
-function ThemeToggle({ theme, toggle, size = "md" }) {
-  const isDark = theme === "dark";
+function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
+  const [open, setOpen] = useState(false);
   const sz = size === "sm" ? 32 : 38;
+  const cur = THEMES.find(t => t.id === theme) || THEMES[0];
   return (
-    <button onClick={toggle} title={isDark ? "Ochiq mavzu" : "Tungi mavzu"}
-      style={{
-        width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border-hi)",
-        background: isDark ? "var(--s3)" : "rgba(45,212,191,0.1)",
-        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "all .3s", flexShrink: 0,
-      }}>
-      {isDark ? (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" strokeLinecap="round">
-          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-      ) : (
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setOpen(!open)} title={`Mavzu: ${cur.name}`}
+        style={{
+          width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border-hi)",
+          background: `linear-gradient(135deg,${cur.colors[2]}20,${cur.colors[3]}20)`,
+          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "all .3s", flexShrink: 0,
+        }}>
+        <div style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${cur.colors[2]},${cur.colors[3]})`, boxShadow: `0 0 8px ${cur.colors[2]}40` }} />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 14, padding: 12, width: 200, boxShadow: "var(--shadow-lg)", animation: "fadeIn .2s ease" }}>
+          <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Mavzu tanlang</div>
+          {THEMES.map(t => (
+            <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
+              style={{
+                width: "100%", padding: "10px 12px", borderRadius: 10, border: theme === t.id ? `2px solid ${t.colors[2]}` : "1px solid var(--border)",
+                background: theme === t.id ? `${t.colors[2]}12` : "var(--s2)",
+                cursor: "pointer", marginBottom: 6, display: "flex", alignItems: "center", gap: 10, transition: "all .2s",
+              }}>
+              <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                {t.colors.map((c, i) => <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c, border: "1px solid rgba(255,255,255,0.1)" }} />)}
+              </div>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700, color: theme === t.id ? t.colors[2] : "var(--text)" }}>{t.name}</div>
+                <div style={{ fontSize: 9, color: "var(--muted)" }}>{t.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -8582,7 +8614,7 @@ export default function App() {
                 <span style={{ color: "var(--muted)" }}>·</span>
                 <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
               </div>
-              <ThemeToggle theme={theme} toggle={toggleTheme} size="sm" />
+              <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
               <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{new Date().toLocaleDateString("uz-UZ")}</span>
               <button className="btn btn-ghost btn-xs" onClick={handleLogout} style={{ color: "var(--muted)" }}>Chiqish</button>
             </div>
