@@ -211,9 +211,7 @@ function loadSources(uid) {
 // ─────────────────────────────────────────────────────────────
 const Auth = {
   // ── LS-based user storage (fallback + admin panel) ──
-  getUsers: () => LS.get("users", [
-    { id: "admin", email: "admin@biznesai.uz", name: "Admin", password: "admin123", role: "admin", plan: "enterprise", billing: "monthly", created: new Date(Date.now() - 30 * 86400000).toISOString(), lastLogin: new Date().toISOString(), status: "active", ai_requests_used: 0, ai_requests_month: new Date().toISOString().slice(0, 7) },
-  ]),
+  getUsers: () => LS.get("users", []),
   saveUsers: (users) => LS.set("users", users),
 
   getSession: () => LS.get("session", null),
@@ -1190,10 +1188,7 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
         <div style={{ textAlign: "center", marginTop: 10 }}>
           <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>← Bosh sahifaga qaytish</span>
         </div>
-        <div style={{ marginTop: 20, padding: 12, background: "var(--s2)", borderRadius: 8, border: "1px solid var(--border)" }}>
-          <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 5, fontFamily: "var(--fh)", letterSpacing: 1, textTransform: "uppercase" }}>Demo kirish</div>
-          <div style={{ fontSize: 11, color: "var(--text2)" }}>admin@biznesai.uz / admin123</div>
-        </div>
+
       </div>
     </div>
   );

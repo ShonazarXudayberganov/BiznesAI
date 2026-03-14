@@ -194,11 +194,11 @@ certbot renew                  # SSL yangilash
 
 | Maydon | Qiymat |
 |--------|--------|
-| Email  | admin@biznesai.uz |
-| Parol  | admin123 |
+| Email  | (shaxsiy) |
+| Parol  | (shaxsiy) |
 | Rol    | Admin |
 
-> ⚠️ **Muhim:** Birinchi kirishda admin@biznesai.uz parolini o'zgartiring!
+> ⚠️ **Muhim:** Admin ma'lumotlarini xavfsiz saqlang!
 
 ---
 

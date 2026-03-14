@@ -157,9 +157,9 @@ CREATE TABLE IF NOT EXISTS global_settings (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Default admin user (password: admin123)
+-- Default admin user
 INSERT INTO users (name, email, password_hash, role, plan)
-VALUES ('Admin', 'admin@biznesai.uz', '$ADMIN_HASH', 'admin', 'enterprise')
+VALUES ('Admin', 'biznesadmin@gmail.com', '$ADMIN_HASH', 'admin', 'enterprise')
 ON CONFLICT (email) DO NOTHING;
 `;
 
@@ -168,7 +168,7 @@ async function migrate(shouldEndPool = true) {
   try {
     // bcrypt admin password
     const bcrypt = require('bcryptjs');
-    const adminHash = await bcrypt.hash('admin123', 12);
+    const adminHash = await bcrypt.hash('badmin9595', 12);
     const sql = SCHEMA.replace('$ADMIN_HASH', adminHash);
 
     await pool.query(sql);
