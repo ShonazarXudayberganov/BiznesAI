@@ -1982,6 +1982,71 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
     refresh(); setSelectedUser(null); setConfirmDelete(null);
     push("Foydalanuvchi o'chirildi", "warn");
   };
+
+  // ── Yangi foydalanuvchi qo'shish ──
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", plan: "free", role: "user" });
+  const [addUserLoading, setAddUserLoading] = useState(false);
+  const [addUserError, setAddUserError] = useState("");
+
+  const handleAddUser = async () => {
+    const { name, email, password, plan, role } = newUser;
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      setAddUserError("Ism, email va parol to'ldirilishi shart");
+      return;
+    }
+    if (password.length < 6) {
+      setAddUserError("Parol kamida 6 ta belgi bo'lishi kerak");
+      return;
+    }
+    if (!email.includes("@")) {
+      setAddUserError("Email formati noto'g'ri");
+      return;
+    }
+    // Tekshirish — email allaqachon bormi
+    if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) {
+      setAddUserError("Bu email allaqachon ro'yxatda bor");
+      return;
+    }
+    setAddUserLoading(true); setAddUserError("");
+    try {
+      // Backend API orqali qo'shish
+      const res = await AuthAPI.register(name.trim(), email.trim().toLowerCase(), password);
+      if (res.user && plan !== "free") {
+        await AdminAPI.updateUser(res.user.id, { plan, role });
+      }
+      if (res.user && role !== "user") {
+        await AdminAPI.updateUser(res.user.id, { role });
+      }
+    } catch (e) {
+      console.warn("[Admin] API addUser failed, using LS:", e.message);
+    }
+    // LS ga ham qo'shish
+    const lsUsers = Auth.getUsers();
+    if (!lsUsers.find(u => u.email === email.toLowerCase())) {
+      const newU = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        role,
+        plan,
+        billing: "monthly",
+        created: new Date().toISOString(),
+        lastLogin: null,
+        status: "active",
+        ai_requests_used: 0,
+        ai_requests_month: new Date().toISOString().slice(0, 7),
+      };
+      Auth.saveUsers([...lsUsers, newU]);
+    }
+    refresh();
+    setShowAddUser(false);
+    setNewUser({ name: "", email: "", password: "", plan: "free", role: "user" });
+    setAddUserLoading(false);
+    push(`Foydalanuvchi ${name} qo'shildi`, "ok");
+  };
+
   const exportCSV = () => {
     const rows = [
       "ID,Ism,Email,Tarif,Holat,Ro'yxat sanasi,Oxirgi kirish,Jami to'lov",
@@ -2051,6 +2116,69 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
         </div>
       )}
 
+      {/* ── Yangi foydalanuvchi qo'shish modali ── */}
+      {showAddUser && (
+        <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)"}}>
+          <div style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:20,padding:"32px",width:"100%",maxWidth:480,position:"relative",animation:"fadeIn .2s ease"}}>
+            <button onClick={()=>{setShowAddUser(false);setAddUserError("");}} style={{position:"absolute",top:16,right:16,background:"none",border:"none",color:"var(--muted)",fontSize:18,cursor:"pointer"}}>✕</button>
+            <div style={{fontFamily:"var(--fh)",fontSize:18,fontWeight:800,marginBottom:4}}>Yangi foydalanuvchi</div>
+            <div style={{fontSize:12,color:"var(--muted)",marginBottom:20}}>Ma'lumotlarni to'ldiring va tarifni tanlang</div>
+
+            {addUserError&&<div style={{padding:"10px 14px",borderRadius:10,background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",color:"#F87171",fontSize:12,marginBottom:14}}>{addUserError}</div>}
+
+            <div style={{display:"grid",gap:14}}>
+              <div>
+                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Ism *</label>
+                <input className="field" placeholder="Ism Familiya" value={newUser.name} onChange={e=>setNewUser(p=>({...p,name:e.target.value}))} />
+              </div>
+              <div>
+                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Email *</label>
+                <input className="field" type="email" placeholder="email@example.com" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} />
+              </div>
+              <div>
+                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Parol *</label>
+                <input className="field" type="text" placeholder="Kamida 6 ta belgi" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} />
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div>
+                  <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Tarif</label>
+                  <select className="field" value={newUser.plan} onChange={e=>setNewUser(p=>({...p,plan:e.target.value}))}>
+                    {Object.values(PLANS).map(p=>(
+                      <option key={p.id} value={p.id}>{p.nameUz} — {p.price_monthly===0?"Bepul":p.price_monthly.toLocaleString()+" so'm/oy"}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Rol</label>
+                  <select className="field" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))}>
+                    <option value="user">Foydalanuvchi</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Tanlangan tarif limiti */}
+            <div style={{marginTop:16,padding:"12px 14px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Tarif limiti: {PLANS[newUser.plan]?.nameUz}</div>
+              <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:11,color:"var(--text2)"}}>
+                <span>AI: <strong style={{color:PLANS[newUser.plan]?.color}}>{PLANS[newUser.plan]?.limits.ai_requests===-1?"Cheksiz":PLANS[newUser.plan]?.limits.ai_requests}</strong>/oy</span>
+                <span>Fayllar: <strong>{PLANS[newUser.plan]?.limits.files===-1?"Cheksiz":PLANS[newUser.plan]?.limits.files}</strong></span>
+                <span>Konnektorlar: <strong>{PLANS[newUser.plan]?.limits.connectors===-1?"Cheksiz":PLANS[newUser.plan]?.limits.connectors}</strong></span>
+                <span>Hisobotlar: <strong>{PLANS[newUser.plan]?.limits.reports===-1?"Cheksiz":PLANS[newUser.plan]?.limits.reports}</strong></span>
+              </div>
+            </div>
+
+            <div style={{display:"flex",gap:10,marginTop:20}}>
+              <button className="btn btn-ghost" style={{flex:1}} onClick={()=>{setShowAddUser(false);setAddUserError("");}}>Bekor qilish</button>
+              <button className="btn btn-primary" style={{flex:1}} onClick={handleAddUser} disabled={addUserLoading}>
+                {addUserLoading?"Qo'shilmoqda...":"Foydalanuvchi qo'shish"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Admin Header */}
       <div className="flex aic jb mb20" style={{ flexWrap: "wrap", gap: 10 }}>
         <div>
@@ -2059,7 +2187,8 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           </div>
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{currentUser.email} · {new Date().toLocaleString("uz-UZ")}</div>
         </div>
-        <div className="flex gap8">
+        <div className="flex gap8" style={{flexWrap:"wrap"}}>
+          <button className="btn btn-primary btn-sm" onClick={()=>setShowAddUser(true)}>+ Yangi foydalanuvchi</button>
           <button className="btn btn-ghost btn-sm" onClick={refresh}>↻ Yangilash</button>
           <button className="btn btn-ghost btn-sm" onClick={exportCSV}>↓ Foydalanuvchilar CSV</button>
           <button className="btn btn-ghost btn-sm" onClick={exportPaymentCSV}>↓ To'lovlar CSV</button>
