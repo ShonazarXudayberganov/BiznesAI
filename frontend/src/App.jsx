@@ -5,6 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   AreaChart, Area, Legend, ScatterChart, Scatter, ZAxis
 } from "recharts";
+import { createPortal } from "react-dom";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI
@@ -7590,7 +7591,7 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
         }}>
         <div style={{ width: 16, height: 16, borderRadius: "50%", background: prev.grad, boxShadow: `0 0 10px ${prev.accent}50` }} />
       </button>
-      {open && (
+      {open && createPortal(
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
           <div style={{ position: "fixed", top: getPos().top, right: getPos().right, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 220, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", animation: "fadeIn .15s ease" }}>
@@ -7620,7 +7621,8 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
               );
             })}
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
