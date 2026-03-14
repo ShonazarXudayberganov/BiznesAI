@@ -201,50 +201,89 @@ function loadSources(uid) {
 // AUTH HELPERS (Backend API + localStorage fallback)
 // ─────────────────────────────────────────────────────────────
 const Auth = {
+  // ── LS-based user storage (fallback + admin panel) ──
+  getUsers:()=> LS.get("users", [
+    {id:"admin",email:"admin@biznesai.uz",name:"Admin",password:"admin123",role:"admin",plan:"enterprise",billing:"monthly",created:new Date(Date.now()-30*86400000).toISOString(),lastLogin:new Date().toISOString(),status:"active",ai_requests_used:0,ai_requests_month:new Date().toISOString().slice(0,7)},
+  ]),
+  saveUsers:(users)=> LS.set("users", users),
+
   getSession:()=> LS.get("session", null),
   setSession:(user)=> LS.set("session", user),
   clearSession:()=>{ LS.del("session"); Token.clear(); },
 
-  // Backend API orqali login
+  // ── Login: API ga urinib ko'radi, ishlamasa LS fallback ──
   login: async (email, password)=>{
+    // Avval backend API
     try {
       const res = await AuthAPI.login(email, password);
       Token.set(res.token);
+      // LS ga ham saqlash (fallback uchun)
+      const users = Auth.getUsers();
+      const existing = users.find(u=>u.email===email);
+      if(!existing) Auth.saveUsers([...users, {...res.user, password, status:"active"}]);
+      else Auth.saveUsers(users.map(u=>u.email===email?{...u,...res.user,password,lastLogin:new Date().toISOString()}:u));
       Auth.setSession(res.user);
       return {user: res.user};
     } catch(e) {
-      return {error: e.message || "Email yoki parol noto'g'ri"};
+      // Backend ishlamasa — localStorage fallback
+      console.warn("[Auth] API login failed, using LS fallback:", e.message);
+      const users = Auth.getUsers();
+      const user = users.find(u=>u.email===email && u.password===password);
+      if(!user) return {error:"Email yoki parol noto'g'ri"};
+      if(user.status==="blocked") return {error:"Hisobingiz bloklangan"};
+      const updated = users.map(u=>u.id===user.id?{...u,lastLogin:new Date().toISOString()}:u);
+      Auth.saveUsers(updated);
+      const sessionUser = {...user, lastLogin:new Date().toISOString()};
+      Auth.setSession(sessionUser);
+      return {user:sessionUser};
     }
   },
 
-  // Backend API orqali register
+  // ── Register: API ga urinib ko'radi, ishlamasa LS fallback ──
   register: async (name, email, password)=>{
     try {
       const res = await AuthAPI.register(name, email, password);
       Token.set(res.token);
+      const users = Auth.getUsers();
+      Auth.saveUsers([...users, {...res.user, password, status:"active"}]);
       Auth.setSession(res.user);
       return {user: res.user};
     } catch(e) {
-      return {error: e.message || "Ro'yxatdan o'tishda xato"};
+      console.warn("[Auth] API register failed, using LS fallback:", e.message);
+      const users = Auth.getUsers();
+      if(users.find(u=>u.email===email)) return {error:"Bu email allaqachon ro'yxatdan o'tgan"};
+      const newUser = {
+        id: Date.now().toString(),
+        email, name, password, role:"user",
+        plan:"free", billing:"monthly",
+        created: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+        status:"active",
+        ai_requests_used:0,
+        ai_requests_month: new Date().toISOString().slice(0,7),
+      };
+      Auth.saveUsers([...users, newUser]);
+      Auth.setSession(newUser);
+      return {user:newUser};
     }
   },
 
-  // Profilni yangilash
-  updateProfile: async (data)=>{
-    try {
-      await AuthAPI.updateProfile(data);
-      const session = Auth.getSession();
-      if(session) Auth.setSession({...session, ...data});
-      return {ok:true};
-    } catch(e) {
-      return {error: e.message};
-    }
+  // ── User CRUD (sinxron — admin panel uchun) ──
+  updateUser:(userId, updates)=>{
+    const users = Auth.getUsers();
+    const updated = users.map(u=>u.id===userId?{...u,...updates}:u);
+    Auth.saveUsers(updated);
+    const session = Auth.getSession();
+    if(session?.id===userId) Auth.setSession({...session,...updates});
+    // Backend ga ham sinxron
+    AdminAPI.updateUser(userId, updates).catch(()=>{});
+    return updated.find(u=>u.id===userId);
   },
 
   checkLimit:(user, limitKey)=>{
     const plan = PLANS[user?.plan||"free"];
     const limit = plan?.limits[limitKey];
-    if(limit===-1) return true; // unlimited
+    if(limit===-1) return true;
     if(limitKey==="ai_requests"){
       const currentMonth = new Date().toISOString().slice(0,7);
       const used = user.ai_requests_month===currentMonth ? (user.ai_requests_used||0) : 0;
@@ -253,26 +292,16 @@ const Auth = {
     return limit === true || limit > 0;
   },
 
-  incrementAI: async (userId)=>{
-    try {
-      await AiAPI.incrementUsage();
-      // Session da ham yangilash
-      const session = Auth.getSession();
-      if(session) {
-        const curMonth = new Date().toISOString().slice(0,7);
-        const sameMonth = session.ai_requests_month===curMonth;
-        const newUsed = sameMonth ? (session.ai_requests_used||0)+1 : 1;
-        Auth.setSession({...session, ai_requests_used:newUsed, ai_requests_month:curMonth});
-      }
-    } catch(e) {
-      console.error("[Auth] incrementAI error:", e.message);
-    }
-  },
-
-  // Admin uchun: barcha foydalanuvchilarni olish
-  getUsers: async ()=>{
-    try { return await AdminAPI.getUsers(); }
-    catch { return []; }
+  incrementAI:(userId)=>{
+    const users = Auth.getUsers();
+    const user = users.find(u=>u.id===userId);
+    if(!user) return;
+    const currentMonth = new Date().toISOString().slice(0,7);
+    const sameMonth = user.ai_requests_month===currentMonth;
+    const newUsed = sameMonth ? (user.ai_requests_used||0)+1 : 1;
+    Auth.updateUser(userId, {ai_requests_used:newUsed, ai_requests_month:currentMonth});
+    // Backend ga ham
+    AiAPI.incrementUsage().catch(()=>{});
   },
 };
 
