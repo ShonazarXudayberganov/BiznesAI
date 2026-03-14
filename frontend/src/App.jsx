@@ -4405,7 +4405,6 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
   const [selectedSrc, setSelectedSrc] = useState(null);
   const [filter, setFilter] = useState("all");
   const [chartOverrides, setChartOverrides] = useState({});
-  const [aiCards, setAiCards] = useState([]); // AI yaratgan stats+chart kartalar
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [userQuery, setUserQuery] = useState("");
@@ -4416,8 +4415,27 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
   const setChartOverride = (cardId, type) => setChartOverrides(prev => ({ ...prev, [cardId]: type }));
   const isSpecialSource = workingSource && (workingSource.type === "instagram" || workingSource.type === "telegram");
 
-  // Manba o'zgarganda reset
-  useEffect(() => { setAiCards([]); setAiError(""); setLastQuery(""); }, [workingSource?.id]);
+  // ── Cache: har bir manba uchun AI kartalarni localStorage da saqlash ──
+  const cacheKey = "u_" + (user?.id || "anon") + "_charts_" + (workingSource?.id || "none");
+  const [aiCards, setAiCards] = useState(() => {
+    try { return LS.get(cacheKey, []); } catch { return []; }
+  });
+
+  // Cache ga yozish (aiCards o'zgarganda)
+  useEffect(() => {
+    if (aiCards.length > 0 && workingSource?.id) {
+      LS.set(cacheKey, aiCards);
+    }
+  }, [aiCards, cacheKey]);
+
+  // Manba o'zgarganda — cache dan yuklash (reset EMAS!)
+  useEffect(() => {
+    if (!workingSource?.id) return;
+    const cached = LS.get(cacheKey, []);
+    setAiCards(Array.isArray(cached) ? cached : []);
+    setAiError("");
+    setLastQuery("");
+  }, [workingSource?.id]);
 
   // Tayyor so'rovlar (CRM, Excel, Sheets, API uchun)
   const QUICK_CHARTS = useMemo(() => {
@@ -4446,7 +4464,7 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey }) {
   const runAiCharts = async (queryText) => {
     const query = queryText || userQuery;
     if (!query.trim() || !workingSource?.data?.length || !aiConfig?.apiKey) return;
-    setAiLoading(true); setAiError(""); setAiCards([]); setLastQuery(query);
+    setAiLoading(true); setAiError(""); setLastQuery(query);
 
     try {
       const ctx = buildMergedContext([workingSource]);
@@ -4542,7 +4560,8 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
       const cards = (parsed.cards || []).map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` }));
 
       if (!cards.length) throw new Error("AI kartalar yarata olmadi");
-      setAiCards(cards);
+      // Yangi kartalarni eskisining USTIGA qo'shish (eski saqlanadi)
+      setAiCards(prev => [...cards, ...prev]);
 
       if (!hasPersonalKey && user) Auth.incrementAI(user.id);
     } catch (err) {
@@ -4646,7 +4665,15 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           </div>
           {!aiConfig?.apiKey && <div className="text-muted text-xs mt6">AI ulangan emas. Sozlamalar bo'limidan API kalit kiriting.</div>}
           {aiError && <div style={{ color: "var(--red)", fontSize: 11, marginTop: 8 }}>Xato: {aiError}</div>}
-          {lastQuery && allCards.length > 0 && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>So'rov: <span style={{ color: "var(--teal)" }}>{lastQuery}</span> — {allCards.length} ta karta yaratildi</div>}
+          {allCards.length > 0 && (
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8, display: "flex", alignItems: "center", gap: 12 }}>
+              <span>{allCards.length} ta grafik saqlangan {lastQuery && <>— oxirgi so'rov: <span style={{ color: "var(--teal)" }}>{lastQuery}</span></>}</span>
+              <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}
+                onClick={() => { if (confirm("Barcha saqlangan grafiklarni o'chirishni xohlaysizmi?")) { setAiCards([]); LS.del(cacheKey); } }}>
+                Tozalash
+              </button>
+            </div>
+          )}
         </div>
       )}
 
