@@ -4895,14 +4895,8 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
         </div>
       )}
 
-      {/* AI Loading */}
-      {aiLoading && (
-        <div className="card mb14" style={{ textAlign: "center", padding: 32, borderColor: "rgba(0,201,190,0.2)" }}>
-          <div className="typing-ind" style={{ justifyContent: "center", marginBottom: 12 }}><span /><span /><span /></div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: "var(--teal)", marginBottom: 4 }}>AI ma'lumotlarni tahlil qilmoqda...</div>
-          <div className="text-muted text-xs">Raqamlar hisoblanmoqda, grafiklar yaratilmoqda</div>
-        </div>
-      )}
+      {/* AI Loading — bosqichli progress bar */}
+      <AiProgressBar loading={aiLoading} />
 
       {/* Umumiy statistika */}
       {allCards.length > 0 && (
@@ -7368,6 +7362,62 @@ const CHART_TYPE_OPTIONS = [
 ];
 
 // X-axis uchun qisqa label render — matnni 12 belgigacha cheklash, burchak bilan
+// ─────────────────────────────────────────────────────────────
+// AI PROGRESS BAR — bosqichli, animatsiyali
+// ─────────────────────────────────────────────────────────────
+function AiProgressBar({ loading }) {
+  const [step, setStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const steps = [
+    { label: "Ma'lumotlar tayyorlanmoqda", pct: 15 },
+    { label: "AI ga yuborilmoqda", pct: 30 },
+    { label: "AI tahlil qilmoqda", pct: 55 },
+    { label: "Raqamlar hisoblanmoqda", pct: 75 },
+    { label: "Grafiklar yaratilmoqda", pct: 90 },
+    { label: "Yakunlanmoqda", pct: 97 },
+  ];
+
+  useEffect(() => {
+    if (!loading) { setStep(0); setProgress(0); return; }
+    setStep(0); setProgress(5);
+    const timers = steps.map((s, i) => setTimeout(() => {
+      setStep(i); setProgress(s.pct);
+    }, i === 0 ? 300 : i === 1 ? 1200 : i === 2 ? 3000 : i === 3 ? 6000 : i === 4 ? 10000 : 15000));
+    return () => timers.forEach(clearTimeout);
+  }, [loading]);
+
+  if (!loading) return null;
+  const cur = steps[step] || steps[0];
+
+  return (
+    <div className="card mb14" style={{ padding: "24px 28px", borderColor: "rgba(0,201,190,0.2)", background: "linear-gradient(135deg,var(--s1),rgba(0,201,190,0.02))" }}>
+      {/* Progress bar */}
+      <div style={{ background: "var(--s3)", borderRadius: 8, height: 6, overflow: "hidden", marginBottom: 16 }}>
+        <div style={{ height: "100%", borderRadius: 8, background: "linear-gradient(90deg, #00C9BE, #4ADE80)", width: progress + "%", transition: "width 1.5s cubic-bezier(0.4,0,0.2,1)", position: "relative" }}>
+          <div style={{ position: "absolute", right: 0, top: -2, width: 10, height: 10, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 12px rgba(74,222,128,0.5)", animation: "pulse-voice 1.5s ease infinite" }} />
+        </div>
+      </div>
+      {/* Bosqichlar */}
+      <div className="flex aic jb mb12">
+        <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--teal)" }}>{cur.label}...</div>
+        <span style={{ fontFamily: "var(--fm)", fontSize: 12, color: "var(--muted)" }}>{progress}%</span>
+      </div>
+      {/* Bosqich indikatorlari */}
+      <div className="flex gap4">
+        {steps.map((s, i) => (
+          <div key={i} style={{
+            flex: 1, height: 3, borderRadius: 2, transition: "all .5s",
+            background: i <= step ? "linear-gradient(90deg, #00C9BE, #4ADE80)" : "var(--s3)",
+          }} title={s.label} />
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
+        {step < 3 ? "AI sizning ma'lumotlaringizni chuqur tahlil qilmoqda" : "Natijalar tayyorlanmoqda — biroz kuting"}
+      </div>
+    </div>
+  );
+}
+
 const AngledXTick = ({ x, y, payload }) => (
   <g transform={`translate(${x},${y})`}>
     <text x={0} y={0} dy={10} textAnchor="end" fill="#64748B" fontSize={8} fontFamily="Space Grotesk,sans-serif" transform="rotate(-40)">
@@ -7833,30 +7883,79 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
       {(() => {
         const anomalies = detectAnomalies(connected);
         if (anomalies.length === 0) return null;
+        const dangerCount = anomalies.filter(a => a.severity === 'danger').length;
+        const warnCount = anomalies.filter(a => a.severity === 'warning').length;
+        const infoCount = anomalies.filter(a => a.severity !== 'danger' && a.severity !== 'warning').length;
+        const sevColors = { danger: { bg: "rgba(248,113,113,0.06)", border: "rgba(248,113,113,0.25)", color: "#F87171", label: "Xavfli" }, warning: { bg: "rgba(251,191,36,0.06)", border: "rgba(251,191,36,0.25)", color: "#FBBF24", label: "Ogohlantirish" }, info: { bg: "rgba(96,165,250,0.06)", border: "rgba(96,165,250,0.25)", color: "#60A5FA", label: "Ma'lumot" } };
         return (
-          <div className="mb20">
-            <div className="flex aic jb mb10">
-              <div className="section-hd" style={{ marginBottom: 0 }}>⚠️ Anomaliyalar Aniqlandi</div>
-              <span className="badge b-warn">{anomalies.length} ta</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 10 }}>
-              {anomalies.slice(0, 6).map((a, i) => (
-                <div key={i} style={{
-                  padding: "12px 16px", borderRadius: 10,
-                  border: `1px solid ${a.severity === 'danger' ? 'rgba(248,113,113,0.3)' : a.severity === 'warning' ? 'rgba(251,191,36,0.3)' : 'rgba(96,165,250,0.3)'}`,
-                  background: a.severity === 'danger' ? 'rgba(248,113,113,0.05)' : a.severity === 'warning' ? 'rgba(251,191,36,0.05)' : 'rgba(96,165,250,0.05)',
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 14 }}>{a.severity === 'danger' ? '🔴' : a.severity === 'warning' ? '🟡' : '🔵'}</span>
-                    <span style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: a.severity === 'danger' ? 'var(--red)' : a.severity === 'warning' ? 'var(--gold)' : '#60A5FA' }}>
-                      {a.source} — {a.field}
-                    </span>
-                    {a.type === 'trend_down' && <span className="badge b-warn" style={{ fontSize: 8 }}>📉 Pasayish</span>}
-                    {a.type === 'trend_up' && <span className="badge b-ok" style={{ fontSize: 8 }}>📈 O'sish</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5 }}>{a.message}</div>
+          <div className="mb20" style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: "20px 24px", position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: dangerCount > 0 ? "linear-gradient(90deg, #F87171, #FBBF24, #60A5FA)" : "linear-gradient(90deg, #FBBF24, #60A5FA)" }} />
+            {/* Sarlavha */}
+            <div className="flex aic jb mb14">
+              <div className="flex aic gap10">
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24"/></svg>
                 </div>
-              ))}
+                <div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar aniqlandi</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>Ma'lumotlaringizda g'ayrioddiy o'zgarishlar topildi</div>
+                </div>
+              </div>
+              <div className="flex gap6">
+                {dangerCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{dangerCount} xavfli</span>}
+                {warnCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{warnCount} ogohlantirish</span>}
+                {infoCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60A5FA", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{infoCount} ma'lumot</span>}
+              </div>
+            </div>
+            {/* Kartalar */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12 }}>
+              {anomalies.slice(0, 8).map((a, i) => {
+                const sev = sevColors[a.severity] || sevColors.warning;
+                return (
+                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s" }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${sev.border}`; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
+                    {/* Karta header */}
+                    <div className="flex aic gap8 mb8">
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: sev.color, flexShrink: 0, boxShadow: `0 0 8px ${sev.color}60` }} />
+                      <span style={{ fontFamily: "var(--fh)", fontSize: 10, fontWeight: 700, color: sev.color, textTransform: "uppercase", letterSpacing: 1 }}>{sev.label}</span>
+                      <span style={{ fontSize: 9, color: "var(--muted)", marginLeft: "auto", background: "var(--s2)", padding: "2px 8px", borderRadius: 8 }}>{a.source}</span>
+                    </div>
+                    {/* Ustun nomi */}
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>{a.field?.replace(/_/g, " ")}</div>
+                    {/* Raqamlar */}
+                    <div className="flex gap12 mb8">
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
+                        <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Hozirgi</div>
+                      </div>
+                      {a.mean != null && (
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
+                          <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>O'rtacha</div>
+                        </div>
+                      )}
+                      {a.mean != null && a.value != null && typeof a.value === "number" && typeof a.mean === "number" && a.mean !== 0 && (
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: a.value > a.mean ? "#4ADE80" : "#F87171" }}>
+                            {a.value > a.mean ? "+" : ""}{Math.round((a.value - a.mean) / a.mean * 100)}%
+                          </div>
+                          <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Farq</div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Trend badge */}
+                    {(a.type === "trend_down" || a.type === "trend_up") && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          {a.type === "trend_down" ? <><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></> : <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>}
+                        </svg>
+                        {a.type === "trend_down" ? "Ketma-ket pasayish" : "Kuchli o'sish"}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
