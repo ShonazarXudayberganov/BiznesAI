@@ -7493,8 +7493,12 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
     return [...cards]
       .filter(c => !hiddenCards.includes(c.id))
       .sort((a, b) => {
-        const oa = layout[a.id]?.order ?? 999;
-        const ob = layout[b.id]?.order ?? 999;
+        // Layout da order bo'lmasa — array dagi tartib saqlanadi (yangilar tepada)
+        const oa = layout[a.id]?.order;
+        const ob = layout[b.id]?.order;
+        if (oa == null && ob == null) return 0; // Ikkalasi ham layout da yo'q — original tartib
+        if (oa == null) return -1; // a layout da yo'q (yangi) — tepaga
+        if (ob == null) return 1;  // b layout da yo'q (yangi) — tepaga
         return oa - ob;
       });
   }, [cards, layout, hiddenCards]);
@@ -7594,9 +7598,9 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
                 </div>
               )}
               <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} />
-              {/* YANGI badge — 3 daqiqa ichida yaratilgan kartalar */}
+              {/* YANGI indikator — 3 daqiqa ichida yaratilgan kartalar, pastki chap burchak */}
               {card.id && String(card.id).startsWith("ai_") && (Date.now() - parseInt(String(card.id).split("_")[1] || 0)) < 180000 && (
-                <div style={{ position:"absolute", top:12, left:12, zIndex:5, padding:"3px 10px", borderRadius:8, background:"linear-gradient(135deg,#00C9BE,#4ADE80)", color:"#000", fontSize:9, fontFamily:"var(--fh)", fontWeight:800, letterSpacing:1, textTransform:"uppercase", boxShadow:"0 2px 8px rgba(0,201,190,0.4)", animation:"fadeIn .5s ease" }}>YANGI</div>
+                <div style={{ position:"absolute", bottom:8, right:8, zIndex:5, width:8, height:8, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px rgba(74,222,128,0.6)", animation:"pulse-voice 2s ease infinite" }} title="Yangi qo'shilgan" />
               )}
             </div>
           );
