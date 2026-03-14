@@ -505,7 +505,7 @@ function detectAnomalies(sources) {
     });
   });
 
-  return anomalies.slice(0, 20); // Max 20 ta anomaliya
+  return anomalies.slice(0, 50); // Max 50 ta anomaliya
 }
 
 function buildChartData(rows = []) {
@@ -7909,7 +7909,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
             </div>
             {/* Kartalar */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12 }}>
-              {anomalies.slice(0, 8).map((a, i) => {
+              {anomalies.map((a, i) => {
                 const sev = sevColors[a.severity] || sevColors.warning;
                 return (
                   <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s", minHeight: 170, display: "flex", flexDirection: "column" }}
