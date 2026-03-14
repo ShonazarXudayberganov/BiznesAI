@@ -7376,7 +7376,7 @@ const AngledXTick = ({ x, y, payload }) => (
 // ─────────────────────────────────────────────────────────────
 const CARD_SIZES = { "1x1": { col: 1, row: 1 }, "2x1": { col: 2, row: 1 }, "1x2": { col: 1, row: 2 }, "2x2": { col: 2, row: 2 } };
 
-function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
+function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemoveCard }) {
   // Layout: { [cardId]: { order, size } }
   const [layout, setLayout] = useState(() => LS.get(layoutKey, {}));
   const [dragId, setDragId] = useState(null);
@@ -7385,14 +7385,30 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
   // Layout saqlash
   const saveLayout = (newLayout) => { setLayout(newLayout); if (layoutKey) LS.set(layoutKey, newLayout); };
 
-  // Kartalarni tartib bo'yicha saralash
+  // Yashirilgan kartalar
+  const [hiddenCards, setHiddenCards] = useState(() => {
+    try { return LS.get(layoutKey + "_hidden", []); } catch { return []; }
+  });
+  const hideCard = (cardId) => {
+    const updated = [...hiddenCards, cardId];
+    setHiddenCards(updated);
+    if (layoutKey) LS.set(layoutKey + "_hidden", updated);
+  };
+  const showAllCards = () => {
+    setHiddenCards([]);
+    if (layoutKey) LS.del(layoutKey + "_hidden");
+  };
+
+  // Kartalarni tartib bo'yicha saralash + yashirilganlarni filter
   const sorted = useMemo(() => {
-    return [...cards].sort((a, b) => {
-      const oa = layout[a.id]?.order ?? 999;
-      const ob = layout[b.id]?.order ?? 999;
-      return oa - ob;
-    });
-  }, [cards, layout]);
+    return [...cards]
+      .filter(c => !hiddenCards.includes(c.id))
+      .sort((a, b) => {
+        const oa = layout[a.id]?.order ?? 999;
+        const ob = layout[b.id]?.order ?? 999;
+        return oa - ob;
+      });
+  }, [cards, layout, hiddenCards]);
 
   // Drag handlers
   const onDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); };
@@ -7430,13 +7446,19 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
   return (
     <div>
       {/* Edit mode toggle */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+        {hiddenCards.length > 0 && (
+          <button className="btn btn-ghost btn-xs" onClick={showAllCards}
+            style={{ borderColor: "rgba(251,191,36,0.3)", color: "var(--gold)" }}>
+            {hiddenCards.length} ta yashirilgan — barchasini ko'rsatish
+          </button>
+        )}
         <button className="btn btn-ghost btn-xs" onClick={() => setEditMode(!editMode)}
           style={editMode ? { borderColor: "rgba(0,201,190,0.4)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}>
           {editMode ? "✓ Tayyor" : "⚙ Tartibni o'zgartirish"}
         </button>
         {editMode && (
-          <button className="btn btn-ghost btn-xs" onClick={resetLayout}
+          <button className="btn btn-ghost btn-xs" onClick={() => { resetLayout(); showAllCards(); }}
             style={{ borderColor: "rgba(248,113,113,0.3)", color: "var(--red)" }}>
             Asl holatga qaytarish
           </button>
@@ -7482,7 +7504,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
                   </button>
                 </div>
               )}
-              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
+              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} />
             </div>
           );
         })}
@@ -7491,7 +7513,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
   );
 }
 
-function DashCard({ card, chartOverrides, setChartOverride }) {
+function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
   const cType = chartOverrides[card.id] || card.chartType;
   const CARD_H = 380; // Barcha kartalar uchun YAGONA balandlik
 
@@ -7611,7 +7633,10 @@ function DashCard({ card, chartOverrides, setChartOverride }) {
   if (card.type === "stats")
     return (
       <CardWrap>
-        <div className="card-title mb12">{card.icon} {card.title}</div>
+        <div className="flex aic jb mb12">
+          <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
+          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+        </div>
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, alignContent: "center" }}>
           {card.stats.map((s, i) => (
             <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 10px", textAlign: "center", border: "1px solid var(--border)", position: "relative", overflow: "hidden" }}>
@@ -7629,7 +7654,10 @@ function DashCard({ card, chartOverrides, setChartOverride }) {
   if (card.type === "gauge")
     return (
       <CardWrap>
-        <div className="card-title mb8" style={{ textAlign: "center" }}>{card.icon} {card.title}</div>
+        <div className="flex aic jb mb8">
+          <div className="card-title" style={{marginBottom:0,textAlign:"center",flex:1}}>{card.icon} {card.title}</div>
+          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+        </div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ maxWidth: 220, width: "100%" }}>
             <GaugeChart value={card.value} max={card.max} label={card.label} color={card.color} />
@@ -7642,7 +7670,10 @@ function DashCard({ card, chartOverrides, setChartOverride }) {
   if (card.type === "highlight")
     return (
       <CardWrap>
-        <div className="card-title mb12">{card.icon} {card.title}</div>
+        <div className="flex aic jb mb12">
+          <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
+          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+        </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
           {card.items.map((it, i) => (
             <div key={i} className="flex jb aic" style={{ padding: "9px 14px", background: "var(--s2)", borderRadius: 8, fontSize: 12, border: "1px solid var(--border)" }}>
@@ -7654,23 +7685,58 @@ function DashCard({ card, chartOverrides, setChartOverride }) {
       </CardWrap>
     );
 
-  // ── CHART type ──
+  // ── CHART type — faqat ma'lumotga mos turlarni ko'rsatish ──
+  const compatibleTypes = useMemo(() => {
+    const data = card.data || [];
+    if (!data.length) return ["bar"];
+    const keys = Object.keys(data[0] || {});
+    const numKeys = keys.filter(k => {
+      const vals = data.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
+      return vals.filter(v => !isNaN(v)).length > data.length * 0.4;
+    });
+    const strKeys = keys.filter(k => !numKeys.includes(k));
+    const types = [];
+
+    // Bar — deyarli hamma vaqt ishlaydi
+    types.push("bar");
+    // Line/Area — 3+ qator bo'lsa (trend ko'rsatish uchun)
+    if (data.length >= 3) { types.push("line"); types.push("area"); }
+    // Pie — 2-8 qator + 1 raqamli ustun (taqsimot uchun)
+    if (data.length >= 2 && data.length <= 12 && numKeys.length >= 1) types.push("pie");
+    // Stacked — 2+ raqamli ustun
+    if (numKeys.length >= 2) types.push("stackedbar");
+    // Scatter — 2+ raqamli ustun
+    if (numKeys.length >= 2 && data.length >= 3) types.push("scatter");
+
+    // Agar hozirgi chart type ro'yxatda yo'q bo'lsa — qo'shish
+    if (card.chartType && !types.includes(card.chartType)) types.unshift(card.chartType);
+    return types;
+  }, [card.data, card.chartType]);
+
+  const filteredOptions = CHART_TYPE_OPTIONS.filter(o => compatibleTypes.includes(o.id));
+
   return (
     <CardWrap>
       <div className="flex aic jb mb6">
         <div className="card-title" style={{ marginBottom: 0, fontSize: 12 }}>{card.icon} {card.title}</div>
-        <div className="flex gap4">
-          {CHART_TYPE_OPTIONS.filter(o => card.chartType === "pie" ? true : card.chartType === "scatter" ? ["scatter", "bar", "line"].includes(o.id) : o.id !== "scatter")
-            .map(o => (
-              <button key={o.id} className="btn btn-ghost" title={o.l}
-                onClick={() => setChartOverride(card.id, o.id)}
-                style={{
-                  padding: "4px 8px", fontSize: 10, borderRadius: 6,
-                  ...(cType === o.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {})
-                }}>
-                {o.l.split(" ")[0]}
-              </button>
-            ))}
+        <div className="flex gap4 aic">
+          {filteredOptions.map(o => (
+            <button key={o.id} className="btn btn-ghost" title={o.l}
+              onClick={() => setChartOverride(card.id, o.id)}
+              style={{
+                padding: "4px 8px", fontSize: 10, borderRadius: 6,
+                ...(cType === o.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {})
+              }}>
+              {o.l.split(" ")[0]}
+            </button>
+          ))}
+          {onRemove && (
+            <button className="btn btn-ghost" title="Kartani o'chirish"
+              onClick={() => onRemove(card.id)}
+              style={{ padding: "4px 6px", fontSize: 10, borderRadius: 6, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}>
+              ✕
+            </button>
+          )}
         </div>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
