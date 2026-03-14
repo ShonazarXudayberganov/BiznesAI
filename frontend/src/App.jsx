@@ -5605,13 +5605,7 @@ JAVOB QOIDALARI:
         </div>
 
         {/* ── Loading holati ── */}
-        {loading && (
-          <div className="card" style={{ textAlign: "center", padding: 32, borderColor: `${prov.color}25` }}>
-            <div className="typing-ind" style={{ justifyContent: "center", marginBottom: 12 }}><span /><span /><span /></div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: prov.color, marginBottom: 4 }}>{prov.name} tahlil qilmoqda...</div>
-            <div className="text-muted text-xs">{activeLabel}</div>
-          </div>
-        )}
+        <AiProgressBar loading={loading} />
 
         {/* ── Tahlil natijasi + aloqador chartlar ── */}
         {result && !loading && (
@@ -6007,13 +6001,7 @@ HISOBOT QOIDALARI:
         </div>
 
         {/* ── Loading ── */}
-        {loading && (
-          <div className="card" style={{ textAlign: "center", padding: 32, borderColor: `${prov.color}25` }}>
-            <div className="typing-ind" style={{ justifyContent: "center", marginBottom: 12 }}><span /><span /><span /></div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: prov.color, marginBottom: 4 }}>{prov.name} hisobot yaratmoqda...</div>
-            <div className="text-muted text-xs">{label}</div>
-          </div>
-        )}
+        <AiProgressBar loading={loading} />
 
         {/* ── Hisobot natijasi + aloqador chartlar ── */}
         {report && !loading && (
@@ -6535,13 +6523,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         </div>
 
         {/* Loading holati */}
-        {loading && (
-          <div className="card" style={{ textAlign: "center", padding: 32, borderColor: `${prov.color}25` }}>
-            <div className="typing-ind" style={{ justifyContent: "center", marginBottom: 12 }}><span /><span /><span /></div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: prov.color, marginBottom: 4 }}>{prov.name} tekshirmoqda...</div>
-            <div className="text-muted text-xs">{checkType?.l || "Umumiy tekshirish"}</div>
-          </div>
-        )}
+        <AiProgressBar loading={loading} />
 
         {/* Natija xulosa */}
         {checkResult && !loading && (
