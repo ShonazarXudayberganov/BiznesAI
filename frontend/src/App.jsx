@@ -7845,6 +7845,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
 // DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────────
 function DashboardPage({ sources, aiConfig, setPage, user }) {
+  const [anomalyOpen, setAnomalyOpen] = useState(false);
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
@@ -7917,7 +7918,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
         ))}
       </div>
 
-      {/* ── Anomaliya Aniqlash (avtomatik) ── */}
+      {/* ── Anomaliya Aniqlash (avtomatik, collapse) ── */}
       {(() => {
         const anomalies = detectAnomalies(connected);
         if (anomalies.length === 0) return null;
@@ -7928,25 +7929,26 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
         return (
           <div className="mb20" style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: "20px 24px", position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: dangerCount > 0 ? "linear-gradient(90deg, #F87171, #FBBF24, #60A5FA)" : "linear-gradient(90deg, #FBBF24, #60A5FA)" }} />
-            {/* Sarlavha */}
-            <div className="flex aic jb mb14">
+            {/* Sarlavha — bosilganda ochiladi/yopiladi */}
+            <div className="flex aic jb" style={{ cursor: "pointer" }} onClick={() => setAnomalyOpen(p => !p)}>
               <div className="flex aic gap10">
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24"/></svg>
                 </div>
                 <div>
                   <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar aniqlandi</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>Ma'lumotlaringizda g'ayrioddiy o'zgarishlar topildi</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{anomalyOpen ? "Batafsil ko'rish" : "Bosib oching"} — {anomalies.length} ta topilma</div>
                 </div>
               </div>
-              <div className="flex gap6">
+              <div className="flex aic gap6">
                 {dangerCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{dangerCount} xavfli</span>}
                 {warnCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{warnCount} ogohlantirish</span>}
                 {infoCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60A5FA", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{infoCount} ma'lumot</span>}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .3s", transform: anomalyOpen ? "rotate(180deg)" : "rotate(0)" }}><polyline points="6 9 12 15 18 9"/></svg>
               </div>
             </div>
-            {/* Kartalar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12 }}>
+            {/* Kartalar — faqat ochiq bo'lganda */}
+            {anomalyOpen && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12, marginTop: 16 }}>
               {anomalies.map((a, i) => {
                 const sev = sevColors[a.severity] || sevColors.warning;
                 return (
@@ -8005,7 +8007,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
                   </div>
                 );
               })}
-            </div>
+            </div>}
           </div>
         );
       })()}
