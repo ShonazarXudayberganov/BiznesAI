@@ -4692,8 +4692,13 @@ GRAFIK QOIDALARI:
 - Pie chart — 3-7 ta segment, kichik segmentlarni "Boshqa" ga birlashtir
 - Bar chart — max 8-10 ta ustun, eng muhimlarini ko'rsat
 - Line chart — vaqt bo'yicha trend, kamida 4 nuqta
+- X-axis labellar QISQA bo'lsin — max 10 belgi (masalan: "Yan", "Fev", "Mart", "Guruh-1")
 - Raqamlar tushunarli bo'lsin — 1500000 emas, "1.5M" yoki "1,500,000"
 - Har bir grafik biznes egasiga FOYDALI bo'lishi SHART
+- BIRINCHI karta ALBATTA "stats" turi bo'lsin — asosiy raqamlar
+- OXIRGI karta "highlight" turi bo'lsin — XULOSALAR va TAVSIYALAR
+- keys massivida O'ZBEK nomlari ishlatilsin: "daromad", "xarajat", "foyda" (inglizcha emas!)
+- Pie data: name ham O'ZBEK tilida bo'lsin
 
 \`\`\`json
 {
@@ -7365,8 +7370,8 @@ const CHART_TYPE_OPTIONS = [
 // X-axis uchun qisqa label render — matnni 12 belgigacha cheklash, burchak bilan
 const AngledXTick = ({ x, y, payload }) => (
   <g transform={`translate(${x},${y})`}>
-    <text x={0} y={0} dy={12} textAnchor="end" fill="#64748B" fontSize={9} fontFamily="Space Grotesk,sans-serif" transform="rotate(-35)">
-      {String(payload.value || "").substring(0, 14)}
+    <text x={0} y={0} dy={10} textAnchor="end" fill="#64748B" fontSize={8} fontFamily="Space Grotesk,sans-serif" transform="rotate(-40)">
+      {String(payload.value || "").substring(0, 10)}
     </text>
   </g>
 );
@@ -7544,9 +7549,11 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
     const keys = card.keys || [];
     const xKey = card.xKey || "name";
     const colors = card.colors || CHART_COLORS;
-    const h = CARD_H - 90; // header + padding chiqarib
-    const margin = { top: 10, right: 16, left: 5, bottom: 50 };
+    const h = CARD_H - 80;
+    const margin = { top: 5, right: 12, left: 0, bottom: 55 };
     const gridStroke = "rgba(100,160,180,0.06)";
+    // Data ko'p bo'lsa X labellarni kamroq ko'rsatish
+    const xInterval = d.length > 15 ? Math.ceil(d.length / 8) : d.length > 8 ? Math.ceil(d.length / 6) : 0;
 
     // Pie
     if (cType === "pie") {
@@ -7594,8 +7601,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
     if (cType === "stackedbar")
       return <ResponsiveContainer width="100%" height={h}><BarChart data={d} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={0} /><YAxis tick={{ fontSize: 9, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} />
-        <Tooltip content={<CustomTip />} /><Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--fm)", paddingTop: 4 }} iconType="circle" iconSize={8} />
+        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={xInterval} height={50} /><YAxis tick={{ fontSize: 8, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} width={40} />
+        <Tooltip content={<CustomTip />} />{keys.length > 1 && <Legend wrapperStyle={{ fontSize: 9, fontFamily: "var(--fm)", paddingTop: 0 }} iconType="circle" iconSize={6} />}
         {keys.map((k, i) => <Bar key={k} dataKey={k} stackId="a" fill={colors[i % colors.length]} radius={i === keys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />)}
       </BarChart></ResponsiveContainer>;
 
@@ -7603,8 +7610,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
     if (cType === "line")
       return <ResponsiveContainer width="100%" height={h}><LineChart data={d} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={0} /><YAxis tick={{ fontSize: 9, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} />
-        <Tooltip content={<CustomTip />} /><Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--fm)", paddingTop: 4 }} iconType="circle" iconSize={8} />
+        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={xInterval} height={50} /><YAxis tick={{ fontSize: 8, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} width={40} />
+        <Tooltip content={<CustomTip />} />{keys.length > 1 && <Legend wrapperStyle={{ fontSize: 9, fontFamily: "var(--fm)", paddingTop: 0 }} iconType="circle" iconSize={6} />}
         {keys.map((k, i) => <Line key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={2.5}
           dot={{ r: 3, fill: "var(--s1)", stroke: colors[i % colors.length], strokeWidth: 2 }} activeDot={{ r: 5, fill: colors[i % colors.length], stroke: "var(--s1)", strokeWidth: 2 }} />)}
       </LineChart></ResponsiveContainer>;
@@ -7613,8 +7620,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
     if (cType === "bar")
       return <ResponsiveContainer width="100%" height={h}><BarChart data={d} margin={margin}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={0} /><YAxis tick={{ fontSize: 9, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} />
-        <Tooltip content={<CustomTip />} /><Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--fm)", paddingTop: 4 }} iconType="circle" iconSize={8} />
+        <XAxis dataKey={xKey} tick={<AngledXTick />} interval={xInterval} height={50} /><YAxis tick={{ fontSize: 8, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} width={40} />
+        <Tooltip content={<CustomTip />} />{keys.length > 1 && <Legend wrapperStyle={{ fontSize: 9, fontFamily: "var(--fm)", paddingTop: 0 }} iconType="circle" iconSize={6} />}
         {keys.map((k, i) => <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[4, 4, 0, 0]} maxBarSize={50} />)}
       </BarChart></ResponsiveContainer>;
 
@@ -7623,8 +7630,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
       <defs>{keys.map((k, i) => <linearGradient key={k} id={`dg_${card.id}_${i}`} x1="0" y1="0" x2="0" y2="1">
         <stop offset="5%" stopColor={colors[i % colors.length]} stopOpacity={0.3} /><stop offset="95%" stopColor={colors[i % colors.length]} stopOpacity={0} /></linearGradient>)}</defs>
       <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
-      <XAxis dataKey={xKey} tick={<AngledXTick />} interval={0} /><YAxis tick={{ fontSize: 9, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} />
-      <Tooltip content={<CustomTip />} /><Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--fm)", paddingTop: 4 }} iconType="circle" iconSize={8} />
+      <XAxis dataKey={xKey} tick={<AngledXTick />} interval={xInterval} height={50} /><YAxis tick={{ fontSize: 8, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} width={40} />
+      <Tooltip content={<CustomTip />} />{keys.length > 1 && <Legend wrapperStyle={{ fontSize: 9, fontFamily: "var(--fm)", paddingTop: 0 }} iconType="circle" iconSize={6} />}
       {keys.map((k, i) => <Area key={k} type="monotone" dataKey={k} stroke={colors[i % colors.length]} strokeWidth={2.5} fill={`url(#dg_${card.id}_${i})`} />)}
     </AreaChart></ResponsiveContainer>;
   };
