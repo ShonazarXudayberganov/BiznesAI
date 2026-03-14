@@ -442,13 +442,12 @@ ${JSON.stringify(teachers, null, 2)}`;
 // ANOMALIYA ANIQLASH (matematik/statistik — AI shart emas)
 // ─────────────────────────────────────────────────────────────
 function detectAnomalies(sources) {
-  const anomalies = [];
+  const raw = []; // Xom anomaliyalar
   const connected = (Array.isArray(sources) ? sources : []).filter(s => s.connected && s.active && s.data?.length > 5);
 
   connected.forEach(src => {
     const rows = src.data || [];
     const keys = Object.keys(rows[0] || {});
-    // Raqamli ustunlarni topish
     const numKeys = keys.filter(k => {
       const vals = rows.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
       return vals.filter(v => !isNaN(v)).length > rows.length * 0.5;
@@ -462,25 +461,44 @@ function detectAnomalies(sources) {
       const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
       if (std === 0 || mean === 0) return;
 
-      // Z-score anomaliyalar (|z| > 2.5)
-      vals.forEach((v, i) => {
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const fieldName = key.replace(/_/g, " ");
+
+      // Z-score anomaliyalar — BIR USTUN UCHUN BITTA KARTA (eng kuchli anomaliyani tanlash)
+      let worstZ = 0, worstVal = 0, anomCount = 0;
+      vals.forEach(v => {
         const z = (v - mean) / std;
         if (Math.abs(z) > 2.5) {
-          anomalies.push({
-            source: src.name,
-            field: key,
-            value: v,
-            mean: Math.round(mean * 100) / 100,
-            zScore: Math.round(z * 100) / 100,
-            type: z > 0 ? 'yuqori' : 'past',
-            severity: Math.abs(z) > 3.5 ? 'danger' : 'warning',
-            row: i,
-            message: `"${key}" ustunida ${z > 0 ? 'g\'ayrioddiy yuqori' : 'g\'ayrioddiy past'} qiymat: ${v.toLocaleString()} (o'rtacha: ${Math.round(mean).toLocaleString()}, ${Math.abs(Math.round((v - mean) / mean * 100))}% farq)`,
-          });
+          anomCount++;
+          if (Math.abs(z) > Math.abs(worstZ)) { worstZ = z; worstVal = v; }
         }
       });
 
-      // Trend anomaliya — oxirgi 3 qiymat ketma-ket pasayish/o'sish
+      if (anomCount > 0) {
+        const pctDiff = Math.round((worstVal - mean) / mean * 100);
+        const isHigh = worstZ > 0;
+        raw.push({
+          source: src.name, field: key, fieldName,
+          value: worstVal,
+          mean: Math.round(mean * 100) / 100,
+          min: Math.round(min * 100) / 100,
+          max: Math.round(max * 100) / 100,
+          std: Math.round(std * 100) / 100,
+          zScore: Math.round(worstZ * 100) / 100,
+          anomCount,
+          type: isHigh ? 'yuqori' : 'past',
+          severity: Math.abs(worstZ) > 3.5 ? 'danger' : 'warning',
+          explanation: isHigh
+            ? `"${fieldName}" ko'rsatkichida normadan ${Math.abs(pctDiff)}% yuqori qiymat aniqlandi. O'rtacha ${Math.round(mean).toLocaleString()} bo'lishi kerak, lekin ${worstVal.toLocaleString()} qayd etildi. ${anomCount > 1 ? `Jami ${anomCount} ta g'ayrioddiy qiymat bor.` : ""} Bu kutilmagan o'sish yoki xatolik belgisi bo'lishi mumkin.`
+            : `"${fieldName}" ko'rsatkichida normadan ${Math.abs(pctDiff)}% past qiymat aniqlandi. O'rtacha ${Math.round(mean).toLocaleString()} bo'lishi kerak, lekin ${worstVal.toLocaleString()} qayd etildi. ${anomCount > 1 ? `Jami ${anomCount} ta g'ayrioddiy qiymat bor.` : ""} Bu pasayish sababini tekshirish kerak.`,
+          recommendation: isHigh
+            ? `Nima uchun "${fieldName}" kutilganidan yuqori ekanini tekshiring. Bu ijobiy (masalan, savdo o'sishi) yoki salbiy (masalan, xarajat oshishi) bo'lishi mumkin.`
+            : `"${fieldName}" pasayish sababini aniqlang. Agar bu muntazam davom etsa, biznesga ta'sir qilishi mumkin. Tezkor choralar ko'ring.`,
+        });
+      }
+
+      // Trend anomaliya
       if (vals.length >= 5) {
         const last5 = vals.slice(-5);
         const allDown = last5.every((v, i) => i === 0 || v <= last5[i - 1]);
@@ -488,24 +506,44 @@ function detectAnomalies(sources) {
         const totalChange = last5.length > 1 ? (last5[last5.length - 1] - last5[0]) / (Math.abs(last5[0]) || 1) * 100 : 0;
 
         if (allDown && Math.abs(totalChange) > 15) {
-          anomalies.push({
-            source: src.name, field: key, type: 'trend_down', severity: Math.abs(totalChange) > 30 ? 'danger' : 'warning',
-            message: `"${key}" oxirgi 5 qiymatda ketma-ket pasayish: ${Math.round(totalChange)}%`,
+          raw.push({
+            source: src.name, field: key, fieldName,
+            type: 'trend_down',
+            severity: Math.abs(totalChange) > 30 ? 'danger' : 'warning',
             value: last5[last5.length - 1], mean,
+            min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100,
+            explanation: `"${fieldName}" oxirgi 5 ta yozuvda ketma-ket ${Math.abs(Math.round(totalChange))}% pasaydi. Boshlang'ich qiymat: ${Math.round(last5[0]).toLocaleString()}, hozirgi: ${Math.round(last5[4]).toLocaleString()}. Bu tushish tendensiyasi davom etsa, jiddiy muammoga aylanishi mumkin.`,
+            recommendation: `"${fieldName}" pasayish sababini tezda aniqlang. Raqobatchilar, mavsumiylik yoki ichki muammolar bo'lishi mumkin. Hozir choralar ko'rsangiz, yo'qotishni kamaytirish mumkin.`,
           });
         }
         if (allUp && totalChange > 50) {
-          anomalies.push({
-            source: src.name, field: key, type: 'trend_up', severity: 'info',
-            message: `"${key}" oxirgi 5 qiymatda kuchli o'sish: +${Math.round(totalChange)}%`,
+          raw.push({
+            source: src.name, field: key, fieldName,
+            type: 'trend_up', severity: 'info',
             value: last5[last5.length - 1], mean,
+            min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100,
+            explanation: `"${fieldName}" oxirgi 5 ta yozuvda ketma-ket +${Math.round(totalChange)}% o'sdi. Boshlang'ich: ${Math.round(last5[0]).toLocaleString()}, hozirgi: ${Math.round(last5[4]).toLocaleString()}. Bu ijobiy tendensiya — davom ettirish strategiyasini o'ylab ko'ring.`,
+            recommendation: `Bu o'sishni ta'minlayotgan omillarni aniqlang va kuchaytiring. Imkoniyatdan maksimal foydalaning.`,
           });
         }
       }
     });
   });
 
-  return anomalies.slice(0, 50); // Max 50 ta anomaliya
+  // DUBLIKATLARNI YO'QOTISH — har bir source+field+type uchun faqat eng kuchlisini qoldirish
+  const unique = new Map();
+  raw.forEach(a => {
+    const key = `${a.source}|${a.field}|${a.type}`;
+    const existing = unique.get(key);
+    if (!existing || Math.abs(a.zScore || 0) > Math.abs(existing.zScore || 0)) {
+      unique.set(key, a);
+    }
+  });
+
+  return [...unique.values()].sort((a, b) => {
+    const sev = { danger: 3, warning: 2, info: 1 };
+    return (sev[b.severity] || 0) - (sev[a.severity] || 0);
+  }).slice(0, 30);
 }
 
 function buildChartData(rows = []) {
@@ -7912,7 +7950,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
               {anomalies.map((a, i) => {
                 const sev = sevColors[a.severity] || sevColors.warning;
                 return (
-                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s", minHeight: 170, display: "flex", flexDirection: "column" }}
+                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s", display: "flex", flexDirection: "column" }}
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${sev.border}`; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
                     {/* Karta header */}
@@ -7922,31 +7960,42 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
                       <span style={{ fontSize: 9, color: "var(--muted)", marginLeft: "auto", background: "var(--s2)", padding: "2px 8px", borderRadius: 8 }}>{a.source}</span>
                     </div>
                     {/* Ustun nomi */}
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>{a.field?.replace(/_/g, " ")}</div>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, marginBottom: 8, color: "var(--text)" }}>{a.fieldName || a.field?.replace(/_/g, " ")}</div>
                     {/* Raqamlar */}
-                    <div className="flex gap12 mb8">
-                      <div style={{ textAlign: "center" }}>
-                        <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
+                    <div className="flex gap12 mb10" style={{ flexWrap: "wrap" }}>
+                      <div>
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
                         <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Hozirgi</div>
                       </div>
                       {a.mean != null && (
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
+                        <div>
+                          <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
                           <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>O'rtacha</div>
                         </div>
                       )}
                       {a.mean != null && a.value != null && typeof a.value === "number" && typeof a.mean === "number" && a.mean !== 0 && (
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: a.value > a.mean ? "#4ADE80" : "#F87171" }}>
+                        <div>
+                          <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: a.value > a.mean ? "#4ADE80" : "#F87171" }}>
                             {a.value > a.mean ? "+" : ""}{Math.round((a.value - a.mean) / a.mean * 100)}%
                           </div>
                           <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Farq</div>
                         </div>
                       )}
                     </div>
+                    {/* Tushuntirish */}
+                    {a.explanation && (
+                      <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.65, marginBottom: 8, padding: "8px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 8, borderLeft: `3px solid ${sev.color}30` }}>{a.explanation}</div>
+                    )}
+                    {/* Tavsiya */}
+                    {a.recommendation && (
+                      <div style={{ fontSize: 10, color: "var(--teal)", lineHeight: 1.6, padding: "6px 10px", background: "rgba(0,201,190,0.04)", borderRadius: 8, display: "flex", gap: 6, alignItems: "flex-start" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C9BE" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        <span>{a.recommendation}</span>
+                      </div>
+                    )}
                     {/* Trend badge */}
                     {(a.type === "trend_down" || a.type === "trend_up") && (
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, marginTop: "auto", background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, marginTop: 8, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           {a.type === "trend_down" ? <><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></> : <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>}
                         </svg>
