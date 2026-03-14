@@ -199,6 +199,12 @@ export const AdminAPI = {
 
   getUser: (id) => apiFetch(`/admin/users/${id}`),
 
+  createUser: (data) =>
+    apiFetch('/admin/users/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   updateUser: (id, data) =>
     apiFetch(`/admin/users/${id}`, {
       method: 'PUT',

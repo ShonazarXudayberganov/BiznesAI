@@ -89,6 +89,47 @@ router.get('/users/:id', async (req, res) => {
   }
 });
 
+// ── POST /api/admin/users/create ── (admin yangi foydalanuvchi qo'shish)
+router.post('/users/create', async (req, res) => {
+  try {
+    const { name, email, password, plan, role } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'name, email, password kerak' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Parol kamida 6 ta belgi' });
+    }
+
+    // Email tekshirish
+    const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ error: 'Bu email allaqachon ro\'yxatdan o\'tgan' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(password, 12);
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password_hash, role, plan)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, role, plan, created_at`,
+      [name.trim(), email.toLowerCase().trim(), hash, role || 'user', plan || 'free']
+    );
+
+    const user = result.rows[0];
+    res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      plan: user.plan,
+      created: user.created_at,
+    });
+  } catch (err) {
+    console.error('[ADMIN] Create user error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
 // ── PUT /api/admin/users/:id ── (foydalanuvchini tahrirlash)
 router.put('/users/:id', async (req, res) => {
   try {

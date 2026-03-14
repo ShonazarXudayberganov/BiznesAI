@@ -2003,28 +2003,32 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
       setAddUserError("Email formati noto'g'ri");
       return;
     }
-    // Tekshirish — email allaqachon bormi
     if (users.find(u => u.email?.toLowerCase() === email.toLowerCase())) {
       setAddUserError("Bu email allaqachon ro'yxatda bor");
       return;
     }
     setAddUserLoading(true); setAddUserError("");
+
+    let apiSuccess = false;
     try {
-      // Backend API orqali qo'shish
-      const res = await AuthAPI.register(name.trim(), email.trim().toLowerCase(), password);
-      if (res.user && plan !== "free") {
-        await AdminAPI.updateUser(res.user.id, { plan, role });
-      }
-      if (res.user && role !== "user") {
-        await AdminAPI.updateUser(res.user.id, { role });
-      }
+      // Backend API — admin maxsus endpoint (admin sessiyasini buzmaydi)
+      const res = await AdminAPI.createUser({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password,
+        plan,
+        role,
+      });
+      if (res?.id) apiSuccess = true;
     } catch (e) {
-      console.warn("[Admin] API addUser failed, using LS:", e.message);
+      console.warn("[Admin] API createUser failed:", e.message);
+      // API ishlamasa — xato ko'rsatmaymiz, LS ga saqlaymiz
     }
-    // LS ga ham qo'shish
+
+    // LS ga ham qo'shish (fallback + tez ko'rinish uchun)
     const lsUsers = Auth.getUsers();
     if (!lsUsers.find(u => u.email === email.toLowerCase())) {
-      const newU = {
+      Auth.saveUsers([...lsUsers, {
         id: Date.now().toString(),
         name: name.trim(),
         email: email.trim().toLowerCase(),
@@ -2037,14 +2041,14 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
         status: "active",
         ai_requests_used: 0,
         ai_requests_month: new Date().toISOString().slice(0, 7),
-      };
-      Auth.saveUsers([...lsUsers, newU]);
+      }]);
     }
+
     refresh();
     setShowAddUser(false);
     setNewUser({ name: "", email: "", password: "", plan: "free", role: "user" });
     setAddUserLoading(false);
-    push(`Foydalanuvchi ${name} qo'shildi`, "ok");
+    push(`Foydalanuvchi ${name} qo'shildi` + (apiSuccess ? " (serverga saqlandi)" : " (lokal saqlandi)"), "ok");
   };
 
   const exportCSV = () => {
