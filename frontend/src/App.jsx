@@ -805,9 +805,11 @@ const CSS = `
   --shadow-sm:0 1px 3px rgba(0,15,40,0.45);--shadow-md:0 4px 16px rgba(0,15,40,0.4);--shadow-lg:0 10px 40px rgba(0,15,40,0.5);
   --shadow-glow-gold:0 0 24px rgba(56,189,248,0.12);--shadow-glow-teal:0 0 24px rgba(52,211,153,0.1);
   --chart-grid:rgba(56,189,248,0.06);--chart-label:#5A8BAA;--chart-tip-bg:rgba(12,21,39,0.96);--chart-tip-border:rgba(52,211,153,0.25);
-  --bg-pattern:none;
+  --bg-pattern:
+    radial-gradient(circle at 15% 85%,rgba(56,189,248,0.04) 0%,transparent 40%),
+    radial-gradient(circle at 85% 15%,rgba(52,211,153,0.03) 0%,transparent 40%);
 }
-/* ═══ AURORA — Shimoliy yorug'lik, rasmli fon ═══ */
+/* ═══ AURORA — Shimoliy yorug'lik, shaffof fon ═══ */
 [data-theme="aurora"]{
   --bg:#06101A;--s1:rgba(10,20,35,0.85);--s2:rgba(15,28,48,0.8);--s3:rgba(20,36,58,0.8);--s4:rgba(28,46,70,0.8);
   --glass:rgba(10,20,35,0.88);
@@ -820,7 +822,11 @@ const CSS = `
   --shadow-sm:0 1px 3px rgba(0,10,20,0.5);--shadow-md:0 4px 16px rgba(0,10,20,0.45);--shadow-lg:0 10px 40px rgba(0,10,20,0.5);
   --shadow-glow-gold:0 0 30px rgba(110,231,183,0.15);--shadow-glow-teal:0 0 30px rgba(34,211,238,0.12);
   --chart-grid:rgba(110,231,183,0.06);--chart-label:#5EA888;--chart-tip-bg:rgba(10,20,35,0.96);--chart-tip-border:rgba(110,231,183,0.3);
-  --bg-pattern:none;
+  --bg-pattern:
+    radial-gradient(ellipse 120% 40% at 20% 0%,rgba(34,211,238,0.1) 0%,transparent 50%),
+    radial-gradient(ellipse 80% 35% at 55% 5%,rgba(110,231,183,0.08) 0%,transparent 45%),
+    radial-gradient(ellipse 60% 40% at 80% 10%,rgba(167,139,250,0.06) 0%,transparent 50%),
+    radial-gradient(ellipse 40% 60% at 50% 100%,rgba(6,16,26,0.6) 0%,transparent 50%);
 }
 /* ═══ ROSE — Bronza luxury ═══ */
 [data-theme="rose"]{
@@ -835,23 +841,14 @@ const CSS = `
   --shadow-sm:0 1px 3px rgba(12,10,8,0.5);--shadow-md:0 4px 16px rgba(12,10,8,0.45);--shadow-lg:0 10px 40px rgba(12,10,8,0.5);
   --shadow-glow-gold:0 0 24px rgba(232,184,75,0.18);--shadow-glow-teal:0 0 24px rgba(212,168,83,0.12);
   --chart-grid:rgba(212,168,83,0.06);--chart-label:#A09070;--chart-tip-bg:rgba(21,18,14,0.96);--chart-tip-border:rgba(232,184,75,0.3);
-  --bg-pattern:none;
+  --bg-pattern:
+    radial-gradient(ellipse 80% 50% at 80% 90%,rgba(212,168,83,0.05) 0%,transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 10%,rgba(232,184,75,0.03) 0%,transparent 45%);
 }
 html,body,#root{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
-body::before{content:'';position:fixed;inset:0;background:
-  var(--bg-pattern),
-  radial-gradient(ellipse 90% 60% at 15% 5%,var(--gold-glow) 0%,transparent 55%),
-  radial-gradient(ellipse 70% 50% at 85% 85%,var(--teal-glow) 0%,transparent 55%),
-  radial-gradient(ellipse 50% 40% at 50% 50%,rgba(167,139,250,0.015) 0%,transparent 50%);
-  pointer-events:none;z-index:0;}
-[data-theme="aurora"] body::before{background:
-  radial-gradient(ellipse 120% 50% at 20% 0%,rgba(34,211,238,0.12) 0%,transparent 50%),
-  radial-gradient(ellipse 100% 40% at 50% 10%,rgba(110,231,183,0.1) 0%,transparent 45%),
-  radial-gradient(ellipse 80% 50% at 80% 5%,rgba(167,139,250,0.08) 0%,transparent 50%),
-  radial-gradient(ellipse 60% 30% at 35% 15%,rgba(56,189,248,0.06) 0%,transparent 40%),
-  radial-gradient(ellipse 50% 80% at 50% 100%,rgba(6,16,26,0.8) 0%,transparent 60%),
-  linear-gradient(180deg,#040D18 0%,#06101A 30%,#081420 60%,#0A1828 100%);}
+body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none);pointer-events:none;z-index:0;}
+
 
 /* ═══ LAYOUT ═══ */
 .app{position:relative;z-index:1;display:flex;height:100vh;width:100vw;overflow:hidden}
@@ -1177,20 +1174,36 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .sidebar-close-btn:hover{color:var(--text)}
 .mob-overlay{display:none}.hide-mobile{display:inline}
 
-/* ═══ THEME-SPECIFIC ACCENTS ═══ */
+/* ═══ THEME-SPECIFIC STYLES ═══ */
+
+/* MIDNIGHT — neon glow kartalar, ko'k borderlar */
 [data-theme="midnight"] .logo-main span{color:#38BDF8}
 [data-theme="midnight"] .grad{background:linear-gradient(135deg,#38BDF8,#34D399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 [data-theme="midnight"] .btn-primary{background:linear-gradient(135deg,#0EA5E9,#0284C7);box-shadow:0 2px 12px rgba(14,165,233,0.3)}
+[data-theme="midnight"] .card{border-color:rgba(56,189,248,0.08);box-shadow:0 0 20px rgba(56,189,248,0.03),0 4px 16px rgba(0,0,0,0.3)}
+[data-theme="midnight"] .card:hover{box-shadow:0 0 30px rgba(56,189,248,0.06),0 8px 24px rgba(0,0,0,0.3)}
+[data-theme="midnight"] .sidebar{border-right-color:rgba(56,189,248,0.06)}
+[data-theme="midnight"] .nav-btn.active{border-left-color:#38BDF8}
+
+/* AURORA — shaffof kartalar, shimoliy yorug'lik fon */
 [data-theme="aurora"] .logo-main span{color:#6EE7B7}
 [data-theme="aurora"] .grad{background:linear-gradient(135deg,#6EE7B7,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 [data-theme="aurora"] .btn-primary{background:linear-gradient(135deg,#10B981,#059669);box-shadow:0 2px 12px rgba(16,185,129,0.3)}
+[data-theme="aurora"] .sidebar{background:rgba(10,20,35,0.88);backdrop-filter:blur(20px);border-right-color:rgba(110,231,183,0.06)}
+[data-theme="aurora"] .topbar{background:rgba(10,20,35,0.82);backdrop-filter:blur(16px)}
+[data-theme="aurora"] .card{background:rgba(10,20,35,0.75);backdrop-filter:blur(12px);border-color:rgba(110,231,183,0.08)}
 [data-theme="aurora"] .content{background:transparent}
-[data-theme="aurora"] .sidebar{background:rgba(10,20,35,0.9);backdrop-filter:blur(20px)}
-[data-theme="aurora"] .topbar{background:rgba(10,20,35,0.85);backdrop-filter:blur(20px)}
-[data-theme="aurora"] .card{backdrop-filter:blur(12px)}
+[data-theme="aurora"] .field{background:rgba(15,28,48,0.7);backdrop-filter:blur(8px)}
+[data-theme="aurora"] .nav-btn.active{border-left-color:#6EE7B7}
+
+/* ROSE — issiq gradient borderlar, bronza glow */
 [data-theme="rose"] .logo-main span{color:#E8B84B}
 [data-theme="rose"] .grad{background:linear-gradient(135deg,#E8B84B,#D4A853);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 [data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#D4A853,#B8860B);box-shadow:0 2px 12px rgba(212,168,83,0.3)}
+[data-theme="rose"] .card{border-color:rgba(212,168,83,0.1);box-shadow:0 0 16px rgba(212,168,83,0.03),0 4px 16px rgba(0,0,0,0.3)}
+[data-theme="rose"] .sidebar{border-right:1px solid rgba(212,168,83,0.08)}
+[data-theme="rose"] .nav-btn.active{border-left-color:#D4A853}
+[data-theme="rose"] .topbar{border-bottom-color:rgba(212,168,83,0.06)}
 
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
@@ -7526,10 +7539,10 @@ function AiProgressBar({ loading }) {
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: "obsidian", name: "Obsidian", desc: "Klassik qora" },
-  { id: "midnight", name: "Midnight", desc: "Tungi ko'k" },
-  { id: "aurora", name: "Aurora", desc: "Shimoliy shu'la" },
-  { id: "rose", name: "Rose", desc: "Bronza luxury" },
+  { id: "obsidian", name: "Obsidian", desc: "Klassik qora, toza", icon: "◆" },
+  { id: "midnight", name: "Midnight", desc: "Chuqur ko'k, neon", icon: "◇" },
+  { id: "aurora", name: "Aurora", desc: "Tabiat, shimoliy shu'la", icon: "✦" },
+  { id: "rose", name: "Rose", desc: "Issiq bronza, luxury", icon: "✧" },
 ];
 
 function useTheme() {
@@ -7570,26 +7583,30 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
       </button>
       {open && (
         <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setOpen(false)} />
-          <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 180, boxShadow: "var(--shadow-lg)", animation: "fadeIn .15s ease" }}>
+          <div style={{ position: "fixed", inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 220, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", animation: "fadeIn .15s ease" }}>
             {THEMES.map(t => {
               const tp = THEME_PREVIEWS[t.id];
               const active = theme === t.id;
               return (
                 <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
                   style={{
-                    width: "100%", padding: "10px 12px", borderRadius: 10, border: "none",
-                    background: active ? "var(--s3)" : "transparent",
-                    cursor: "pointer", marginBottom: 2, display: "flex", alignItems: "center", gap: 10, transition: "all .15s",
+                    width: "100%", padding: "10px 14px", borderRadius: 12, border: active ? `1px solid ${tp.accent}40` : "1px solid transparent",
+                    background: active ? `${tp.accent}0C` : "transparent",
+                    cursor: "pointer", marginBottom: 4, display: "flex", alignItems: "center", gap: 12, transition: "all .2s",
                   }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; }}
-                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
-                  <div style={{ width: 24, height: 24, borderRadius: 8, background: tp.grad, flexShrink: 0, border: active ? "2px solid var(--text)" : "1px solid rgba(255,255,255,0.1)", boxShadow: active ? `0 0 12px ${tp.accent}40` : "none" }} />
-                  <div style={{ textAlign: "left" }}>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "var(--text)" : "var(--text2)" }}>{t.name}</div>
-                    <div style={{ fontSize: 9, color: "var(--muted)" }}>{t.desc}</div>
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; e.currentTarget.style.borderColor = `${tp.accent}20`; }}
+                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: tp.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#000", fontWeight: 800, boxShadow: active ? `0 0 16px ${tp.accent}35` : "0 2px 6px rgba(0,0,0,0.3)" }}>
+                    {t.icon}
                   </div>
-                  {active && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: tp.accent, boxShadow: `0 0 8px ${tp.accent}60` }} />}
+                  <div style={{ textAlign: "left", flex: 1 }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 600, color: active ? tp.accent : "var(--text)" }}>{t.name}</div>
+                    <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{t.desc}</div>
+                  </div>
+                  {active && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tp.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  )}
                 </button>
               );
             })}
