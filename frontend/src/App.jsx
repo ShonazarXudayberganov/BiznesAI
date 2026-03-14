@@ -822,19 +822,19 @@ const CSS = `
   --chart-grid:rgba(110,231,183,0.06);--chart-label:#5EA888;--chart-tip-bg:rgba(10,20,35,0.96);--chart-tip-border:rgba(110,231,183,0.3);
   --bg-pattern:none;
 }
-/* ═══ ROSE — Qizil-pushti premium ═══ */
+/* ═══ ROSE — Bronza luxury ═══ */
 [data-theme="rose"]{
-  --bg:#10060A;--s1:#1A0C14;--s2:#24121E;--s3:#2E1828;--s4:#3A2034;
-  --glass:rgba(26,12,20,0.94);
-  --border:rgba(251,113,133,0.1);--border2:rgba(251,113,133,0.04);--border-hi:rgba(251,113,133,0.16);
-  --gold:#FB7185;--gold2:#FDA4AF;--gold-glow:rgba(251,113,133,0.16);
-  --teal:#F9A8D4;--teal2:#FBCFE8;--teal-glow:rgba(249,168,212,0.1);
-  --green:#4ADE80;--red:#FB7185;--purple:#F9A8D4;--blue:#FDA4AF;--orange:#FBBF24;
-  --accent1:#FB7185;--accent2:#F9A8D4;
-  --text:#FFF1F2;--text2:#FDA4AF;--muted:#9B5060;--muted2:#6B3040;
-  --shadow-sm:0 1px 3px rgba(20,0,10,0.5);--shadow-md:0 4px 16px rgba(20,0,10,0.45);--shadow-lg:0 10px 40px rgba(20,0,10,0.5);
-  --shadow-glow-gold:0 0 24px rgba(251,113,133,0.18);--shadow-glow-teal:0 0 24px rgba(249,168,212,0.12);
-  --chart-grid:rgba(251,113,133,0.06);--chart-label:#B06070;--chart-tip-bg:rgba(26,12,20,0.96);--chart-tip-border:rgba(251,113,133,0.3);
+  --bg:#0C0A08;--s1:#15120E;--s2:#1E1A15;--s3:#27221C;--s4:#312B24;
+  --glass:rgba(21,18,14,0.94);
+  --border:rgba(212,168,83,0.1);--border2:rgba(212,168,83,0.04);--border-hi:rgba(212,168,83,0.16);
+  --gold:#E8B84B;--gold2:#F0CC70;--gold-glow:rgba(232,184,75,0.16);
+  --teal:#D4A853;--teal2:#E8C47A;--teal-glow:rgba(212,168,83,0.1);
+  --green:#A3BE8C;--red:#BF616A;--purple:#B48EAD;--blue:#D4A853;--orange:#D08770;
+  --accent1:#E8B84B;--accent2:#D4A853;
+  --text:#ECEFF4;--text2:#BFA97A;--muted:#8A7550;--muted2:#5E503C;
+  --shadow-sm:0 1px 3px rgba(12,10,8,0.5);--shadow-md:0 4px 16px rgba(12,10,8,0.45);--shadow-lg:0 10px 40px rgba(12,10,8,0.5);
+  --shadow-glow-gold:0 0 24px rgba(232,184,75,0.18);--shadow-glow-teal:0 0 24px rgba(212,168,83,0.12);
+  --chart-grid:rgba(212,168,83,0.06);--chart-label:#A09070;--chart-tip-bg:rgba(21,18,14,0.96);--chart-tip-border:rgba(232,184,75,0.3);
   --bg-pattern:none;
 }
 html,body,#root{height:100%;overflow:hidden}
@@ -1188,9 +1188,9 @@ select.field{cursor:pointer;-webkit-appearance:none}
 [data-theme="aurora"] .sidebar{background:rgba(10,20,35,0.9);backdrop-filter:blur(20px)}
 [data-theme="aurora"] .topbar{background:rgba(10,20,35,0.85);backdrop-filter:blur(20px)}
 [data-theme="aurora"] .card{backdrop-filter:blur(12px)}
-[data-theme="rose"] .logo-main span{color:#FB7185}
-[data-theme="rose"] .grad{background:linear-gradient(135deg,#FB7185,#F9A8D4);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#F43F5E,#E11D48);box-shadow:0 2px 12px rgba(244,63,94,0.3)}
+[data-theme="rose"] .logo-main span{color:#E8B84B}
+[data-theme="rose"] .grad{background:linear-gradient(135deg,#E8B84B,#D4A853);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#D4A853,#B8860B);box-shadow:0 2px 12px rgba(212,168,83,0.3)}
 
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
@@ -7526,10 +7526,10 @@ function AiProgressBar({ loading }) {
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: "obsidian", name: "Obsidian", desc: "Qora + Oltin", colors: ["#05060C","#0A0C15","#D4A853","#00D4C8"] },
-  { id: "midnight", name: "Midnight", desc: "Zangori + Neon", colors: ["#080E1A","#0C1527","#38BDF8","#34D399"] },
-  { id: "aurora", name: "Aurora", desc: "Shimoliy shu'la", colors: ["#06101A","#0A1423","#6EE7B7","#22D3EE"] },
-  { id: "rose", name: "Rose", desc: "Qizil premium", colors: ["#10060A","#1A0C14","#FB7185","#F9A8D4"] },
+  { id: "obsidian", name: "Obsidian", desc: "Klassik qora" },
+  { id: "midnight", name: "Midnight", desc: "Tungi ko'k" },
+  { id: "aurora", name: "Aurora", desc: "Shimoliy shu'la" },
+  { id: "rose", name: "Rose", desc: "Bronza luxury" },
 ];
 
 function useTheme() {
@@ -7547,41 +7547,54 @@ function useTheme() {
   return { theme, setTheme, toggle: nextTheme };
 }
 
+const THEME_PREVIEWS = {
+  obsidian: { grad: "linear-gradient(135deg,#D4A853,#00D4C8)", accent: "#D4A853" },
+  midnight: { grad: "linear-gradient(135deg,#38BDF8,#34D399)", accent: "#38BDF8" },
+  aurora: { grad: "linear-gradient(135deg,#6EE7B7,#22D3EE)", accent: "#6EE7B7" },
+  rose: { grad: "linear-gradient(135deg,#E8B84B,#D4A853)", accent: "#E8B84B" },
+};
+
 function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
   const [open, setOpen] = useState(false);
   const sz = size === "sm" ? 32 : 38;
-  const cur = THEMES.find(t => t.id === theme) || THEMES[0];
+  const prev = THEME_PREVIEWS[theme] || THEME_PREVIEWS.obsidian;
   return (
     <div style={{ position: "relative" }}>
-      <button onClick={() => setOpen(!open)} title={`Mavzu: ${cur.name}`}
+      <button onClick={() => setOpen(!open)} title="Mavzu tanlash"
         style={{
           width: sz, height: sz, borderRadius: 10, border: "1px solid var(--border-hi)",
-          background: `linear-gradient(135deg,${cur.colors[2]}20,${cur.colors[3]}20)`,
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+          background: "var(--s2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
           transition: "all .3s", flexShrink: 0,
         }}>
-        <div style={{ width: 14, height: 14, borderRadius: "50%", background: `linear-gradient(135deg,${cur.colors[2]},${cur.colors[3]})`, boxShadow: `0 0 8px ${cur.colors[2]}40` }} />
+        <div style={{ width: 16, height: 16, borderRadius: "50%", background: prev.grad, boxShadow: `0 0 10px ${prev.accent}50` }} />
       </button>
       {open && (
-        <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 14, padding: 12, width: 200, boxShadow: "var(--shadow-lg)", animation: "fadeIn .2s ease" }}>
-          <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Mavzu tanlang</div>
-          {THEMES.map(t => (
-            <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
-              style={{
-                width: "100%", padding: "10px 12px", borderRadius: 10, border: theme === t.id ? `2px solid ${t.colors[2]}` : "1px solid var(--border)",
-                background: theme === t.id ? `${t.colors[2]}12` : "var(--s2)",
-                cursor: "pointer", marginBottom: 6, display: "flex", alignItems: "center", gap: 10, transition: "all .2s",
-              }}>
-              <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                {t.colors.map((c, i) => <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c, border: "1px solid rgba(255,255,255,0.1)" }} />)}
-              </div>
-              <div style={{ textAlign: "left" }}>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700, color: theme === t.id ? t.colors[2] : "var(--text)" }}>{t.name}</div>
-                <div style={{ fontSize: 9, color: "var(--muted)" }}>{t.desc}</div>
-              </div>
-            </button>
-          ))}
-        </div>
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: sz + 8, right: 0, zIndex: 999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 180, boxShadow: "var(--shadow-lg)", animation: "fadeIn .15s ease" }}>
+            {THEMES.map(t => {
+              const tp = THEME_PREVIEWS[t.id];
+              const active = theme === t.id;
+              return (
+                <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
+                  style={{
+                    width: "100%", padding: "10px 12px", borderRadius: 10, border: "none",
+                    background: active ? "var(--s3)" : "transparent",
+                    cursor: "pointer", marginBottom: 2, display: "flex", alignItems: "center", gap: 10, transition: "all .15s",
+                  }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 8, background: tp.grad, flexShrink: 0, border: active ? "2px solid var(--text)" : "1px solid rgba(255,255,255,0.1)", boxShadow: active ? `0 0 12px ${tp.accent}40` : "none" }} />
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: active ? 700 : 500, color: active ? "var(--text)" : "var(--text2)" }}>{t.name}</div>
+                    <div style={{ fontSize: 9, color: "var(--muted)" }}>{t.desc}</div>
+                  </div>
+                  {active && <div style={{ marginLeft: "auto", width: 6, height: 6, borderRadius: "50%", background: tp.accent, boxShadow: `0 0 8px ${tp.accent}60` }} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );
