@@ -819,7 +819,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .hero-sub{font-size:17px;color:var(--text2);line-height:1.75;max-width:600px;margin:0 auto 40px;font-weight:400;}
 .hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
 
-.land-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;margin:60px 48px;}
+.land-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;margin:60px 48px;}
 .stat-block{padding:32px 28px;text-align:center;background:var(--s1);border-right:1px solid var(--border);transition:background .3s}
 .stat-block:hover{background:var(--s2)}
 .stat-block:last-child{border-right:none}
@@ -835,7 +835,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .feat-card:hover{border-color:var(--border-hi);transform:translateY(-3px);box-shadow:var(--shadow-md)}
 .feat-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--fc,var(--gold));opacity:0;transition:opacity .3s;}
 .feat-card:hover::after{opacity:.7}
-.feat-ico{font-size:30px;margin-bottom:16px;}
+.feat-ico{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
 .feat-title{font-family:var(--fh);font-size:16px;font-weight:700;margin-bottom:8px;letter-spacing:-0.2px;}
 .feat-desc{font-size:13px;color:var(--text2);line-height:1.75;font-weight:400;}
 
@@ -929,6 +929,18 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .preview-tbl tr:hover td{background:rgba(255,255,255,0.015)}
 .add-panel{background:var(--s2);border:1px dashed rgba(212,168,83,0.15);border-radius:var(--radius-xl);padding:22px;margin-bottom:16px;transition:border-color .3s}
 .add-panel:hover{border-color:rgba(212,168,83,0.3)}
+.drop-zone{border:2px dashed rgba(0,201,190,0.25);border-radius:16px;padding:40px 24px;text-align:center;cursor:pointer;transition:all .3s var(--ease);background:linear-gradient(135deg,rgba(0,201,190,0.03),rgba(0,201,190,0.06));position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.drop-zone::before{content:'';position:absolute;inset:0;border-radius:16px;background:radial-gradient(circle at 50% 50%,rgba(0,201,190,0.06),transparent 70%);pointer-events:none}
+.drop-zone:hover{border-color:rgba(0,201,190,0.5);background:linear-gradient(135deg,rgba(0,201,190,0.05),rgba(0,201,190,0.1));transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,201,190,0.1)}
+.drop-zone.drag{border-color:var(--teal);background:linear-gradient(135deg,rgba(0,201,190,0.08),rgba(0,201,190,0.15));transform:scale(1.02);box-shadow:0 12px 40px rgba(0,201,190,0.2)}
+.drop-zone.drop-img{border-color:rgba(236,72,153,0.25);background:linear-gradient(135deg,rgba(236,72,153,0.03),rgba(236,72,153,0.06))}
+.drop-zone.drop-img::before{background:radial-gradient(circle at 50% 50%,rgba(236,72,153,0.06),transparent 70%)}
+.drop-zone.drop-img:hover{border-color:rgba(236,72,153,0.5);background:linear-gradient(135deg,rgba(236,72,153,0.05),rgba(236,72,153,0.1));box-shadow:0 8px 32px rgba(236,72,153,0.1)}
+.drop-zone.drop-img.drag{border-color:#EC4899;background:linear-gradient(135deg,rgba(236,72,153,0.08),rgba(236,72,153,0.15));box-shadow:0 12px 40px rgba(236,72,153,0.2)}
+.drop-zone.drop-doc{border-color:rgba(248,113,113,0.25);background:linear-gradient(135deg,rgba(248,113,113,0.03),rgba(248,113,113,0.06))}
+.drop-zone.drop-doc::before{background:radial-gradient(circle at 50% 50%,rgba(248,113,113,0.06),transparent 70%)}
+.drop-zone.drop-doc:hover{border-color:rgba(248,113,113,0.5);background:linear-gradient(135deg,rgba(248,113,113,0.05),rgba(248,113,113,0.1));box-shadow:0 8px 32px rgba(248,113,113,0.1)}
+.drop-zone.drop-doc.drag{border-color:#F87171;background:linear-gradient(135deg,rgba(248,113,113,0.08),rgba(248,113,113,0.15));box-shadow:0 12px 40px rgba(248,113,113,0.2)}
 
 /* ═══ CHAT ═══ */
 .chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px - 28px)}
@@ -1073,56 +1085,106 @@ function NotifBanner({ notifs }) {
 // ─────────────────────────────────────────────────────────────
 function LandingPage({ onLogin, onRegister }) {
   const [billing, setBilling] = useState("monthly");
+  const [openFaq, setOpenFaq] = useState(null);
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
+  // SVG icon helper — gradient rangdor iconlar
+  const I = (paths, c1, c2, id) => (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+        <stop stopColor={c1}/><stop offset="1" stopColor={c2}/>
+      </linearGradient></defs>
+      {paths}
+    </svg>
+  );
   const feats = [
-    { ico: "", title: "Ko'p AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar.", c: "var(--gold)" },
-    { ico: "", title: "Data Hub — Konstruktor", desc: "Excel, Google Sheets, REST API, Instagram, Telegram — istalgan manba bilan ulaning.", c: "var(--teal)" },
-    { ico: "", title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge, heatmap va boshqalar bilan ma'lumotni vizualizatsiya qiling.", c: "var(--green)" },
-    { ico: "", title: "Proaktiv AI Ogohlantirishlar", desc: "AI har 6 soatda biznesingizni tahlil qilib, xavfli o'zgarishlarni siz so'ramasdan xabar beradi.", c: "var(--red)" },
-    { ico: "◰", title: "Avtomatik Hisobotlar", desc: "PDF, Excel, TXT formatida professional hisobotlar. Bir tugma bilan tayyor.", c: "var(--purple)" },
-    { ico: "", title: "Admin Paneli", desc: "Barcha foydalanuvchilar, to'lovlar, hisobotlar — bir joydan to'liq nazorat.", c: "var(--blue)" },
+    { ico: I(<><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" stroke={`url(#fi0)`} strokeWidth="1.8"/><path d="M9 14h6l2 8H7l2-8z" stroke={`url(#fi0)`} strokeWidth="1.8"/><circle cx="12" cy="6" r="1.5" fill={`url(#fi0)`}/></>, "#E8B84B","#D4A853","fi0"), title: "4 ta AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar. O'zbek tilida to'liq qo'llab-quvvatlanadi.", c: "var(--gold)" },
+    { ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/></>, "#00C9BE","#00A89E","fi1"), title: "12 ta Ma'lumot Manbasi", desc: "Excel, Google Sheets, REST API, Instagram, Telegram, CRM, PDF, Rasm, 1C Buxgalteriya, Yandex Metrika, SQL Database — barchasini ulang.", c: "var(--teal)" },
+    { ico: I(<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke={`url(#fi2)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></>, "#4ADE80","#22C55E","fi2"), title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge va boshqalar. AI avtomatik mos grafikni tanlaydi.", c: "var(--green)" },
+    { ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#fi3)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#fi3)`} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill={`url(#fi3)`}/></>, "#F87171","#EF4444","fi3"), title: "Anomaliya Aniqlash", desc: "Matematik va AI tahlil orqali g'ayrioddiy o'zgarishlarni avtomatik topadi. Siz so'ramasdan xabar beradi.", c: "var(--red)" },
+    { ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#fi4)`} strokeWidth="1.8"/><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#A78BFA","#7C3AED","fi4"), title: "Ovozli Kiritish", desc: "Mikrofon orqali savol bering — O'zbek va Rus tilida ishlaydi. Qo'l bilan yozish shart emas.", c: "var(--purple)" },
+    { ico: I(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round"/><polyline points="14 2 14 8 20 8" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="13" x2="16" y2="13" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="17" x2="13" y2="17" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round"/></>, "#F87171","#DC2626","fi5"), title: "Hujjat Tahlili", desc: "PDF, Word, TXT fayllarni yuklang — AI mazmunni o'qib, tahlil qiladi va javob beradi.", c: "#F87171" },
+    { ico: I(<><rect x="3" y="3" width="18" height="18" rx="3" stroke={`url(#fi6)`} strokeWidth="1.8"/><circle cx="8.5" cy="8.5" r="2" stroke={`url(#fi6)`} strokeWidth="1.5"/><path d="M21 15l-5-5L5 21" stroke={`url(#fi6)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></>, "#EC4899","#DB2777","fi6"), title: "Rasm Tahlili", desc: "Rasm yuklang — AI rasm tarkibini tavsiflaydi, diagrammalarni o'qiydi va ma'lumot ajratadi.", c: "#EC4899" },
+    { ico: I(<><path d="M4 4h16v16H4z" stroke={`url(#fi7)`} strokeWidth="0"/><rect x="3" y="3" width="18" height="18" rx="2" stroke={`url(#fi7)`} strokeWidth="1.8"/><path d="M8 12h8M8 8h8M8 16h5" stroke={`url(#fi7)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#60A5FA","#3B82F6","fi7"), title: "Avtomatik Hisobotlar", desc: "PDF, Excel, TXT formatida professional hisobotlar. 8 xil modul — bir tugma bilan tayyor.", c: "#60A5FA" },
+    { ico: I(<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></>, "#8B5CF6","#6D28D9","fi8"), title: "CRM Integratsiya", desc: "LC-UP CRM dan lidlar, guruhlar, o'quvchilar, o'qituvchilar ma'lumotlarini tortib, AI bilan tahlil qiling.", c: "#8B5CF6" },
   ];
+
+  const howItWorks = [
+    { step: "01", title: "Ma'lumot ulang", desc: "Data Hub da Excel, CRM, Instagram yoki boshqa manbani ulang. Drag & drop bilan fayl tashlang.", ico: I(<><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke={`url(#hw0)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#00C9BE","#00A89E","hw0"), c: "var(--teal)" },
+    { step: "02", title: "AI savol bering", desc: "Chat sahifasida savolingizni yozing yoki mikrofon bosib ayting. AI ma'lumotlaringiz asosida javob beradi.", ico: I(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={`url(#hw1)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#E8B84B","#D4A853","hw1"), c: "var(--gold)" },
+    { step: "03", title: "Natija oling", desc: "Grafiklar, hisobotlar, ogohlantirishlar — barchasi avtomatik. Bir tugma bilan PDF ga eksport qiling.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/></>, "#4ADE80","#22C55E","hw2"), c: "var(--green)" },
+  ];
+
+  const whyCards = [
+    { title: "Vaqtingizni tejang", desc: "Soatlab Excel bilan o'tirib hisobot yozish o'rniga — AI 30 soniyada tayyor qiladi. Siz biznesga e'tibor bering, hisobotni AI ga qoldiring.", ico: I(<><circle cx="12" cy="12" r="10" stroke={`url(#wc0)`} strokeWidth="1.8"/><polyline points="12 6 12 12 16 14" stroke={`url(#wc0)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></>, "#E8B84B","#D4A853","wc0"), c: "#E8B84B" },
+    { title: "Raqamlarga asoslaning", desc: "Sezgi bilan emas, aniq raqamlar bilan qaror qabul qiling. Qayerda pul yo'qolayotganini, qayerda o'sayotganini real-vaqtda ko'ring.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/></>, "#4ADE80","#22C55E","wc1"), c: "#4ADE80" },
+    { title: "Muammolarni oldindan ko'ring", desc: "AI sizning ma'lumotlaringizda anomaliyalarni avtomatik topadi. Savdo tushayotganini siz bilmasdan — tizim ogohlantiradi.", ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#wc2)`} strokeWidth="1.8"/><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#wc2)`} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill={`url(#wc2)`}/></>, "#F87171","#EF4444","wc2"), c: "#F87171" },
+    { title: "Barcha ma'lumot bir joyda", desc: "Excel, CRM, Instagram, Telegram — turli joylardagi ma'lumotlar bitta ekranda. Boshqa tab almashish, fayl qidirish yo'q.", ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/></>, "#00C9BE","#00A89E","wc3"), c: "#00C9BE" },
+    { title: "Xodimga to'lamang — AI qiladi", desc: "Tahlilchi yollash oyiga 5-10 mln so'm. BiznesAI bilan professional tahlilni 99 ming so'mdan oling. 50 barobar arzon.", ico: I(<><line x1="12" y1="1" x2="12" y2="23" stroke={`url(#wc4)`} strokeWidth="1.8"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={`url(#wc4)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#A78BFA","#7C3AED","wc4"), c: "#A78BFA" },
+    { title: "Ovozingiz bilan so'rang", desc: "Yozishga vaqt yo'qmi? Mikrofon bosing va savol bering. AI O'zbek tilida tushunadi va javob beradi. Mashina haydab ketayotganda ham ishlaydi.", ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#wc5)`} strokeWidth="1.8"/><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#EC4899","#DB2777","wc5"), c: "#EC4899" },
+  ];
+
+  const faqs = [
+    { q: "BiznesAI qanday ishlaydi?", a: "Siz ma'lumot manbangizni (Excel, CRM, Instagram va h.k.) ulaysiz. AI shu ma'lumotlar asosida savollaringizga javob beradi, grafiklar yaratadi, hisobotlar yozadi va anomaliyalarni aniqlaydi." },
+    { q: "Qaysi AI provayderlarni qo'llab-quvvatlaydi?", a: "Claude (Anthropic), ChatGPT (OpenAI), DeepSeek va Gemini (Google). Admin bitta global kalit o'rnatadi — barcha foydalanuvchilar bepul foydalanadi. Yoki o'z shaxsiy kalitingizni ulang." },
+    { q: "Ma'lumotlarim xavfsizmi?", a: "Ha. Ma'lumotlar PostgreSQL serverda shifrlangan holda saqlanadi. Boshqa foydalanuvchilar sizning ma'lumotlaringizni ko'ra olmaydi. Har bir foydalanuvchi uchun alohida izolyatsiya." },
+    { q: "Qancha turadi?", a: "Bepul tarif bor — 5 ta AI so'rov, 1 ta fayl. Boshlang'ich tarif 99,000 so'm/oy dan boshlanadi. Yillik to'lovda 2 oy bepul." },
+    { q: "Qanday ma'lumot manbalarini ulash mumkin?", a: "Excel/CSV fayllar, Google Sheets, REST API, Instagram Business, Telegram kanal, LC-UP CRM, PDF/Word hujjatlar, rasmlar, 1C Buxgalteriya, Yandex Metrika, SQL Database — jami 12 ta manba turi." },
+    { q: "O'zbek tilida ishlashi mumkinmi?", a: "Ha! Interfeys 100% O'zbek tilida. AI ham O'zbek tilida javob beradi. Ovozli kiritish ham O'zbek va Rus tilini qo'llab-quvvatlaydi." },
+  ];
+
   const planList = Object.keys(PLANS).map(k => getPlan(k));
+  const testimonials = [
+    { name: "Aziz Karimov", role: "O'quv markaz direktori", text: "CRM ni ulagan kunoq o'quvchilar tahlili tayyor bo'ldi. Endi har oylik hisobotni 2 daqiqada olaman.", ava: "AK" },
+    { name: "Nilufar Rahimova", role: "Marketing mutaxassisi", text: "Instagram postlarimni AI tahlil qiladi — qaysi kontent ishlashini ko'rsatadi. Engagement 40% oshdi.", ava: "NR" },
+    { name: "Jasur Toshmatov", role: "Kichik biznes egasi", text: "Excel hisobotlarimni yuklayman, AI savdo prognozini beradi. Endi qaror qabul qilish osonlashdi.", ava: "JT" },
+  ];
+
   return (
     <div className="landing">
       {/* NAV */}
       <nav className="land-nav">
         <div className="land-logo">BIZ<span>NES</span>AI</div>
-        <div className="flex gap8">
-          <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })} style={{ fontSize: 13, color: "var(--text2)", background: "none", border: "none", fontFamily: "var(--fh)", fontWeight: 500, padding: "6px 12px", cursor: "pointer" }}>Narxlar</button>
-          <button onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })} style={{ fontSize: 13, color: "var(--text2)", background: "none", border: "none", fontFamily: "var(--fh)", fontWeight: 500, padding: "6px 12px", cursor: "pointer" }}>Xususiyatlar</button>
+        <div className="flex gap8 aic" style={{flexWrap:"wrap"}}>
+          {[{l:"Xususiyatlar",id:"features"},{l:"Qanday ishlaydi",id:"howitworks"},{l:"Narxlar",id:"pricing"},{l:"FAQ",id:"faq"}].map(n=>(
+            <button key={n.id} onClick={()=>scrollTo(n.id)} style={{fontSize:13,color:"var(--text2)",background:"none",border:"none",fontFamily:"var(--fh)",fontWeight:500,padding:"6px 12px",cursor:"pointer",transition:"color .2s"}}
+              onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</button>
+          ))}
           <button className="btn btn-ghost btn-sm" onClick={onLogin}>Kirish</button>
-          <button className="btn btn-primary btn-sm" onClick={onRegister}>Ro'yxatdan o'tish</button>
+          <button className="btn btn-primary btn-sm" onClick={onRegister}>Bepul boshlash</button>
         </div>
       </nav>
 
       {/* HERO */}
       <div className="land-hero">
-        <div className="hero-badge"><span style={{ color: "var(--teal)" }}></span> BiznesAI v2.0 chiqdi</div>
+        <div className="hero-badge"><span style={{color:"var(--teal)"}}>&#9670;</span> Tizim doimiy yangilanib boradi — har hafta yangi imkoniyatlar</div>
         <h1 className="hero-title">
           Biznesingizni<br />
           <span className="grad">Sun'iy Intellekt</span><br />
           bilan boshqaring
         </h1>
         <p className="hero-sub">
-          Excel fayllaringizni, CRM, Instagram va Telegram botingizni AI ga ulang.
-          Savol bering, tahlil oling, hisobot yarating — barchasi bir joydan.
+          Excel, CRM, Instagram, Telegram, PDF, rasmlar va 12 ta boshqa manbani AI ga ulang.
+          Savol bering — tahlil, grafik, hisobot tayyor. Hatto ovozingiz bilan so'rang.
         </p>
         <div className="hero-btns">
-          <button className="btn btn-primary btn-lg" onClick={onRegister}>
-             Bepul boshlang
+          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{padding:"14px 36px",fontSize:15}}>
+            Bepul boshlang →
           </button>
-          <button className="btn btn-ghost btn-lg" onClick={onLogin}>
-             Kirish
+          <button className="btn btn-ghost btn-lg" onClick={onLogin} style={{padding:"14px 28px",fontSize:15}}>
+            Kirish
           </button>
         </div>
-        <div style={{ marginTop: 28, fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>
-          ✓ Kredit karta shart emas &nbsp;·&nbsp; ✓ O'rnatish shart emas &nbsp;·&nbsp; ✓ 10 so'rov bepul
+        <div style={{marginTop:28,display:"flex",gap:20,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"var(--muted)",fontFamily:"var(--fm)"}}>
+          <span>✓ Kredit karta shart emas</span>
+          <span>✓ 30 soniyada ro'yxatdan o'ting</span>
+          <span>✓ 5 ta AI so'rov bepul</span>
         </div>
       </div>
 
       {/* STATS */}
       <div className="land-stats">
-        {[{ n: "4+", l: "AI Provayder" }, { n: "9", l: "Grafik turi" }, { n: "6", l: "Ma'lumot manbasi" }, { n: "100%", l: "Uzbek tilida" }].map((s, i) => (
+        {[{n:"4+",l:"AI Provayder"},{n:"12",l:"Ma'lumot manbasi"},{n:"9",l:"Grafik turi"},{n:"Voice",l:"Ovozli kiritish"},{n:"100%",l:"O'zbek tilida"}].map((s,i)=>(
           <div key={i} className="stat-block">
             <div className="stat-num">{s.n}</div>
             <div className="stat-lbl">{s.l}</div>
@@ -1130,10 +1192,29 @@ function LandingPage({ onLogin, onRegister }) {
         ))}
       </div>
 
+      {/* HOW IT WORKS */}
+      <div id="howitworks" className="land-section">
+        <h2 className="land-section-title">Qanday ishlaydi?</h2>
+        <p className="land-section-sub">3 ta oddiy qadamda biznes tahlilga ega bo'ling</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:24,maxWidth:960,margin:"0 auto"}}>
+          {howItWorks.map((h,i)=>(
+            <div key={i} style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:16,padding:"32px 28px",textAlign:"center",position:"relative",transition:"all .25s",cursor:"default"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=h.c+"50";e.currentTarget.style.transform="translateY(-4px)"}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="none"}}>
+              <div style={{position:"absolute",top:16,left:20,fontFamily:"var(--fh)",fontSize:42,fontWeight:900,color:h.c,opacity:0.08}}>{h.step}</div>
+              <div style={{marginBottom:16,width:48,height:48,borderRadius:14,background:`${h.c}12`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>{h.ico}</div>
+              <div style={{fontFamily:"var(--fh)",fontSize:17,fontWeight:700,marginBottom:8,color:h.c}}>{h.title}</div>
+              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.7}}>{h.desc}</div>
+              {i<2&&<div style={{position:"absolute",right:-16,top:"50%",fontSize:20,color:"var(--muted)",display:window.innerWidth>800?"block":"none"}}>→</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* FEATURES */}
-      <div id="features" className="land-section">
-        <h2 className="land-section-title">Hamma narsani bir joyda</h2>
-        <p className="land-section-sub">Biznes tahlili uchun zarur bo'lgan barcha vositalar</p>
+      <div id="features" className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+        <h2 className="land-section-title">Kuchli imkoniyatlar</h2>
+        <p className="land-section-sub">Biznes tahlili uchun zarur bo'lgan barcha vositalar — bitta platformada</p>
         <div className="feat-grid">
           {feats.map((f, i) => (
             <div key={i} className="feat-card" style={{ "--fc": f.c }}>
@@ -1145,76 +1226,151 @@ function LandingPage({ onLogin, onRegister }) {
         </div>
       </div>
 
-      {/* PRICING */}
-      <div id="pricing" className="land-section" style={{ background: "var(--s1)", margin: "0", padding: "60px 40px" }}>
-        <h2 className="land-section-title">Qulay narxlar</h2>
-        <p className="land-section-sub">Biznesingiz hajmiga mos tarif tanlang</p>
-
-        {/* Billing toggle */}
-        <div className="billing-toggle">
-          <div className="billing-pill">
-            <div className={`billing-opt ${billing === "monthly" ? "active" : ""}`} onClick={() => setBilling("monthly")}>Oylik</div>
-            <div className={`billing-opt ${billing === "yearly" ? "active teal" : ""}`} onClick={() => setBilling("yearly")}>Yillik</div>
-          </div>
-          {billing === "yearly" && <span className="billing-save">2 oy bepul!</span>}
+      {/* WHY BIZNESAI — Sotuvga undovchi */}
+      <div className="land-section">
+        <h2 className="land-section-title">Nega aynan BiznesAI?</h2>
+        <p className="land-section-sub">Biznesingizni tushunish uchun soatlab vaqt sarflamang — AI buni soniyalarda qiladi</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:20,maxWidth:1100,margin:"0 auto"}}>
+          {whyCards.map((w,i)=>(
+            <div key={i} style={{padding:"28px 24px",borderRadius:16,border:"1px solid var(--border)",background:"var(--s1)",transition:"all .3s var(--ease)",cursor:"default",position:"relative",overflow:"hidden"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=w.c+"50";e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow=`0 16px 40px ${w.c}15`}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
+              <div style={{position:"absolute",top:0,left:0,right:0,height:"2px",background:`linear-gradient(90deg,transparent,${w.c}60,transparent)`,opacity:0.6}}/>
+              <div style={{width:52,height:52,borderRadius:14,background:`${w.c}10`,border:`1px solid ${w.c}20`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>{w.ico}</div>
+              <div style={{fontFamily:"var(--fh)",fontSize:17,fontWeight:700,marginBottom:8,color:w.c,letterSpacing:"-0.3px"}}>{w.title}</div>
+              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8}}>{w.desc}</div>
+            </div>
+          ))}
         </div>
+      </div>
 
-        <div className="pricing-grid">
-          {planList.map(plan => (
-            <div key={plan.id} className={`plan-card ${plan.badge ? "popular" : ""}`}>
-              {plan.badge && <div className="plan-badge">{plan.badge}</div>}
-              <div className="plan-name" style={{ color: plan.color }}>{plan.nameUz}</div>
-              <div className="plan-price" style={{ color: plan.price_monthly === 0 ? "var(--text)" : plan.color }}>
-                {billing === "yearly" && plan.price_yearly > 0
-                  ? <>{Math.round(plan.price_yearly / 12).toLocaleString("uz-UZ")}<span> so'm</span></>
-                  : plan.price_monthly === 0
-                    ? "Bepul"
-                    : <>{plan.price_monthly.toLocaleString("uz-UZ")}<span> so'm</span></>
-                }
-              </div>
-              <div className="plan-period">{plan.price_monthly === 0 ? "Doimo bepul" : billing === "yearly" ? "oyiga (yillik hisob)" : "oyiga"}</div>
-              <div className="plan-divider" />
-              {plan.features.map((f, i) => (
-                <div key={i} className="plan-feat">
-                  <span className="plan-feat-ico" style={{ color: f.ok ? "var(--green)" : "var(--muted)" }}>{f.ok ? "✓" : "✗"}</span>
-                  <span style={{ color: f.ok ? "var(--text2)" : "var(--muted)", fontSize: 11 }}>{f.t}</span>
+      {/* TESTIMONIALS */}
+      <div className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+        <h2 className="land-section-title">Foydalanuvchilar fikri</h2>
+        <p className="land-section-sub">BiznesAI ishlatayotgan mutaxassislar nima deydi</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20,maxWidth:1000,margin:"0 auto"}}>
+          {testimonials.map((t,i)=>(
+            <div key={i} style={{padding:"28px",borderRadius:16,border:"1px solid var(--border)",background:"var(--bg)",position:"relative"}}>
+              <div style={{fontSize:40,color:"var(--gold)",opacity:0.12,position:"absolute",top:12,right:20,fontFamily:"Georgia,serif",fontWeight:700}}>&ldquo;</div>
+              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8,marginBottom:20,fontStyle:"italic"}}>"{t.text}"</div>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,var(--gold),var(--teal))",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--fh)",fontWeight:800,fontSize:13,color:"#000"}}>{t.ava}</div>
+                <div>
+                  <div style={{fontFamily:"var(--fh)",fontSize:13,fontWeight:700}}>{t.name}</div>
+                  <div style={{fontSize:11,color:"var(--muted)"}}>{t.role}</div>
                 </div>
-              ))}
-              <div className="plan-btn">
-                <button
-                  className="btn btn-primary"
-                  style={{
-                    width: "100%",
-                    background: plan.price_monthly === 0 ? "var(--s3)" : undefined,
-                    color: plan.price_monthly === 0 ? "var(--text2)" : undefined,
-                    boxShadow: plan.price_monthly === 0 ? "none" : undefined,
-                    border: plan.price_monthly === 0 ? "1px solid var(--border)" : "none"
-                  }}
-                  onClick={plan.price_monthly === 0 ? onRegister : onRegister}>
-                  {plan.price_monthly === 0 ? "Bepul boshlash" : "Tanlash"}
-                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* PRICING */}
+      <div id="pricing" className="land-section" style={{padding:"70px 40px"}}>
+        <h2 className="land-section-title">Qulay narxlar</h2>
+        <p className="land-section-sub">Biznesingiz hajmiga mos tarif tanlang. Istalgan vaqtda yangilash mumkin.</p>
+        <div className="billing-toggle">
+          <div className="billing-pill">
+            <div className={`billing-opt ${billing==="monthly"?"active":""}`} onClick={()=>setBilling("monthly")}>Oylik</div>
+            <div className={`billing-opt ${billing==="yearly"?"active teal":""}`} onClick={()=>setBilling("yearly")}>Yillik</div>
+          </div>
+          {billing==="yearly"&&<span className="billing-save">2 oy bepul!</span>}
+        </div>
+        <div className="pricing-grid">
+          {planList.map(plan=>(
+            <div key={plan.id} className={`plan-card ${plan.badge?"popular":""}`}>
+              {plan.badge&&<div className="plan-badge">{plan.badge}</div>}
+              <div className="plan-name" style={{color:plan.color}}>{plan.nameUz}</div>
+              <div className="plan-price" style={{color:plan.price_monthly===0?"var(--text)":plan.color}}>
+                {billing==="yearly"&&plan.price_yearly>0
+                  ?<>{Math.round(plan.price_yearly/12).toLocaleString("uz-UZ")}<span> so'm</span></>
+                  :plan.price_monthly===0?"Bepul":<>{plan.price_monthly.toLocaleString("uz-UZ")}<span> so'm</span></>}
+              </div>
+              <div className="plan-period">{plan.price_monthly===0?"Doimo bepul":billing==="yearly"?"oyiga (yillik hisob)":"oyiga"}</div>
+              <div className="plan-divider"/>
+              {plan.features.map((f,i)=>(
+                <div key={i} className="plan-feat">
+                  <span className="plan-feat-ico" style={{color:f.ok?"var(--green)":"var(--muted)"}}>{f.ok?"✓":"✗"}</span>
+                  <span style={{color:f.ok?"var(--text2)":"var(--muted)",fontSize:11}}>{f.t}</span>
+                </div>
+              ))}
+              <div className="plan-btn">
+                <button className="btn btn-primary" style={{width:"100%",background:plan.price_monthly===0?"var(--s3)":undefined,color:plan.price_monthly===0?"var(--text2)":undefined,boxShadow:plan.price_monthly===0?"none":undefined,border:plan.price_monthly===0?"1px solid var(--border)":"none"}}
+                  onClick={onRegister}>{plan.price_monthly===0?"Bepul boshlash":"Tanlash →"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FAQ */}
+      <div id="faq" className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+        <h2 className="land-section-title">Ko'p so'raladigan savollar</h2>
+        <p className="land-section-sub">Savolingiz bormi? Javoblar shu yerda</p>
+        <div style={{maxWidth:720,margin:"0 auto"}}>
+          {faqs.map((f,i)=>(
+            <div key={i} style={{borderBottom:"1px solid var(--border)",padding:"0"}}>
+              <div onClick={()=>setOpenFaq(openFaq===i?null:i)}
+                style={{padding:"20px 0",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",transition:"color .2s"}}
+                onMouseEnter={e=>e.currentTarget.style.color="var(--teal)"} onMouseLeave={e=>e.currentTarget.style.color="var(--text)"}>
+                <span style={{fontFamily:"var(--fh)",fontSize:14,fontWeight:600}}>{f.q}</span>
+                <span style={{fontSize:18,color:"var(--muted)",transition:"transform .3s",transform:openFaq===i?"rotate(45deg)":"none",flexShrink:0,marginLeft:16}}>+</span>
+              </div>
+              {openFaq===i&&(
+                <div style={{padding:"0 0 20px",fontSize:13,color:"var(--text2)",lineHeight:1.8,animation:"fadeIn .3s ease"}}>{f.a}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* CTA */}
-      <div className="land-section" style={{ textAlign: "center" }}>
-        <h2 className="land-section-title">Hoziroq boshlang</h2>
-        <p className="land-section-sub">Ro'yxatdan o'tish 30 soniya davom etadi</p>
-        <button className="btn btn-primary btn-lg" onClick={onRegister}> Bepul boshlash</button>
+      <div className="land-section" style={{textAlign:"center",padding:"80px 48px"}}>
+        <h2 className="land-section-title">Biznesingizni AI bilan boshqarishni boshlang</h2>
+        <p className="land-section-sub" style={{marginBottom:32}}>Ro'yxatdan o'tish 30 soniya — kredit karta shart emas</p>
+        <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap"}}>
+          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{padding:"16px 40px",fontSize:16}}>Bepul boshlash →</button>
+          <button className="btn btn-ghost btn-lg" onClick={()=>scrollTo("features")} style={{padding:"16px 32px",fontSize:16}}>Batafsil →</button>
+        </div>
+        <div style={{marginTop:32,display:"flex",gap:32,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"var(--muted)"}}>
+          <span>&#9670; 4 ta AI provayder</span>
+          <span>&#9670; 12 ta manba turi</span>
+          <span>&#9670; Ovozli kiritish</span>
+          <span>&#9670; Hujjat tahlili</span>
+          <span>&#9670; Xavfsiz</span>
+        </div>
       </div>
 
       {/* FOOTER */}
-      <div style={{ borderTop: "1px solid var(--border)", padding: "24px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ fontFamily: "var(--fh)", fontWeight: 700, fontSize: 14 }}>BIZ<span style={{ color: "var(--gold)" }}>NES</span>AI</div>
-        <div style={{ fontSize: 11, color: "var(--muted)" }}> 2025 BiznesAI. Barcha huquqlar himoyalangan.</div>
-        <div style={{ display: "flex", gap: 16 }}>
-          {["Maxfiylik", "Shartlar", "Yordam"].map(l => (
-            <span key={l} style={{ fontSize: 11, color: "var(--muted)", cursor: "pointer", fontFamily: "var(--fm)" }}>{l}</span>
+      <div style={{borderTop:"1px solid var(--border)",padding:"32px 48px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:32}}>
+        <div>
+          <div style={{fontFamily:"var(--fh)",fontWeight:800,fontSize:18,marginBottom:12}}>BIZ<span style={{color:"var(--gold)"}}>NES</span>AI</div>
+          <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>O'zbekiston uchun AI-powered biznes tahlil platformasi. Barcha ma'lumotlaringizni bitta joyda tahlil qiling.</div>
+        </div>
+        <div>
+          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Sahifalar</div>
+          {[{l:"Xususiyatlar",id:"features"},{l:"Narxlar",id:"pricing"},{l:"FAQ",id:"faq"},{l:"Qanday ishlaydi",id:"howitworks"}].map(n=>(
+            <div key={n.id} style={{fontSize:12,color:"var(--text2)",cursor:"pointer",padding:"4px 0",transition:"color .2s"}}
+              onClick={()=>scrollTo(n.id)} onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</div>
           ))}
         </div>
+        <div>
+          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Ma'lumot manbalari</div>
+          {["Excel/CSV","Google Sheets","Instagram","Telegram","CRM","PDF/Word","Rasmlar","1C Buxgalteriya","Yandex Metrika","SQL Database"].map(s=>(
+            <div key={s} style={{fontSize:11,color:"var(--text2)",padding:"3px 0"}}>{s}</div>
+          ))}
+        </div>
+        <div>
+          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Aloqa</div>
+          <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.8}}>
+            <div>info@shonazar.uz</div>
+            <div>Telegram: @biznesai_uz</div>
+            <div>shonazar.uz</div>
+          </div>
+        </div>
+      </div>
+      <div style={{borderTop:"1px solid var(--border)",padding:"16px 48px",textAlign:"center",fontSize:11,color:"var(--muted)"}}>
+        © 2025-2026 BiznesAI. Barcha huquqlar himoyalangan. O'zbekistonda ishlab chiqilgan.
       </div>
     </div>
   );
@@ -3560,15 +3716,21 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {/* EXCEL */}
           {src.type === "excel" && (
             <div>
-              <div style={{ border: "2px dashed rgba(0,201,190,0.2)", borderRadius: 8, padding: 20, textAlign: "center", cursor: "pointer", transition: "all .2s", background: drag ? "rgba(0,201,190,0.04)" : "transparent", position: "relative", marginBottom: 10 }}
+              <div className={`drop-zone ${drag?"drag":""}`}
                 onDragOver={e => { e.preventDefault(); setDrag(true) }}
                 onDragLeave={() => setDrag(false)}
                 onDrop={e => { e.preventDefault(); setDrag(false); handleExcelFiles([...e.dataTransfer.files]); }}>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" multiple style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
                   onChange={e => handleExcelFiles([...e.target.files])} />
-                <div style={{ fontSize: 22, marginBottom: 6 }}>{loading ? "" : ""}</div>
-                <div className="text-sm text-muted">{loading ? "Yuklanmoqda..." : "Bir yoki bir nechta fayl tashlang"}</div>
-                <div className="text-xs text-muted mt4" style={{ opacity: .6 }}>.xlsx .xls .csv — bir vaqtda ko'p fayl</div>
+                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(74,222,128,0.3))"}}>{loading?"⏳":"📊"}</div>
+                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>{loading?"Yuklanmoqda...":"Excel fayllarni bu yerga tashlang"}</div>
+                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+                  {["XLSX","XLS","CSV"].map(t=>(
+                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(74,222,128,0.1)",color:"#4ADE80",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(74,222,128,0.15)"}}>{t}</span>
+                  ))}
+                </div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:12}}>Bir vaqtda ko'p fayl yuklash mumkin</div>
               </div>
               {src.files?.map((f, i) => (
                 <div key={i} className="flex aic gap8 mb6" style={{ padding: "6px 10px", background: "var(--s3)", borderRadius: 6, fontSize: 11 }}>
@@ -3864,23 +4026,31 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             <div>
               <input ref={docFileRef} type="file" multiple accept=".pdf,.docx,.doc,.txt,.csv,.md,.log,.rtf" style={{display:"none"}}
                 onChange={e=>{ if(e.target.files.length) handleDocumentFiles(Array.from(e.target.files)); e.target.value=""; }} />
-              <div className={`drop-zone ${drag?"drag":""}`}
+              <div className={`drop-zone drop-doc ${drag?"drag":""}`}
                 onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
                 onDrop={e=>{e.preventDefault();setDrag(false);handleDocumentFiles(Array.from(e.dataTransfer.files));}}
                 onClick={()=>docFileRef.current?.click()}>
-                <div style={{fontSize:32,marginBottom:8}}>📄</div>
-                <div style={{fontFamily:"var(--fh)",fontSize:13,marginBottom:4}}>Hujjatlarni bu yerga tashlang</div>
-                <div className="text-xs text-muted">PDF, DOCX, TXT, CSV, MD fayllar</div>
-                <div className="text-xs text-muted mt4">AI hujjat mazmunini tahlil qiladi</div>
+                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(248,113,113,0.3))"}}>📄</div>
+                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>Hujjatlarni bu yerga tashlang</div>
+                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+                  {["PDF","DOCX","TXT","CSV","MD"].map(t=>(
+                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(248,113,113,0.1)",color:"#F87171",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(248,113,113,0.15)"}}>{t}</span>
+                  ))}
+                </div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:12,display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:14}}>🤖</span> AI hujjat mazmunini o'qib tahlil qiladi
+                </div>
               </div>
               {src.files?.length>0&&(
-                <div className="mt8">
-                  <div className="text-xs text-muted mb4">Yuklangan fayllar:</div>
+                <div style={{marginTop:12,padding:12,background:"var(--s2)",borderRadius:12,border:"1px solid var(--border)"}}>
+                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Yuklangan fayllar ({src.files.length})</div>
                   {src.files.map((f,i)=>(
-                    <div key={i} style={{fontSize:11,padding:"4px 8px",background:"var(--s2)",borderRadius:6,marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
-                      <span>📄</span> <span style={{flex:1}}>{f.fileName}</span>
-                      <span className="text-muted">{f.type?.toUpperCase()}</span>
-                      <span className="text-muted">{Math.round((f.size||0)/1024)}KB</span>
+                    <div key={i} style={{fontSize:12,padding:"8px 12px",background:"var(--s1)",borderRadius:8,marginBottom:4,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--border2)"}}>
+                      <span style={{fontSize:18}}>{f.type==='pdf'?'📕':f.type==='docx'?'📘':f.type==='txt'?'📝':'📋'}</span>
+                      <span style={{flex:1,fontWeight:600,fontSize:12}}>{f.fileName}</span>
+                      <span style={{padding:"2px 8px",borderRadius:12,background:"rgba(248,113,113,0.1)",color:"#F87171",fontSize:9,fontFamily:"var(--fh)",fontWeight:700}}>{f.type?.toUpperCase()}</span>
+                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{Math.round((f.size||0)/1024)} KB</span>
                     </div>
                   ))}
                 </div>
@@ -3893,23 +4063,36 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             <div>
               <input ref={imgFileRef} type="file" multiple accept="image/*" style={{display:"none"}}
                 onChange={e=>{ if(e.target.files.length) handleImageFiles(Array.from(e.target.files)); e.target.value=""; }} />
-              <div className={`drop-zone ${drag?"drag":""}`}
+              <div className={`drop-zone drop-img ${drag?"drag":""}`}
                 onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
                 onDrop={e=>{e.preventDefault();setDrag(false);handleImageFiles(Array.from(e.dataTransfer.files));}}
                 onClick={()=>imgFileRef.current?.click()}>
-                <div style={{fontSize:32,marginBottom:8}}>🖼️</div>
-                <div style={{fontFamily:"var(--fh)",fontSize:13,marginBottom:4}}>Rasmlarni bu yerga tashlang</div>
-                <div className="text-xs text-muted">JPG, PNG, GIF, WebP, SVG</div>
-                <div className="text-xs text-muted mt4">AI rasm mazmunini tavsiflaydi</div>
+                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(236,72,153,0.3))"}}>🖼️</div>
+                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>Rasmlarni bu yerga tashlang</div>
+                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
+                  {["JPG","PNG","GIF","WebP","SVG"].map(t=>(
+                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(236,72,153,0.1)",color:"#EC4899",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(236,72,153,0.15)"}}>{t}</span>
+                  ))}
+                </div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:12,display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:14}}>🤖</span> AI rasm mazmunini tavsiflaydi va tahlil qiladi
+                </div>
               </div>
               {src.data?.length>0&&(
-                <div className="mt8" style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  {src.data.slice(0,6).map((r,i)=>(
-                    <div key={i} style={{width:80,height:80,borderRadius:8,overflow:"hidden",border:"1px solid var(--border)"}}>
-                      {r.rasm_url?<img src={r.rasm_url} alt={r.fayl_nomi} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
-                      <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--s2)",fontSize:9,color:"var(--muted)"}}>{r.fayl_nomi}</div>}
-                    </div>
-                  ))}
+                <div style={{marginTop:12}}>
+                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Yuklangan rasmlar ({src.data.length})</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:10}}>
+                    {src.data.slice(0,12).map((r,i)=>(
+                      <div key={i} style={{borderRadius:12,overflow:"hidden",border:"2px solid var(--border)",aspectRatio:"1",position:"relative",transition:"all .2s",cursor:"pointer"}}
+                        onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(236,72,153,0.4)"}
+                        onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
+                        {r.rasm_url?<img src={r.rasm_url} alt={r.fayl_nomi} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
+                        <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--s2)",fontSize:24}}>🖼️</div>}
+                        <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"4px 6px",background:"linear-gradient(transparent,rgba(0,0,0,0.7))",fontSize:8,color:"#fff",fontFamily:"var(--fm)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.fayl_nomi}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -4610,16 +4793,31 @@ function VoiceButton({ onResult }) {
     <button
       className="chat-voice-btn"
       onClick={toggle}
-      title={listening ? "To'xtatish" : "Ovozli kiritish"}
+      title={listening ? "To'xtatish" : "Ovozli kiritish (🎤)"}
       style={{
-        width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer',
+        minWidth: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        fontSize: 16, transition: 'all .2s',
-        background: listening ? 'rgba(248,113,113,0.2)' : 'var(--s2)',
-        color: listening ? 'var(--red)' : 'var(--muted)',
+        transition: 'all .2s',
+        background: listening
+          ? 'linear-gradient(135deg, #F87171, #EF4444)'
+          : 'linear-gradient(135deg, #A78BFA, #7C3AED)',
+        boxShadow: listening
+          ? '0 4px 16px rgba(248,113,113,0.4)'
+          : '0 4px 16px rgba(167,139,250,0.3)',
         animation: listening ? 'pulse-voice 1.5s ease infinite' : 'none',
       }}>
-      {listening ? '⏹' : '🎤'}
+      {listening ? (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="6" y="6" width="12" height="12" rx="2" fill="#fff"/>
+        </svg>
+      ) : (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10a7 7 0 0 0 14 0"/>
+          <line x1="12" y1="17" x2="12" y2="22"/>
+          <line x1="8" y1="22" x2="16" y2="22"/>
+        </svg>
+      )}
     </button>
   );
 }
