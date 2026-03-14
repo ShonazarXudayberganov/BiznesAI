@@ -7628,6 +7628,31 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// LIVE CLOCK — real-time soat + sana
+// ─────────────────────────────────────────────────────────────
+function LiveClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const days = ["Yak","Dush","Sesh","Chor","Pay","Jum","Shan"];
+  const day = days[now.getDay()];
+  const date = now.toLocaleDateString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric" });
+  const time = now.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  return (
+    <div className="hide-mobile" style={{ display:"flex", alignItems:"center", gap:8, padding:"4px 12px", borderRadius:8, background:"var(--s2)", border:"1px solid var(--border)" }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div style={{ fontFamily:"var(--fm)", fontSize:11, color:"var(--text2)", letterSpacing:0.5 }}>
+        <span style={{ color:"var(--muted)", marginRight:4 }}>{day}</span>
+        <span>{date}</span>
+        <span style={{ color:"var(--teal)", marginLeft:6, fontWeight:600 }}>{time}</span>
+      </div>
+    </div>
+  );
+}
+
 const AngledXTick = ({ x, y, payload }) => (
   <g transform={`translate(${x},${y})`}>
     <text x={0} y={0} dy={10} textAnchor="end" fill="var(--chart-label)" fontSize={8} fontFamily="Space Grotesk,sans-serif" transform="rotate(-40)">
@@ -8667,8 +8692,14 @@ export default function App() {
                 <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
               </div>
               <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
-              <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{new Date().toLocaleDateString("uz-UZ")}</span>
-              <button className="btn btn-ghost btn-xs" onClick={handleLogout} style={{ color: "var(--muted)" }}>Chiqish</button>
+              <LiveClock />
+              <button onClick={handleLogout}
+                style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(248,113,113,0.25)", background:"rgba(248,113,113,0.06)", color:"#FB7185", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}
+                onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.12)";e.currentTarget.style.borderColor="rgba(248,113,113,0.4)"}}
+                onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.06)";e.currentTarget.style.borderColor="rgba(248,113,113,0.25)"}}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span className="hide-mobile">Chiqish</span>
+              </button>
             </div>
           </div>
 
