@@ -2843,8 +2843,9 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
       {/* ═══ USER DETAIL MODAL ═══ */}
       {selectedUser && (() => {
+        try {
         const u = users.find(uu => uu.id === selectedUser.id) || selectedUser;
-        const plan = PLANS[u.plan] || PLANS.free;
+        const plan = PLANS[u?.plan] || PLANS.free;
         const uRevenue = u.totalPaid || 0;
         const curM = new Date().toISOString().slice(0, 7);
         const aiUsed = u.ai_requests_month === curM ? (u.ai_requests_used || 0) : 0;
@@ -3024,6 +3025,10 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
             </div>
           </div>
         );
+        } catch(e) {
+          console.error("[AdminPanel] User modal error:", e);
+          return <div className="modal-overlay" onClick={() => setSelectedUser(null)}><div className="modal-box" style={{textAlign:"center",padding:32}}><div style={{color:"var(--red)",marginBottom:12}}>Xato yuz berdi</div><button className="btn btn-ghost" onClick={() => setSelectedUser(null)}>Yopish</button></div></div>;
+        }
       })()}
     </div>
   );
@@ -7766,32 +7771,29 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
       </CardWrap>
     );
 
-  // ── CHART type — faqat ma'lumotga mos turlarni ko'rsatish ──
+  // ── CHART type — faqat ma'lumotga ENG MOS 2-3 ta turni ko'rsatish ──
   const compatibleTypes = useMemo(() => {
     const data = card.data || [];
-    if (!data.length) return ["bar"];
+    if (!data.length) return [card.chartType || "bar"];
     const keys = Object.keys(data[0] || {});
     const numKeys = keys.filter(k => {
       const vals = data.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
       return vals.filter(v => !isNaN(v)).length > data.length * 0.4;
     });
-    const strKeys = keys.filter(k => !numKeys.includes(k));
-    const types = [];
 
-    // Bar — deyarli hamma vaqt ishlaydi
-    types.push("bar");
-    // Line/Area — 3+ qator bo'lsa (trend ko'rsatish uchun)
-    if (data.length >= 3) { types.push("line"); types.push("area"); }
-    // Pie — 2-8 qator + 1 raqamli ustun (taqsimot uchun)
-    if (data.length >= 2 && data.length <= 12 && numKeys.length >= 1) types.push("pie");
-    // Stacked — 2+ raqamli ustun
-    if (numKeys.length >= 2) types.push("stackedbar");
-    // Scatter — 2+ raqamli ustun
-    if (numKeys.length >= 2 && data.length >= 3) types.push("scatter");
+    // Pie chart uchun — faqat bar bilan almashtirish mumkin
+    if (card.chartType === "pie") return ["pie", "bar"];
 
-    // Agar hozirgi chart type ro'yxatda yo'q bo'lsa — qo'shish
-    if (card.chartType && !types.includes(card.chartType)) types.unshift(card.chartType);
-    return types;
+    // Scatter — faqat scatter va bar
+    if (card.chartType === "scatter") return ["scatter", "bar"];
+
+    // Asosiy tur + 1-2 ta alternativa
+    const types = [card.chartType || "bar"];
+    if (data.length >= 4 && !types.includes("line")) types.push("line");
+    if (!types.includes("bar")) types.push("bar");
+    if (data.length >= 2 && data.length <= 10 && numKeys.length === 1 && !types.includes("pie")) types.push("pie");
+
+    return types.slice(0, 3); // Max 3 ta
   }, [card.data, card.chartType]);
 
   const filteredOptions = CHART_TYPE_OPTIONS.filter(o => compatibleTypes.includes(o.id));
