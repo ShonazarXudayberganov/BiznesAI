@@ -4964,11 +4964,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {/* Dashboard kartalar gridi */}
       {filter !== "table" && filteredCards.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-          {filteredCards.map(card => (
-            <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-          ))}
-        </div>
+        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_charts_"+(workingSource?.id||"")} />
       )}
 
       {filter !== "table" && allCards.length === 0 && !aiLoading && (
@@ -5610,11 +5606,7 @@ JAVOB QOIDALARI:
             {relatedCharts.length > 0 && (
               <div>
                 <div className="section-hd mb10"> Aloqador Grafiklar</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-                  {relatedCharts.map(card => (
-                    <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-                  ))}
-                </div>
+                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_ana_rel"} />
               </div>
             )}
           </div>
@@ -5670,11 +5662,7 @@ JAVOB QOIDALARI:
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-            {allCards.map(card => (
-              <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-            ))}
-          </div>
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_ana_all"} />
         )}
       </div>)}
     </div>
@@ -6022,11 +6010,7 @@ HISOBOT QOIDALARI:
             {relatedCharts.length > 0 && (
               <div>
                 <div className="section-hd mb10"> Aloqador Grafiklar</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-                  {relatedCharts.map(card => (
-                    <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-                  ))}
-                </div>
+                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_rep_rel"} />
               </div>
             )}
           </div>
@@ -6148,11 +6132,7 @@ HISOBOT QOIDALARI:
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-            {allCards.map(card => (
-              <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-            ))}
-          </div>
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_rep_all"} />
         )}
       </div>)}
     </div>
@@ -6549,11 +6529,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {checkResult && !loading && relatedCharts.length > 0 && (
           <div>
             <div className="section-hd mb10"> Aloqador Grafiklar</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-              {relatedCharts.map(card => (
-                <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-              ))}
-            </div>
+            <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_alert_rel"} />
           </div>
         )}
 
@@ -6647,11 +6623,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-            {allCards.map(card => (
-              <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-            ))}
-          </div>
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_alert_all"} />
         )}
       </div>)}
     </div>
@@ -7399,6 +7371,126 @@ const AngledXTick = ({ x, y, payload }) => (
   </g>
 );
 
+// ─────────────────────────────────────────────────────────────
+// CARD GRID — Drag & Drop + Resize (har bir foydalanuvchi uchun)
+// ─────────────────────────────────────────────────────────────
+const CARD_SIZES = { "1x1": { col: 1, row: 1 }, "2x1": { col: 2, row: 1 }, "1x2": { col: 1, row: 2 }, "2x2": { col: 2, row: 2 } };
+
+function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey }) {
+  // Layout: { [cardId]: { order, size } }
+  const [layout, setLayout] = useState(() => LS.get(layoutKey, {}));
+  const [dragId, setDragId] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+
+  // Layout saqlash
+  const saveLayout = (newLayout) => { setLayout(newLayout); if (layoutKey) LS.set(layoutKey, newLayout); };
+
+  // Kartalarni tartib bo'yicha saralash
+  const sorted = useMemo(() => {
+    return [...cards].sort((a, b) => {
+      const oa = layout[a.id]?.order ?? 999;
+      const ob = layout[b.id]?.order ?? 999;
+      return oa - ob;
+    });
+  }, [cards, layout]);
+
+  // Drag handlers
+  const onDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", id); };
+  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const onDrop = (e, targetId) => {
+    e.preventDefault();
+    if (!dragId || dragId === targetId) { setDragId(null); return; }
+    const ids = sorted.map(c => c.id);
+    const fromIdx = ids.indexOf(dragId);
+    const toIdx = ids.indexOf(targetId);
+    if (fromIdx < 0 || toIdx < 0) { setDragId(null); return; }
+    // Joylarni almashtirish
+    const newOrder = [...ids];
+    newOrder.splice(fromIdx, 1);
+    newOrder.splice(toIdx, 0, dragId);
+    const newLayout = { ...layout };
+    newOrder.forEach((id, i) => { newLayout[id] = { ...(newLayout[id] || {}), order: i }; });
+    saveLayout(newLayout);
+    setDragId(null);
+  };
+
+  // Resize
+  const cycleSize = (id) => {
+    const sizes = ["1x1", "2x1", "1x2", "2x2"];
+    const cur = layout[id]?.size || "1x1";
+    const next = sizes[(sizes.indexOf(cur) + 1) % sizes.length];
+    saveLayout({ ...layout, [id]: { ...(layout[id] || {}), size: next, order: layout[id]?.order ?? 999 } });
+  };
+
+  // Reset layout
+  const resetLayout = () => { saveLayout({}); setEditMode(false); };
+
+  if (!cards.length) return null;
+
+  return (
+    <div>
+      {/* Edit mode toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 10 }}>
+        <button className="btn btn-ghost btn-xs" onClick={() => setEditMode(!editMode)}
+          style={editMode ? { borderColor: "rgba(0,201,190,0.4)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}>
+          {editMode ? "✓ Tayyor" : "⚙ Tartibni o'zgartirish"}
+        </button>
+        {editMode && (
+          <button className="btn btn-ghost btn-xs" onClick={resetLayout}
+            style={{ borderColor: "rgba(248,113,113,0.3)", color: "var(--red)" }}>
+            Asl holatga qaytarish
+          </button>
+        )}
+      </div>
+
+      {/* Grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))",
+        gap: 16,
+        ...(editMode ? { background: "rgba(0,201,190,0.02)", borderRadius: 16, padding: 8, border: "1px dashed rgba(0,201,190,0.15)" } : {}),
+      }}>
+        {sorted.map(card => {
+          const sz = CARD_SIZES[layout[card.id]?.size || "1x1"];
+          return (
+            <div key={card.id}
+              draggable={editMode}
+              onDragStart={e => onDragStart(e, card.id)}
+              onDragOver={onDragOver}
+              onDrop={e => onDrop(e, card.id)}
+              style={{
+                gridColumn: `span ${sz.col}`,
+                gridRow: `span ${sz.row}`,
+                position: "relative",
+                transition: "all .2s",
+                opacity: dragId === card.id ? 0.4 : 1,
+                cursor: editMode ? "grab" : "default",
+                ...(editMode ? { outline: "2px dashed rgba(0,201,190,0.2)", outlineOffset: 2, borderRadius: 16 } : {}),
+              }}>
+              {/* Resize tugma — faqat edit modeda */}
+              {editMode && (
+                <div style={{ position: "absolute", top: 6, right: 6, zIndex: 10, display: "flex", gap: 4 }}>
+                  <button onClick={() => cycleSize(card.id)}
+                    style={{
+                      width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(0,201,190,0.3)",
+                      background: "rgba(0,201,190,0.1)", color: "var(--teal)", fontSize: 9,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontFamily: "var(--fh)", fontWeight: 700,
+                    }}
+                    title={`Hajm: ${layout[card.id]?.size || "1x1"} → bosib o'zgartiring`}>
+                    {layout[card.id]?.size || "1x1"}
+                  </button>
+                </div>
+              )}
+              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function DashCard({ card, chartOverrides, setChartOverride }) {
   const cType = chartOverrides[card.id] || card.chartType;
   const CARD_H = 380; // Barcha kartalar uchun YAGONA balandlik
@@ -7591,7 +7683,7 @@ function DashCard({ card, chartOverrides, setChartOverride }) {
 // ─────────────────────────────────────────────────────────────
 // DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────────
-function DashboardPage({ sources, aiConfig, setPage }) {
+function DashboardPage({ sources, aiConfig, setPage, user }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
@@ -7706,11 +7798,7 @@ function DashboardPage({ sources, aiConfig, setPage }) {
             </div>
             <span className="badge b-ok">{dashCards.length} karta</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 16 }}>
-            {dashCards.map(card => (
-              <DashCard key={card.id} card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} />
-            ))}
-          </div>
+          <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash_"+(workingSrc?.id||"")} />
         </>
       )}
 
@@ -7949,7 +8037,7 @@ export default function App() {
   // ── Page components ──
   const pages = {
     settings: <SettingsPage aiConfig={aiConfig} setAiConfig={setAiConfig} push={push} effectiveAI={effectiveAI} hasPersonalKey={hasPersonalKey} hasGlobalAI={hasGlobalAI} user={user} />,
-    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} />,
+    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} />,
     datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} />,
     charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
     chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
