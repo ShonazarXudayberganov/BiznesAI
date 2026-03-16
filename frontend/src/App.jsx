@@ -434,7 +434,13 @@ ${JSON.stringify(teachers, null, 2)}`;
     }
 
     // Boshqa manbalar uchun (Excel, Sheets, API, Manual)
-    const rows = s.data?.slice(0, 40) || [];
+    // Texnik ustunlarni filtrlash — AI ga yubormaslik
+    const techKeys = new Set(["id","_id","_type","_entity","source_id","webhook_url","created_at","updated_at","__v","_v"]);
+    const rows = (s.data?.slice(0, 40) || []).map(row => {
+      const clean = {};
+      Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
+      return clean;
+    });
     return `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv):\n${JSON.stringify(rows, null, 2)}`;
   }).join("\n\n");
 }
@@ -5005,6 +5011,13 @@ MUHIM OGOHLANTIRISH:
 - Agar "solishtirish" so'ralsa — 1 ta bar chart. Tamom.
 - ORTIQCHA CHART YARATISH TAQIQLANGAN. Faqat so'ralganini qaytar.
 
+RAQAMLAR HAQIDA QATTIQ QOIDA:
+- MANFIY RAQAM CHIQARISH TAQIQLANGAN! Agar hisoblash natijasi manfiy chiqsa — 0 yoz.
+- "id", "_id", "_type", "webhook_url", "source_id" kabi TEXNIK USTUNLARNI HISOBGA OLMA — ularni BUTUNLAY IGNOR QIL.
+- Faqat BIZNES MA'NOSI bor raqamlarni hisobla: soni, summasi, o'rtachasi, foizi.
+- Raqamlarni O'YLAB CHIQARMA — faqat berilgan ma'lumotdan ANIQ hisoblangan raqamlarni yoz.
+- Agar biror narsa hisoblab bo'lmasa — "Ma'lumot yetarli emas" deb yoz.
+
 FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       // Background da ishga tushirish — sahifa o'zgarganda ham davom etadi
@@ -5017,8 +5030,27 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           const parsed = JSON.parse(jsonMatch[0]);
           const rawCards = parsed.cards || [];
 
-          // ── VALIDATSIYA — noto'g'ri kartalarni filtrlash ──
-          const cards = rawCards.map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` })).filter(c => {
+          // ── VALIDATSIYA — noto'g'ri kartalarni filtrlash + manfiy tozalash ──
+          const cards = rawCards.map((c, i) => {
+            const card = { ...c, id: `ai_${Date.now()}_${i}` };
+            // Stats dagi manfiy raqamlarni 0 ga aylantirish
+            if (card.stats) card.stats = card.stats.map(s => {
+              const num = parseFloat(String(s.v).replace(/[^0-9.-]/g, ""));
+              if (!isNaN(num) && num < 0) return { ...s, v: "0" };
+              return s;
+            });
+            // Chart data dagi manfiy qiymatlarni 0 ga
+            if (card.data && card.type === "chart") {
+              card.data = card.data.map(row => {
+                const clean = { ...row };
+                Object.keys(clean).forEach(k => {
+                  if (k !== "name" && k !== "xKey" && typeof clean[k] === "number" && clean[k] < 0) clean[k] = 0;
+                });
+                return clean;
+              });
+            }
+            return card;
+          }).filter(c => {
             if (!c.type) return false;
             // Stats — kamida 1 ta stat bo'lishi kerak
             if (c.type === "stats" && (!Array.isArray(c.stats) || c.stats.length === 0)) return false;
