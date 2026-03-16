@@ -8704,7 +8704,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
       </div>
       {/* Pastda: chart turi tugmalari */}
       {filteredOptions.length > 1 && (
-        <div style={{ display: "flex", gap: 4, justifyContent: "center", paddingTop: 6, borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
           {filteredOptions.map(o => (
             <button key={o.id} onClick={() => setChartOverride(card.id, o.id)} title={o.l}
               style={{ padding: "3px 10px", fontSize: 9, borderRadius: 6, border: "1px solid var(--border)", background: cType === o.id ? "var(--teal)" : "transparent", color: cType === o.id ? "#000" : "var(--muted)", cursor: "pointer", transition: "all .15s", fontFamily: "var(--fh)", fontWeight: 600 }}>
