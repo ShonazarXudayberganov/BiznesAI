@@ -7192,14 +7192,17 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
 
       {/* ── TELEGRAM BILDIRISHNOMA ── */}
       <div className="card mb14">
-        <div className="card-title mb10">Telegram bildirishnoma</div>
-        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10, lineHeight: 1.6 }}>Muhim ogohlantirishlar va hisobotlarni Telegram ga yuborish. @BiznesAI_bot ga /start yuboring va chat ID ni kiriting.</div>
+        <div className="flex aic jb mb10">
+          <div className="card-title" style={{ marginBottom: 0 }}>Telegram bildirishnoma</div>
+          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 6, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}>Tez kunda</span>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10, lineHeight: 1.6 }}>Muhim ogohlantirishlar va hisobotlarni Telegram ga yuborish. Bu funksiya tez kunda ishga tushadi.</div>
         <div className="flex gap8 mb8">
           <input className="field f1" placeholder="Telegram Chat ID (masalan: 123456789)" value={LS.get(uk("tg_chat_id"), "")}
             onChange={e => LS.set(uk("tg_chat_id"), e.target.value)} style={{ fontSize: 12 }} />
-          <button className="btn btn-primary btn-sm" onClick={() => push("Telegram sozlandi", "ok")}>Saqlash</button>
+          <button className="btn btn-primary btn-sm" onClick={() => push("Chat ID saqlandi. Bot tez kunda ishga tushadi.", "info")}>Saqlash</button>
         </div>
-        <div style={{ fontSize: 9, color: "var(--muted)" }}>Chat ID ni bilish uchun: @userinfobot ga yozing</div>
+        <div style={{ fontSize: 9, color: "var(--muted)" }}>Chat ID ni bilish uchun: Telegram da @userinfobot ga yozing</div>
       </div>
 
       {/* ── TIL SOZLAMALARI ── */}
@@ -8520,8 +8523,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
       </div>
 
       {/* ── Custom widgets ── */}
-      {(widgets.length > 0 || showAddWidget) && (
-        <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16 }}>
           <div className="flex aic jb mb8">
             <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
             <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
@@ -8548,7 +8550,6 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
             </div>
           )}
         </div>
-      )}
 
       {/* ── Tezkor amallar ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>
