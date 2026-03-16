@@ -3358,26 +3358,32 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         // Foydalanuvchi kiritgan sheet nomlarini ishlatish
         sheetList = sheetNames.split(",").map(s => s.trim()).filter(Boolean);
       } else {
-        // Standart nomlarni tekshirish (maktab, sinf nomlari)
-        const commonNames = [
-          "общий рейтинг школы", "1-класс", "2-класс", "3-класс", "4-класс",
-          "5-класс", "6-класс", "7-класс", "8-класс", "9-класс", "9 класс",
-          "10-класс", "11-класс", "1-klass", "2-klass", "3-klass", "4-klass",
-          "5-klass", "6-klass", "7-klass", "8-klass", "9-klass",
-          "Sheet1", "Sheet2", "Sheet3", "Sheet4", "Sheet5", "Sheet6", "Sheet7", "Sheet8", "Sheet9", "Sheet10",
-          "Лист1", "Лист2", "Лист3", "Лист4", "Лист5", "Лист6", "Лист7", "Лист8", "Лист9", "Лист10",
-          "List1", "List2", "List3", "List4", "List5",
-          "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-          "data", "students", "teachers", "grades", "results",
-        ];
-        sheetList = commonNames;
+        // Bo'sh — foydalanuvchiga yozishni so'rash, faqat gid 0-15 tekshirish
+        push("List nomlarini kiriting yoki gid bo'yicha qidirilmoqda...", "info");
+        // gid bo'yicha tez tekshirish
+        for (let g = 1; g <= 15; g++) {
+          try {
+            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${g}`;
+            const testRes = await fetch(testUrl);
+            if (!testRes.ok) continue;
+            const testText = await testRes.text();
+            const testData = parseGvizResponse(testText);
+            if (testData.status === "error") continue;
+            const parsed = gvizToRows(testData.table);
+            if (parsed.rows.length === 0) continue;
+            if (parsed.rows.length === first.rows.length && JSON.stringify(parsed.rows[0]) === JSON.stringify(first.rows[0])) continue;
+            if (sheetsFound.some(s => s.rows.length === parsed.rows.length && JSON.stringify(s.rows[0]) === JSON.stringify(parsed.rows[0]))) continue;
+            sheetsFound.push({ gid: g, name: `List ${g + 1}`, rows: parsed.rows, cols: parsed.cols });
+          } catch { }
+        }
+        sheetList = []; // sheet nom bo'yicha qidirmaslik
       }
 
-      push(`${sheetList.length} ta sheet nomi tekshirilmoqda...`, "info");
+      if (sheetList.length > 0) push(`${sheetList.length} ta list yuklanmoqda...`, "info");
 
-      // Sheet nomini URL encode qilib, parallel fetch
-      for (let bi = 0; bi < sheetList.length; bi += 5) {
-        const batch = sheetList.slice(bi, bi + 5);
+      // Sheet nomini URL encode qilib, parallel fetch (10 tadan)
+      for (let bi = 0; bi < sheetList.length; bi += 10) {
+        const batch = sheetList.slice(bi, bi + 10);
         const promises = batch.map(async (name) => {
           try {
             const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
