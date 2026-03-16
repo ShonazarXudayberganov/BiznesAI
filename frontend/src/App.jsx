@@ -8184,7 +8184,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
                   </button>
                 </div>
               )}
-              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} />
+              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={onRemoveCard || hideCard} />
               {/* YANGI indikator — 3 daqiqa ichida yaratilgan kartalar, pastki chap burchak */}
               {card.id && String(card.id).startsWith("ai_") && (Date.now() - parseInt(String(card.id).split("_")[1] || 0)) < 180000 && (
                 <div style={{ position:"absolute", bottom:8, right:8, zIndex:5, width:8, height:8, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px rgba(74,222,128,0.6)", animation:"pulse-voice 2s ease infinite" }} title="Yangi qo'shilgan" />
@@ -8533,8 +8533,49 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
   // Tanlangan manba yoki birinchi connected
   const workingSrc = activeSrc ? sources.find(s => s.id === activeSrc) : connected[0];
 
-  // Avtomatik dashboard generatsiya
-  const dashCards = useMemo(() => workingSrc ? generateDashboards(workingSrc) : [], [workingSrc?.id, workingSrc?.data?.length, workingSrc?.updatedAt]);
+  // Foydalanuvchi o'zi qo'shgan dashboard kartalar (avto-generatsiya EMAS)
+  const dashCacheKey = "u_" + (user?.id || "anon") + "_dash_cards";
+  const [dashCards, setDashCards] = useState(() => LS.get(dashCacheKey, []));
+  const [dashQuery, setDashQuery] = useState("");
+  const [dashLoading, setDashLoading] = useState(false);
+
+  const addDashChart = async (queryText) => {
+    const q = queryText || dashQuery;
+    if (!q.trim() || !workingSrc?.data?.length || !aiConfig?.apiKey) return;
+    setDashLoading(true);
+    try {
+      const ctx = buildMergedContext([workingSrc]);
+      const prompt = `Biznes tahlilchi. So'rov: "${q}"
+MANBA: "${workingSrc.name}" (${workingSrc.data.length} qator)
+DATA:${ctx}
+
+Faqat 1 ta karta qaytar — stats, chart yoki highlight.
+MANFIY raqam TAQIQLANGAN. Label O'ZBEK tilida.
+
+\`\`\`json
+{"cards":[{"type":"stats yoki chart","title":"...","icon":"📊","stats":[{"l":"Nom","v":"123","c":"#00C9BE"}]}]}
+\`\`\`
+FAQAT JSON.`;
+      let result = "";
+      await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
+      const match = result.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        const newCards = (parsed.cards || []).map((c, i) => ({ ...c, id: `dash_${Date.now()}_${i}` }));
+        if (newCards.length) {
+          const updated = [...newCards, ...dashCards];
+          setDashCards(updated); LS.set(dashCacheKey, updated);
+        }
+      }
+    } catch { }
+    setDashLoading(false); setDashQuery("");
+  };
+
+  const removeDashCard = (id) => {
+    const updated = dashCards.filter(c => c.id !== id);
+    setDashCards(updated); LS.set(dashCacheKey, updated);
+  };
+  const clearDashCards = () => { setDashCards([]); LS.del(dashCacheKey); };
 
   return (
     <div>
@@ -8716,17 +8757,38 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
         );
       })()}
 
-      {/* ── Avtomatik Dashboard Kartalar ── */}
-      {dashCards.length > 0 && (
-        <>
-          <div className="flex aic jb mb12">
-            <div className="section-hd" style={{ marginBottom: 0 }}>
-              {SOURCE_TYPES[workingSrc?.type]?.icon} {workingSrc?.name} — Dashboard
-            </div>
-            <span className="badge b-ok">{dashCards.length} karta</span>
+      {/* ── Dashboard — foydalanuvchi o'zi qo'shadi ── */}
+      {connected.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div className="flex aic jb mb10">
+            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Dashboard kartalar</div>
+            {dashCards.length > 0 && (
+              <button className="btn btn-ghost btn-xs" onClick={() => { if (confirm("Barcha kartalarni o'chirish?")) clearDashCards(); }} style={{ fontSize: 9, color: "var(--red)" }}>Tozalash</button>
+            )}
           </div>
-          <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash_"+(workingSrc?.id||"")} />
-        </>
+          {/* So'rov paneli */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <input className="field f1" placeholder={`${workingSrc?.name || "Manba"}: qanday grafik yoki raqam kerak?`}
+              value={dashQuery} onChange={e => setDashQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !dashLoading) addDashChart(); }}
+              disabled={dashLoading} style={{ fontSize: 12 }} />
+            <button className="btn btn-primary btn-sm" onClick={() => addDashChart()} disabled={dashLoading || !dashQuery.trim()} style={{ whiteSpace: "nowrap" }}>
+              {dashLoading ? "..." : "+ Qo'shish"}
+            </button>
+          </div>
+          {/* Tayyor so'rovlar */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12 }} className="hide-scroll">
+            {["Umumiy statistika", "Top 5 ko'rsatkich", "Oylik trend", "Taqsimot (pie)"].map(q => (
+              <button key={q} className="btn btn-ghost btn-xs" onClick={() => addDashChart(q)} disabled={dashLoading}
+                style={{ flexShrink: 0, fontSize: 10 }}>{q}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dashboard kartalar */}
+      {dashCards.length > 0 && (
+        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash"} onRemoveCard={(id) => removeDashCard(id)} />
       )}
 
       {/* ── Ma'lumot yo'q holat ── */}
