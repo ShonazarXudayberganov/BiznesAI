@@ -3823,7 +3823,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         config: { ...src.config, token, igId, lastFetch: Date.now() },
       });
       const hasInsights = totalReach > 0 || totalSaved > 0;
-      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post${hasInsights ? `, reach: ${totalReach.toLocaleString()}, saved: ${totalSaved.toLocaleString()}` : " (Insights: ruxsat kerak)"}${insightErrors > 0 ? ` · ${insightErrors} ta post insights xato` : ""}`, "ok");
+      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post${hasInsights ? `, reach: ${totalReach.toLocaleString()}, saved: ${totalSaved.toLocaleString()}` : ""}`, "ok");
     } catch (e) {
       push("Instagram xato: " + e.message, "error");
     }
