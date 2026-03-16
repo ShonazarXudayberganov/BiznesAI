@@ -8554,26 +8554,6 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
         </div>
       )}
 
-      {/* ── Umumiy ko'rsatkichlar ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginBottom: 20 }}>
-        {[
-          { l: "Aktiv manbalar", v: connected.length, sub: `${sources.length} tadan`, c: "#4ADE80", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> },
-          { l: "Jami yozuvlar", v: fmtNum(total), sub: total > 0 ? "yuklangan" : "data kerak", c: "#00C9BE", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00C9BE" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-          { l: "AI provayder", v: prov.name, sub: aiConfig.apiKey ? "ulangan" : "sozlang", c: prov.color, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={prov.color} strokeWidth="2" strokeLinecap="round"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M9 14h6l2 8H7l2-8z"/></svg> },
-          { l: "Grafiklar", v: dashCards.length, sub: "avtomatik", c: "#E8B84B", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8B84B" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-        ].map((c, i) => (
-          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, transition: "all .2s" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = c.c + "40"}
-            onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: c.c + "10", border: `1px solid ${c.c}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{c.icon}</div>
-            <div>
-              <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: c.c, lineHeight: 1 }}>{c.v}</div>
-              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>{c.l} <span style={{ color: "var(--muted2)" }}>· {c.sub}</span></div>
-            </div>
-          </div>
-        ))}
-      </div>
-
       {/* ── Custom widgets ── */}
       <div style={{ marginBottom: 16 }}>
           <div className="flex aic jb mb8">
