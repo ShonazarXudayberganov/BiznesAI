@@ -1314,15 +1314,29 @@ select.field{cursor:pointer;-webkit-appearance:none}
   .mob-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:999;backdrop-filter:blur(4px);}
   .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}
   .pricing-grid{grid-template-columns:1fr 1fr}.feat-grid{grid-template-columns:1fr 1fr}
-  .land-stats{grid-template-columns:1fr 1fr}.land-hero{padding:60px 20px 48px;}
-  .land-nav,.land-section,.land-stats{padding-left:20px;padding-right:20px}
-  .chat-wrap{height:calc(100vh - 56px - 32px)}.bubble{max-width:88%}
-  .type-grid{grid-template-columns:repeat(2,1fr)}.content{padding:16px}.topbar{padding:0 16px}
+  .land-stats{grid-template-columns:repeat(3,1fr)}.land-hero{padding:60px 20px 48px;}
+  .land-nav,.land-section,.land-stats{padding-left:16px;padding-right:16px}
+  .chat-wrap{height:calc(100vh - 56px - 32px)}.bubble{max-width:92%}
+  .type-grid{grid-template-columns:repeat(2,1fr)}.content{padding:12px}.topbar{padding:0 12px}
+  .topbar-right{gap:4px}
+  .tb-item{height:30px;padding:0 8px;font-size:10px;border-radius:8px}
+  .page-title{font-size:14px}
+  .card{padding:14px;border-radius:12px}
+  .chat-ta{font-size:13px}
+  .chat-send-btn{min-width:38px;height:38px;border-radius:10px}
+  .chat-voice-btn{min-width:38px;height:38px;border-radius:10px}
+  .drop-zone{min-height:120px;padding:24px 16px}
+  .modal-box{padding:20px;width:calc(100vw - 16px);max-height:85vh}
 }
 @media(max-width:480px){
   .g4{grid-template-columns:1fr}.pricing-grid{grid-template-columns:1fr}.feat-grid{grid-template-columns:1fr}
   .land-stats{grid-template-columns:1fr 1fr}.stat-block{border-bottom:1px solid var(--border)}
-  .hero-title{letter-spacing:-1px}
+  .hero-title{font-size:28px;letter-spacing:-1px}
+  .hero-sub{font-size:13px}
+  .land-nav{flex-wrap:wrap;gap:8px}
+  .content{padding:8px}
+  .card{padding:12px}
+  .bubble{max-width:95%}
 }
 `;
 // ─────────────────────────────────────────────────────────────
@@ -1980,7 +1994,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
               )}
             </div>
             <div className="card">
-              <div className="card-title">Hisob ma'lumotlari</div>
+              <div className="card-title">Hisob ma'lumotlari va xavfsizlik</div>
               {[
                 { l: "Ro'yxatdan o'tgan", v: user.created ? new Date(user.created).toLocaleDateString("uz-UZ") : "—" },
                 { l: "Oxirgi kirish", v: (user.lastLogin || user.created) ? new Date(user.lastLogin || user.created).toLocaleDateString("uz-UZ") : "—" },
@@ -4893,12 +4907,12 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
       { icon: "", text: "O'sish tendensiyasi: kunlik yangi lidlar, o'quvchilar qo'shilish dinamikasi", c: "#00C9BE" },
     ];
     return [
-      { icon: "", text: "Umumiy statistika va asosiy raqamlar: jami, o'rtacha, min, max ko'rsatkichlar", c: "#00C9BE" },
-      { icon: "", text: "Tendensiya va o'zgarish: vaqt bo'yicha trend, o'sish yoki pasayish", c: "#4ADE80" },
-      { icon: "", text: "Top va eng yaxshi ko'rsatkichlar: eng yuqori qiymatlar, reyting", c: "#FBBF24" },
-      { icon: "", text: "Solishtirma tahlil: kategoriyalar bo'yicha solishtirish", c: "#60A5FA" },
-      { icon: "", text: "Moliyaviy ko'rsatkichlar: daromad, xarajat, foyda, rentabellik", c: "#4ADE80" },
-      { icon: "", text: "KPI va maqsadlar: asosiy ko'rsatkichlar holati", c: "#F87171" },
+      { icon: "", text: "Umumiy statistika: jami, o'rtacha, min, max", c: "#00C9BE" },
+      { icon: "", text: "Trend: vaqt bo'yicha o'sish yoki pasayish", c: "#4ADE80" },
+      { icon: "", text: "Top ko'rsatkichlar: eng yuqori, reyting", c: "#FBBF24" },
+      { icon: "", text: "Solishtirish: kategoriyalar bo'yicha", c: "#60A5FA" },
+      { icon: "", text: "Prognoz: kelgusi 30 kun uchun bashorat", c: "#A78BFA" },
+      { icon: "", text: "Solishtirish: bu oyni o'tgan oy bilan taqqosla", c: "#EC4899" },
     ];
   }, [workingSource?.id, workingSource?.type]);
 
@@ -5452,7 +5466,9 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     // Professional system prompt — onboarding ma'lumotlari bilan moslashtirilgan
     const onbPfx = "u_" + (user?.id || "anon") + "_onboarding";
     const onb = LS.get(onbPfx, {});
-    const bizContext = onb.bizName ? `\n\nFOYDALANUVCHI HAQIDA: Biznes nomi: "${onb.bizName}", Soha: ${onb.bizType || "noma'lum"}, Jamoa: ${onb.employees || "noma'lum"}, Asosiy qiziqish: ${onb.interest || "umumiy"}, Maqsad: ${onb.goal || "tahlil"}. Javoblarni SHU BIZNESGA MOSLASHTIRIB ber!` : "";
+    const userLang = LS.get("u_" + (user?.id || "anon") + "_lang", "uz");
+    const langMap = { uz: "O'ZBEK TILIDA", ru: "RUSCHA (на русском языке)", en: "INGLIZ TILIDA (in English)" };
+    const bizContext = (onb.bizName ? `\n\nFOYDALANUVCHI HAQIDA: Biznes nomi: "${onb.bizName}", Soha: ${onb.bizType || "noma'lum"}, Jamoa: ${onb.employees || "noma'lum"}, Asosiy qiziqish: ${onb.interest || "umumiy"}, Maqsad: ${onb.goal || "tahlil"}. Javoblarni SHU BIZNESGA MOSLASHTIRIB ber!` : "") + `\n\nJAVOB TILI: Barcha javoblarni ${langMap[userLang] || langMap.uz} yoz!`;
 
     const systemPrompt = {
       role: "system",
@@ -5549,6 +5565,21 @@ MAZMUN QOIDALARI:
     }
   };
 
+  // Excel eksport
+  const downloadChatExcel = () => {
+    const rows = messages.filter(m => m.content).map(m => ({
+      Rol: m.role === "user" ? "Siz" : "AI",
+      Xabar: m.content.substring(0, 500),
+      Vaqt: m.time || "",
+      Manbalar: m.srcNames?.join(", ") || ""
+    }));
+    if (!rows.length) { alert("Chat bo'sh"); return; }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Chat");
+    XLSX.writeFile(wb, `BiznesAI_chat_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   // Manba turiga qarab aqlli savollar
   const QUICK_BASE = [
     { icon: "", text: "Umumiy biznes tahlili qil", cat: "tahlil", c: "#00C9BE" },
@@ -5583,10 +5614,12 @@ MAZMUN QOIDALARI:
   const QUICK_DATA = [
     { icon: "", text: "Ma'lumotlar sifatini tekshir", cat: "tahlil", c: "#00C9BE" },
     { icon: "", text: "Ustunlar bo'yicha statistika", cat: "tahlil", c: "#4ADE80" },
-    { icon: "", text: "Korrelyatsiyalarni topib ber", cat: "tahlil", c: "#A78BFA" },
+    { icon: "", text: "Kelgusi 30 kun uchun prognoz ber", cat: "prognoz", c: "#A78BFA" },
     { icon: "", text: "Anomaliyalar va og'ishlarni aniqla", cat: "tahlil", c: "#F87171" },
-    { icon: "", text: "Ma'lumot bo'yicha hisobot yoz", cat: "hisobot", c: "#FBBF24" },
-    { icon: "", text: "KPI ko'rsatkichlarini hisoblash", cat: "tahlil", c: "#60A5FA" },
+    { icon: "", text: "Biznes rivojlanish strategiyasi tavsiya qil", cat: "strategiya", c: "#FBBF24" },
+    { icon: "", text: "Xarajatlarni optimallashtirish yo'llari", cat: "tahlil", c: "#60A5FA" },
+    { icon: "", text: "Raqobatchilar bilan solishtirma tahlil", cat: "strategiya", c: "#EC4899" },
+    { icon: "", text: "SWOT tahlil: kuchli/zaif tomonlar, imkoniyat/xavflar", cat: "strategiya", c: "#FB923C" },
   ];
   const QUICK_CRM = [
     { icon: "", text: "CRM umumiy tahlili — lidlar, guruhlar, o'quvchilar", cat: "crm", c: "#8B5CF6" },
@@ -5631,8 +5664,9 @@ MAZMUN QOIDALARI:
         {!aiConfig.apiKey && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
         {aiConfig.apiKey && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
         <div style={{ marginLeft: aiConfig.apiKey ? "8px" : "auto", display: "flex", gap: 4 }}>
-          <button className="chat-export-btn" onClick={copyChat} title="Nusxalash"> Nusxa</button>
-          <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish"> Yukla</button>
+          <button className="chat-export-btn" onClick={copyChat} title="Nusxalash">Nusxa</button>
+          <button className="chat-export-btn" onClick={downloadChat} title="TXT yuklab olish">TXT</button>
+          <button className="chat-export-btn" onClick={downloadChatExcel} title="Excel yuklab olish">Excel</button>
           <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
         <button onClick={newSession}
@@ -7156,6 +7190,40 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         {autoOn && (<div className="flex aic gap10"><div><label className="field-label">Vaqt</label><input type="time" className="field" value={reportTime} onChange={e => { setReportTime(e.target.value); LS.set(uk("report_time"), e.target.value); }} style={{ width: 110 }} /></div><div style={{ fontSize: 10, color: "var(--muted)", paddingTop: 18 }}>Har kuni shu vaqtda</div></div>)}
       </div>
 
+      {/* ── TELEGRAM BILDIRISHNOMA ── */}
+      <div className="card mb14">
+        <div className="card-title mb10">Telegram bildirishnoma</div>
+        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10, lineHeight: 1.6 }}>Muhim ogohlantirishlar va hisobotlarni Telegram ga yuborish. @BiznesAI_bot ga /start yuboring va chat ID ni kiriting.</div>
+        <div className="flex gap8 mb8">
+          <input className="field f1" placeholder="Telegram Chat ID (masalan: 123456789)" value={LS.get(uk("tg_chat_id"), "")}
+            onChange={e => LS.set(uk("tg_chat_id"), e.target.value)} style={{ fontSize: 12 }} />
+          <button className="btn btn-primary btn-sm" onClick={() => push("Telegram sozlandi", "ok")}>Saqlash</button>
+        </div>
+        <div style={{ fontSize: 9, color: "var(--muted)" }}>Chat ID ni bilish uchun: @userinfobot ga yozing</div>
+      </div>
+
+      {/* ── TIL SOZLAMALARI ── */}
+      <div className="card mb14">
+        <div className="card-title mb10">Til sozlamalari</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[
+            { id: "uz", label: "O'zbekcha", flag: "🇺🇿" },
+            { id: "ru", label: "Русский", flag: "🇷🇺" },
+            { id: "en", label: "English", flag: "🇬🇧" },
+          ].map(lang => {
+            const curLang = LS.get(uk("lang"), "uz");
+            return (
+              <button key={lang.id} className="btn btn-ghost btn-sm"
+                style={curLang === lang.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}
+                onClick={() => { LS.set(uk("lang"), lang.id); push(`Til o'zgartirildi: ${lang.label}`, "ok"); }}>
+                {lang.flag} {lang.label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>AI javoblari tanlangan tilda keladi. Interfeys hozircha O'zbek tilida.</div>
+      </div>
+
       {/* ── QANDAY ISHLAYDI ── */}
       <div className="card">
         <div className="card-title mb10"> AI Qanday Ishlaydi</div>
@@ -8386,6 +8454,22 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
+
+  // Custom widgets
+  const widgetsKey = "u_" + (user?.id || "anon") + "_widgets";
+  const [widgets, setWidgets] = useState(() => LS.get(widgetsKey, []));
+  const [showAddWidget, setShowAddWidget] = useState(false);
+  const [newWidget, setNewWidget] = useState({ label: "", query: "", color: "#00C9BE" });
+
+  const addWidget = () => {
+    if (!newWidget.label.trim()) return;
+    // Widget — AI so'rovini saqlaydi, natijani cache da saqlaydi
+    const w = { id: Date.now(), label: newWidget.label, query: newWidget.query, color: newWidget.color, value: "—", updatedAt: "" };
+    const updated = [...widgets, w];
+    setWidgets(updated); LS.set(widgetsKey, updated);
+    setShowAddWidget(false); setNewWidget({ label: "", query: "", color: "#00C9BE" });
+  };
+  const removeWidget = (id) => { const u = widgets.filter(w => w.id !== id); setWidgets(u); LS.set(widgetsKey, u); };
   const [activeSrc, setActiveSrc] = useState(null);
   const [chartOverrides, setChartOverrides] = useState({});
 
@@ -8434,6 +8518,37 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
           </div>
         ))}
       </div>
+
+      {/* ── Custom widgets ── */}
+      {(widgets.length > 0 || showAddWidget) && (
+        <div style={{ marginBottom: 16 }}>
+          <div className="flex aic jb mb8">
+            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
+            <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 10 }}>
+            {widgets.map(w => (
+              <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", position: "relative" }}>
+                <button onClick={() => removeWidget(w.id)} style={{ position: "absolute", top: 6, right: 6, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: w.color }}>{w.value}</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{w.label}</div>
+              </div>
+            ))}
+          </div>
+          {showAddWidget && (
+            <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <input className="field f1" placeholder="Ko'rsatkich nomi" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
+                <input type="color" value={newWidget.color} onChange={e => setNewWidget(p => ({ ...p, color: e.target.value }))} style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer" }} />
+              </div>
+              <div className="flex gap8">
+                <button className="btn btn-primary btn-sm" onClick={addWidget}>Qo'shish</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowAddWidget(false)}>Bekor</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tezkor amallar ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>

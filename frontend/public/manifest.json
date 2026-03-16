@@ -1,0 +1,13 @@
+{
+  "name": "BiznesAI — Biznes Tahlil Platformasi",
+  "short_name": "BiznesAI",
+  "description": "AI-powered biznes tahlil, grafiklar va hisobotlar",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#05060C",
+  "theme_color": "#00D4C8",
+  "orientation": "any",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
