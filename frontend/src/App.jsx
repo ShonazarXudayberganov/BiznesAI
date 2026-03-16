@@ -6419,23 +6419,64 @@ HISOBOT QOIDALARI:
     XLSX.writeFile(wb, `BiznesAI_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
+  // Markdown ni HTML ga aylantirish (PDF uchun)
+  const mdToHtml = (text) => {
+    return String(text).split("\n").map(line => {
+      const t = line.trim();
+      if (!t) return '<div style="height:8px"></div>';
+      if (t === "---" || t === "***") return '<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">';
+      if (t.startsWith("### ")) return `<h3 style="font-size:14px;font-weight:700;color:#2D3748;margin:16px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`;
+      if (t.startsWith("## ")) return `<h2 style="font-size:16px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`;
+      if (t.startsWith("# ")) return `<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid #0D9488">${t.slice(2)}</h1>`;
+      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:8px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 6px 6px 0;color:#2D3748;font-style:italic">${fmtPdf(t.slice(2))}</div>`;
+      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0;position:relative"><span style="position:absolute;left:4px;color:#0D9488;font-weight:bold">●</span>${fmtPdf(t.slice(2))}</div>`;
+      const numM = t.match(/^(\d+)\.\s(.+)/);
+      if (numM) return `<div style="padding-left:20px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800;font-size:12px">${numM[1]}.</span>${fmtPdf(numM[2])}</div>`;
+      // Table
+      if (t.startsWith("|") && t.endsWith("|")) {
+        if (t.replace(/[|\-\s:]/g, "").length === 0) return "";
+        const cells = t.split("|").filter(c => c.trim()).map(c => c.trim());
+        return `<tr>${cells.map(c => `<td style="padding:6px 12px;border-bottom:1px solid #E2E8F0;font-size:12px">${fmtPdf(c)}</td>`).join("")}</tr>`;
+      }
+      return `<div style="margin:3px 0;line-height:1.7">${fmtPdf(t)}</div>`;
+    }).join("\n");
+  };
+  const fmtPdf = (s) => {
+    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>');
+    r = r.replace(/\*(.+?)\*/g, '<i>$1</i>');
+    r = r.replace(/`(.+?)`/g, '<code style="background:#EDF2F7;padding:2px 6px;border-radius:4px;font-size:11px;color:#0D9488">$1</code>');
+    return r;
+  };
+
   const exportPDF = (text, lbl) => {
     if (!checkExportLimit()) return;
     const t = text || report; const l = lbl || label;
+    const contentHtml = mdToHtml(t);
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
       *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:Inter,sans-serif;font-size:13px;line-height:1.8;color:#1a1a2e;padding:40px 50px;max-width:800px;margin:0 auto}
-      h1{font-size:20px;font-weight:700;color:#0a0a1a;border-bottom:2px solid #00c8ff;padding-bottom:10px;margin-bottom:20px}
-      .meta{font-size:11px;color:#888;margin-bottom:24px}
-      .content{white-space:pre-wrap;font-size:13px}
-      @media print{body{padding:20px}}
+      body{font-family:Inter,sans-serif;font-size:13px;line-height:1.7;color:#2D3748;padding:40px 50px;max-width:800px;margin:0 auto}
+      table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
+      table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;text-transform:uppercase;font-size:10px;letter-spacing:1px}
+      table tr:nth-child(even){background:#F7FAFC}
+      @media print{body{padding:20px 30px}}
     </style></head>
     <body>
-      <h1>BiznesAI — ${l}</h1>
-      <div class="meta">Sana: ${new Date().toLocaleDateString("uz-UZ")} | AI: ${prov.name} | BiznesAI Hisobot Tizimi</div>
-      <div class="content">${t.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #0D9488">
+        <div>
+          <div style="font-size:22px;font-weight:800;color:#1A202C">BIZ<span style="color:#B8860B">NES</span>AI</div>
+          <div style="font-size:10px;color:#A0AEC0;text-transform:uppercase;letter-spacing:2px">Strategik Agent</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:16px;font-weight:700;color:#2D3748">${l}</div>
+          <div style="font-size:10px;color:#A0AEC0">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div>
+        </div>
+      </div>
+      <div>${contentHtml}</div>
+      <div style="margin-top:30px;padding-top:16px;border-top:1px solid #E2E8F0;font-size:9px;color:#A0AEC0;text-align:center">
+        BiznesAI — AI-powered biznes tahlil platformasi · shonazar.uz
+      </div>
     </body></html>`;
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:800px;height:1100px";
