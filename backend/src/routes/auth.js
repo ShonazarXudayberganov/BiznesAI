@@ -53,7 +53,7 @@ router.post('/register', async (req, res) => {
 // ── POST /api/auth/login ──
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, remember } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'email va password kerak' });
     }
@@ -62,15 +62,35 @@ router.post('/login', async (req, res) => {
       'SELECT * FROM users WHERE email=$1',
       [email.toLowerCase().trim()]
     );
+
+    const device = req.headers['user-agent']?.substring(0, 200) || 'Unknown';
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'Unknown';
+
     if (result.rows.length === 0) {
+      // Login tarixiga yozish (muvaffaqiyatsiz)
+      try { await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES (0,$1,$2,$3)', [device, ip, 'failed']); } catch {}
       return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
     }
 
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      try { await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES ($1,$2,$3,$4)', [user.id, device, ip, 'failed']); } catch {}
       return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
     }
+
+    // Eski sessiyalarni tugatish (bir qurilma qoidasi)
+    await pool.query('UPDATE sessions SET expired=TRUE WHERE user_id=$1 AND expired=FALSE', [user.id]);
+
+    // Yangi session yaratish
+    const sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    await pool.query(
+      'INSERT INTO sessions (id,user_id,device,ip,remember,last_active) VALUES ($1,$2,$3,$4,$5,NOW())',
+      [sessionId, user.id, device, ip, !!remember]
+    );
+
+    // Login tarixiga yozish
+    await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES ($1,$2,$3,$4)', [user.id, device, ip, 'success']);
 
     // Update last_login
     await pool.query('UPDATE users SET last_login=NOW() WHERE id=$1', [user.id]);
@@ -79,6 +99,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
+      sessionId,
       user: {
         id: user.id,
         name: user.name,
@@ -176,6 +197,56 @@ router.put('/password', requireAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Server xatosi' });
   }
+});
+
+// ── GET /api/auth/sessions ── (aktiv sessiyalar)
+router.get('/sessions', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, device, ip, remember, last_active, created_at FROM sessions WHERE user_id=$1 AND expired=FALSE ORDER BY last_active DESC',
+      [req.userId]
+    );
+    res.json(result.rows.map(s => ({
+      id: s.id,
+      device: s.device?.substring(0, 60) || 'Noma\'lum',
+      ip: s.ip,
+      remember: s.remember,
+      lastActive: s.last_active,
+      createdAt: s.created_at,
+    })));
+  } catch (err) { res.status(500).json({ error: 'Server xatosi' }); }
+});
+
+// ── DELETE /api/auth/sessions/:id ── (sessiyani tugatish)
+router.delete('/sessions/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('UPDATE sessions SET expired=TRUE WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Server xatosi' }); }
+});
+
+// ── DELETE /api/auth/sessions ── (barcha sessiyalarni tugatish)
+router.delete('/sessions', requireAuth, async (req, res) => {
+  try {
+    await pool.query('UPDATE sessions SET expired=TRUE WHERE user_id=$1', [req.userId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: 'Server xatosi' }); }
+});
+
+// ── GET /api/auth/login-history ── (login tarixi)
+router.get('/login-history', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT device, ip, status, created_at FROM login_history WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20',
+      [req.userId]
+    );
+    res.json(result.rows.map(h => ({
+      device: h.device?.substring(0, 60) || 'Noma\'lum',
+      ip: h.ip,
+      status: h.status,
+      time: h.created_at,
+    })));
+  } catch (err) { res.status(500).json({ error: 'Server xatosi' }); }
 });
 
 module.exports = router;

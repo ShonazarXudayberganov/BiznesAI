@@ -236,7 +236,7 @@ const Auth = {
   clearSession: () => { LS.del("session"); Token.clear(); },
 
   // ── Login: API ga urinib ko'radi, ishlamasa LS fallback ──
-  login: async (email, password) => {
+  login: async (email, password, remember) => {
     // Avval backend API
     try {
       const res = await AuthAPI.login(email, password);
@@ -1733,6 +1733,7 @@ function LandingPage({ onLogin, onRegister }) {
 function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -1740,9 +1741,9 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
     if (!email || !password) { setError("Hamma maydonlarni to'ldiring"); return; }
     setLoading(true); setError("");
     try {
-      const res = await Auth.login(email, password);
+      const res = await Auth.login(email, password, remember);
       if (res.error) { setError(res.error); setLoading(false); }
-      else onAuth(res.user);
+      else { localStorage.setItem("bai_session_remember", remember ? "1" : ""); onAuth(res.user); }
     } catch (e) { setError(e.message || "Xatolik yuz berdi"); setLoading(false); }
   };
 
@@ -1761,7 +1762,13 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
           <label className="field-label">Parol</label>
           <input className="field" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
         </div>
-        <button className="btn btn-primary" style={{ width: "100%", marginTop: 4, justifyContent: "center" }} onClick={submit} disabled={loading}>
+        <div className="flex aic jb" style={{ marginTop: 4, marginBottom: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text2)", cursor: "pointer" }}>
+            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ accentColor: "var(--teal)" }} />
+            Eslab qolish
+          </label>
+        </div>
+        <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }} onClick={submit} disabled={loading}>
           {loading ? "Kirilmoqda..." : "Kirish"}
         </button>
         <div className="auth-divider">yoki</div>
@@ -2070,6 +2077,27 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
                   <span style={{ fontSize: 11, color: "var(--text2)", fontFamily: "var(--fm)" }}>{r.v}</span>
                 </div>
               ))}
+
+              {/* Sessiya boshqaruv */}
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Aktiv sessiyalar</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>Boshqa qurilmadan kirgan bo'lsangiz, shu yerdan tugatishingiz mumkin.</div>
+                <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.2)", fontSize: 10 }}
+                  onClick={async () => {
+                    try { await AuthAPI.changePassword("", ""); } catch {}
+                    // Serverda barcha sessiyalarni tugatish
+                    try {
+                      const headers = { 'Content-Type': 'application/json' };
+                      const token = localStorage.getItem('bai_token');
+                      if (token) headers['Authorization'] = `Bearer ${token}`;
+                      await fetch('/api/auth/sessions', { method: 'DELETE', headers });
+                      push("Barcha sessiyalar tugatildi. Qayta kiring.", "warn");
+                      setTimeout(() => { Auth.clearSession(); window.location.reload(); }, 1500);
+                    } catch { push("Server bilan aloqa yo'q", "warn"); }
+                  }}>
+                  Barcha sessiyalarni tugatish
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -9472,6 +9500,25 @@ export default function App() {
     if (!user) return false;
     return Auth.checkLimit(user, limitKey, sources);
   };
+
+  // ── SESSION TIMEOUT (30 daqiqa harakatsiz = chiqish) ──
+  useEffect(() => {
+    if (!user) return;
+    const remember = LS.get("session_remember", false);
+    if (remember) return; // Eslab qolish yoqilgan — timeout yo'q
+    let timer;
+    const resetTimer = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        push("30 daqiqa harakatsiz — sessiya tugadi", "warn");
+        setTimeout(() => { Auth.clearSession(); window.location.reload(); }, 2000);
+      }, 30 * 60 * 1000); // 30 daqiqa
+    };
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach(e => window.addEventListener(e, resetTimer));
+    resetTimer();
+    return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, resetTimer)); };
+  }, [user?.id]);
 
   // ── AVTOMATIK ANOMALIYA TEKSHIRUV (har 5 daqiqada) ──
   const lastAutoCheckRef = useRef(0);

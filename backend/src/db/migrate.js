@@ -157,6 +157,35 @@ CREATE TABLE IF NOT EXISTS global_settings (
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ══════════════════════════════════════════════
+-- SESSIONS (aktiv sessiyalar va login tarixi)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS sessions (
+  id            VARCHAR(64) PRIMARY KEY,
+  user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device        VARCHAR(255),
+  ip            VARCHAR(45),
+  location      VARCHAR(255),
+  remember      BOOLEAN DEFAULT FALSE,
+  last_active   TIMESTAMPTZ DEFAULT NOW(),
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  expired       BOOLEAN DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(user_id, expired);
+
+CREATE TABLE IF NOT EXISTS login_history (
+  id            SERIAL PRIMARY KEY,
+  user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device        VARCHAR(255),
+  ip            VARCHAR(45),
+  status        VARCHAR(20) DEFAULT 'success',
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);
+
 -- Default admin user
 INSERT INTO users (name, email, password_hash, role, plan)
 VALUES ('Admin', 'biznesadmin@gmail.com', '$ADMIN_HASH', 'admin', 'enterprise')
