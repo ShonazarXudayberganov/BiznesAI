@@ -4310,27 +4310,56 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {/* INSTAGRAM */}
           {src.type === "instagram" && (
             <div>
-              <div style={{ background: "var(--s3)", borderRadius: 8, padding: "10px 13px", fontSize: 10.5, lineHeight: 1.9, color: "var(--muted)", marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ color: "#E879F9", fontWeight: 700, marginBottom: 4, fontFamily: "var(--fh)" }}>Instagram Graph API o'rnatish:</div>
-                <div>1. <span style={{ color: "var(--text2)" }}>developers.facebook.com</span> → My Apps → Create App</div>
-                <div>2. Instagram Basic Display qo'shing → <span style={{ color: "var(--gold)" }}>Valid OAuth Redirect URI</span> kiriting</div>
-                <div>3. <span style={{ color: "var(--text2)" }}>User Token Generator</span> → Generate Token</div>
-                <div>4. Token 60 kun amal qiladi — <span style={{ color: "var(--teal)" }}>Long-Lived Token</span> almashtirishni unutmang</div>
+              <div style={{ background: "var(--s3)", borderRadius: 10, padding: "12px 14px", fontSize: 11, lineHeight: 1.8, color: "var(--text2)", marginBottom: 14, border: "1px solid rgba(232,121,249,0.1)" }}>
+                <div style={{ color: "#E879F9", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Instagram Business API — qanday ulash:</div>
+                <div>1. <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>developers.facebook.com</a> → My Apps → Create App (Business)</div>
+                <div>2. Instagram akkountni Professional (Business) ga o'tkazing</div>
+                <div>3. Facebook Page yarating va Instagram ni ulang</div>
+                <div>4. Graph API Explorer dan Access Token oling</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Kerakli ruxsatlar: pages_show_list, instagram_basic, instagram_manage_insights, business_management</div>
               </div>
-              <label className="field-label">Instagram Access Token</label>
-              <input className="field mb8" type="password" placeholder="IGQVJWZAmN3..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
+
+              {/* Asosiy sozlamalar */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                <div>
+                  <label className="field-label">Meta App ID</label>
+                  <input className="field" placeholder="1479057357119695" value={src.config?.appId || ""} onChange={e => updateConfig("appId", e.target.value)} />
+                </div>
+                <div>
+                  <label className="field-label">App Secret</label>
+                  <input className="field" type="password" placeholder="65ff04950..." value={src.config?.appSecret || ""} onChange={e => updateConfig("appSecret", e.target.value)} />
+                </div>
+              </div>
+
+              <label className="field-label">Access Token</label>
+              <input className="field mb8" type="password" placeholder="EAAVBMeBfo..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                <div>
+                  <label className="field-label">Instagram Business ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy)</span></label>
+                  <input className="field" placeholder="17841422858670678" value={src.config?.igBusinessId || ""} onChange={e => updateConfig("igBusinessId", e.target.value)} />
+                </div>
+                <div>
+                  <label className="field-label">Facebook Page ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy)</span></label>
+                  <input className="field" placeholder="107982644962355" value={src.config?.fbPageId || ""} onChange={e => updateConfig("fbPageId", e.target.value)} />
+                </div>
+              </div>
+
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading || !src.config?.token}>
-                  {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
+                  {loading ? "Yuklanmoqda..." : "Ulash va Yuklash"}
                 </button>
                 {src.connected && src.data?.length > 0 && (
                   <button className="btn btn-ghost btn-sm" onClick={handleInstagramFetch} disabled={loading}>↻ Yangilash</button>
                 )}
               </div>
+
               {src.profileName && (
-                <div style={{ fontSize: 11, color: "#E879F9", marginBottom: 8 }}>
-                   <strong>@{src.profileName}</strong> ulangan
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#E879F9", marginBottom: 8, padding: "8px 12px", background: "rgba(232,121,249,0.06)", borderRadius: 8, border: "1px solid rgba(232,121,249,0.1)" }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ADE80" }} />
+                  <strong>@{src.profileName}</strong> ulangan
                   {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
+                  {src.data?.find(d => d._type === "PROFIL_STATISTIKA")?.total_reach > 0 && <span style={{ color: "var(--teal)", marginLeft: 4 }}>· Insights faol</span>}
                 </div>
               )}
               {/* Avtomatik yangilash */}
