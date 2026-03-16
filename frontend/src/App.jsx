@@ -8386,67 +8386,54 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
               </div>
             </div>
             {/* Kartalar — faqat ochiq bo'lganda */}
-            {anomalyOpen && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 12, marginTop: 16 }}>
+            {anomalyOpen && <div style={{ marginTop: 14 }}>
               {anomalies.map((a, i) => {
                 const sev = sevColors[a.severity] || sevColors.warning;
+                const aKey = a.source + "|" + a.field + "|" + a.type;
+                const isRead = readAnomalies.includes(aKey);
+                const pctDiff = a.mean && a.value && typeof a.value === "number" && typeof a.mean === "number" && a.mean !== 0 ? Math.round((a.value - a.mean) / a.mean * 100) : null;
                 return (
-                  <div key={i} style={{ padding: "16px 18px", borderRadius: 14, border: `1px solid ${sev.border}`, background: sev.bg, transition: "all .2s", display: "flex", flexDirection: "column" }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${sev.border}`; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
-                    {/* Karta header */}
-                    {(() => { const aKey = a.source + "|" + a.field + "|" + a.type; const isRead = readAnomalies.includes(aKey); return (
-                    <div className="flex aic gap6 mb8">
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: isRead ? "var(--muted)" : sev.color, flexShrink: 0, boxShadow: isRead ? "none" : `0 0 8px ${sev.color}60` }} />
-                      <span style={{ fontFamily: "var(--fh)", fontSize: 10, fontWeight: 700, color: isRead ? "var(--muted)" : sev.color, textTransform: "uppercase", letterSpacing: 1 }}>{sev.label}</span>
-                      <span style={{ fontSize: 9, color: "var(--muted)", background: "var(--s2)", padding: "2px 8px", borderRadius: 8 }}>{a.source}</span>
-                      <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                        {!isRead && <button onClick={e => { e.stopPropagation(); markAnomalyRead(aKey); }} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 8px", fontSize: 8, color: "var(--teal)", cursor: "pointer", fontFamily: "var(--fh)" }}>O'qildim</button>}
-                        <button onClick={e => { e.stopPropagation(); hideAnomaly(aKey); }} style={{ background: "none", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 6, padding: "2px 6px", fontSize: 8, color: "var(--red)", cursor: "pointer" }}>✕</button>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, border: `1px solid ${isRead ? "var(--border)" : sev.border}`, background: isRead ? "transparent" : sev.bg, marginBottom: 8, transition: "all .2s", opacity: isRead ? 0.6 : 1 }}>
+                    {/* Indicator */}
+                    <div style={{ width: 6, height: 36, borderRadius: 3, background: sev.color, flexShrink: 0, opacity: isRead ? 0.3 : 1 }} />
+                    {/* Ma'lumot */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                        <span style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{a.fieldName || a.field?.replace(/_/g, " ")}</span>
+                        <span style={{ fontSize: 8, color: "var(--muted)", background: "var(--s2)", padding: "1px 6px", borderRadius: 6 }}>{a.source}</span>
+                        {(a.type === "trend_down" || a.type === "trend_up") && (
+                          <span style={{ fontSize: 8, padding: "1px 6px", borderRadius: 6, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
+                            {a.type === "trend_down" ? "↓ pasayish" : "↑ o'sish"}
+                          </span>
+                        )}
                       </div>
-                    </div>); })()}
-                    {/* Ustun nomi */}
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, marginBottom: 8, color: "var(--text)" }}>{a.fieldName || a.field?.replace(/_/g, " ")}</div>
+                      <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                        {a.explanation || a.message || ""}
+                      </div>
+                    </div>
                     {/* Raqamlar */}
-                    <div className="flex gap12 mb10" style={{ flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
-                        <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Hozirgi</div>
+                    <div style={{ display: "flex", gap: 12, flexShrink: 0, alignItems: "center" }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
+                        <div style={{ fontSize: 7, color: "var(--muted)", textTransform: "uppercase" }}>qiymat</div>
                       </div>
                       {a.mean != null && (
-                        <div>
-                          <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
-                          <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>O'rtacha</div>
+                        <div style={{ textAlign: "center" }}>
+                          <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
+                          <div style={{ fontSize: 7, color: "var(--muted)", textTransform: "uppercase" }}>o'rtacha</div>
                         </div>
                       )}
-                      {a.mean != null && a.value != null && typeof a.value === "number" && typeof a.mean === "number" && a.mean !== 0 && (
-                        <div>
-                          <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: a.value > a.mean ? "#4ADE80" : "#F87171" }}>
-                            {a.value > a.mean ? "+" : ""}{Math.round((a.value - a.mean) / a.mean * 100)}%
-                          </div>
-                          <div style={{ fontSize: 8, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>Farq</div>
+                      {pctDiff != null && (
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800, color: pctDiff > 0 ? "#4ADE80" : "#F87171", minWidth: 45, textAlign: "center" }}>
+                          {pctDiff > 0 ? "+" : ""}{pctDiff}%
                         </div>
                       )}
                     </div>
-                    {/* Tushuntirish */}
-                    {a.explanation && (
-                      <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.65, marginBottom: 8, padding: "8px 10px", background: "rgba(255,255,255,0.02)", borderRadius: 8, borderLeft: `3px solid ${sev.color}30` }}>{a.explanation}</div>
-                    )}
-                    {/* Tavsiya */}
-                    {a.recommendation && (
-                      <div style={{ fontSize: 10, color: "var(--teal)", lineHeight: 1.6, padding: "6px 10px", background: "rgba(0,201,190,0.04)", borderRadius: 8, display: "flex", gap: 6, alignItems: "flex-start" }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00C9BE" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                        <span>{a.recommendation}</span>
-                      </div>
-                    )}
-                    {/* Trend badge */}
-                    {(a.type === "trend_down" || a.type === "trend_up") && (
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 8, marginTop: 8, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", border: `1px solid ${a.type === "trend_down" ? "rgba(248,113,113,0.2)" : "rgba(74,222,128,0.2)"}`, fontSize: 10, color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          {a.type === "trend_down" ? <><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></> : <><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>}
-                        </svg>
-                        {a.type === "trend_down" ? "Ketma-ket pasayish" : "Kuchli o'sish"}
-                      </div>
-                    )}
+                    {/* Amallar */}
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                      {!isRead && <button onClick={e => { e.stopPropagation(); markAnomalyRead(aKey); }} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", fontSize: 9, color: "var(--teal)", cursor: "pointer", fontFamily: "var(--fh)" }}>✓</button>}
+                      <button onClick={e => { e.stopPropagation(); hideAnomaly(aKey); }} style={{ background: "none", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 6, padding: "4px 6px", fontSize: 9, color: "var(--red)", cursor: "pointer" }}>✕</button>
+                    </div>
                   </div>
                 );
               })}
