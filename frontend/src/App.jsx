@@ -8310,42 +8310,45 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
         </div>
       )}
 
-      {/* ── Umumiy stat cards ── */}
-      <div className="g4 mb16">
+      {/* ── Umumiy ko'rsatkichlar ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 14, marginBottom: 20 }}>
         {[
-          { l: "Aktiv Manbalar", v: connected.length, s: `/ ${sources.length} manba`, c: "var(--green)", i: "", acc: "#4ADE80" },
-          { l: "Jami Yozuvlar", v: total.toLocaleString(), s: total > 0 ? "Yuklangan" : "Data yuklang", c: "var(--teal)", i: "", acc: "#00C9BE" },
-          { l: "Dashboard Kartalar", v: dashCards.length, s: "avtomatik yaratilgan", c: "var(--gold)", i: "", acc: "#E8B84B" },
-          { l: "AI Provayder", v: prov.name, s: aiConfig.apiKey ? (aiConfig.isPersonal ? "Shaxsiy kalit" : "Global AI") : "Ulanmagan", c: prov.color, i: prov.icon, acc: prov.color },
+          { l: "Aktiv manbalar", v: connected.length, sub: `${sources.length} tadan`, c: "#4ADE80", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg> },
+          { l: "Jami yozuvlar", v: fmtNum(total), sub: total > 0 ? "yuklangan" : "data kerak", c: "#00C9BE", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00C9BE" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+          { l: "AI provayder", v: prov.name, sub: aiConfig.apiKey ? "ulangan" : "sozlang", c: prov.color, icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={prov.color} strokeWidth="2" strokeLinecap="round"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"/><path d="M9 14h6l2 8H7l2-8z"/></svg> },
+          { l: "Grafiklar", v: dashCards.length, sub: "avtomatik", c: "#E8B84B", icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#E8B84B" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
         ].map((c, i) => (
-          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px", position: "relative", overflow: "hidden", transition: "all .22s", cursor: "default" }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = c.acc + "44"}
+          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px 18px", display: "flex", alignItems: "center", gap: 14, transition: "all .2s" }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = c.c + "40"}
             onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${c.acc}80,transparent)` }} />
-            <div style={{ fontSize: 20, marginBottom: 10, color: c.acc }}>{c.i}</div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: c.c, lineHeight: 1, marginBottom: 5 }}>{c.v}</div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 9, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2 }}>{c.l}</div>
-            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 5, fontFamily: "var(--fm)" }}>{c.s}</div>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: c.c + "10", border: `1px solid ${c.c}20`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{c.icon}</div>
+            <div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: c.c, lineHeight: 1 }}>{c.v}</div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>{c.l} <span style={{ color: "var(--muted2)" }}>· {c.sub}</span></div>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* ── Tezkor Amallar ── */}
-      <div className="section-hd mb10">Tezkor Amallar</div>
-      <div className="g4 mb20">
+      {/* ── Tezkor amallar ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>
         {[
-          { ico: "", lbl: "Grafiklar", desc: "Batafsil vizualizatsiya", page: "charts", c: "var(--teal)", acc: "#00C9BE" },
-          { ico: "", lbl: "AI Chat", desc: "Savol-javob", page: "chat", c: "var(--green)", acc: "#4ADE80" },
-          { ico: "", lbl: "Tahlil", desc: "6 xil modul", page: "analytics", c: "var(--gold)", acc: "#E8B84B" },
-          { ico: "", lbl: "Alertlar", desc: "AI monitoring", page: "alerts", c: "var(--red)", acc: "#F87171" },
+          { lbl: "Grafiklar", desc: "Vizualizatsiya", page: "charts", c: "#00C9BE", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
+          { lbl: "AI Maslahat", desc: "Savol bering", page: "chat", c: "#4ADE80", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+          { lbl: "Tahlil", desc: "Chuqur analitika", page: "analytics", c: "#E8B84B", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+          { lbl: "Hisobotlar", desc: "PDF eksport", page: "reports", c: "#A78BFA", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+          { lbl: "Ogohlantirishlar", desc: "AI monitoring", page: "alerts", c: "#F87171", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg> },
+          { lbl: "Data Hub", desc: "Manbalar", page: "datahub", c: "#38BDF8", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> },
         ].map((a, i) => (
-          <div key={i} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all .2s" }}
-            onClick={() => setPage(a.page)}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = a.acc + "50"; e.currentTarget.style.transform = "translateY(-2px)" }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none" }}>
-            <div style={{ fontSize: 18, color: a.c, marginBottom: 8 }}>{a.ico}</div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700 }}>{a.lbl}</div>
-            <div style={{ fontSize: 9.5, color: "var(--muted)", marginTop: 3 }}>{a.desc}</div>
+          <div key={i} onClick={() => setPage(a.page)}
+            style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all .2s", display: "flex", alignItems: "center", gap: 10 }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = a.c + "40"; e.currentTarget.style.background = a.c + "08"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--s1)"; }}>
+            <div style={{ color: a.c }}>{a.icon}</div>
+            <div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{a.lbl}</div>
+              <div style={{ fontSize: 9, color: "var(--muted)" }}>{a.desc}</div>
+            </div>
           </div>
         ))}
       </div>
