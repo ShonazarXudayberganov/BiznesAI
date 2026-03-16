@@ -5385,7 +5385,8 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {/* Dashboard kartalar gridi */}
       {filter !== "table" && filteredCards.length > 0 && (
-        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_charts_"+(workingSource?.id||"")} />
+        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_charts_"+(workingSource?.id||"")}
+          onDeleteCard={(id) => { const updated = aiCards.filter(c => c.id !== id); setAiCards(updated); LS.set(cacheKey, updated); }} />
       )}
 
       {filter !== "table" && allCards.length === 0 && !aiLoading && (
@@ -8329,7 +8330,7 @@ const AngledXTick = ({ x, y, payload }) => (
 // ─────────────────────────────────────────────────────────────
 const CARD_SIZES = { "1x1": { col: 1, row: 1 }, "2x1": { col: 2, row: 1 }, "1x2": { col: 1, row: 2 }, "2x2": { col: 2, row: 2 } };
 
-function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemoveCard }) {
+function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemoveCard, onDeleteCard }) {
   // Layout: { [cardId]: { order, size } }
   const [layout, setLayout] = useState(() => LS.get(layoutKey, {}));
   const [dragId, setDragId] = useState(null);
@@ -8461,7 +8462,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
                   </button>
                 </div>
               )}
-              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={onRemoveCard || hideCard} />
+              <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} onDelete={onDeleteCard || onRemoveCard} />
               {/* YANGI indikator — 3 daqiqa ichida yaratilgan kartalar, pastki chap burchak */}
               {card.id && String(card.id).startsWith("ai_") && (Date.now() - parseInt(String(card.id).split("_")[1] || 0)) < 180000 && (
                 <div style={{ position:"absolute", bottom:8, right:8, zIndex:5, width:8, height:8, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px rgba(74,222,128,0.6)", animation:"pulse-voice 2s ease infinite" }} title="Yangi qo'shilgan" />
@@ -8474,7 +8475,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
   );
 }
 
-function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
+function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }) {
   const cType = chartOverrides[card.id] || card.chartType;
   const CARD_H = 380; // Barcha kartalar uchun YAGONA balandlik
 
@@ -8598,7 +8599,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
       <CardWrap>
         <div className="flex aic jb mb12">
           <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
-          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+          {(onRemove || onDelete) && <div style={{display:"flex",gap:2}}>{onRemove && <button className="btn btn-ghost" title="Yashirish" onClick={()=>onRemove(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--muted)",borderColor:"var(--border)"}}>👁</button>}{onDelete && <button className="btn btn-ghost" title="O'chirish" onClick={()=>onDelete(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}</div>}
         </div>
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, alignContent: "center" }}>
           {card.stats.map((s, i) => (
@@ -8619,7 +8620,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
       <CardWrap>
         <div className="flex aic jb mb8">
           <div className="card-title" style={{marginBottom:0,textAlign:"center",flex:1}}>{card.icon} {card.title}</div>
-          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+          {(onRemove || onDelete) && <div style={{display:"flex",gap:2}}>{onRemove && <button className="btn btn-ghost" title="Yashirish" onClick={()=>onRemove(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--muted)",borderColor:"var(--border)"}}>👁</button>}{onDelete && <button className="btn btn-ghost" title="O'chirish" onClick={()=>onDelete(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}</div>}
         </div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ maxWidth: 220, width: "100%" }}>
@@ -8635,7 +8636,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
       <CardWrap>
         <div className="flex aic jb mb12">
           <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
-          {onRemove && <button className="btn btn-ghost" onClick={()=>onRemove(card.id)} style={{padding:"4px 6px",fontSize:10,borderRadius:6,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}
+          {(onRemove || onDelete) && <div style={{display:"flex",gap:2}}>{onRemove && <button className="btn btn-ghost" title="Yashirish" onClick={()=>onRemove(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--muted)",borderColor:"var(--border)"}}>👁</button>}{onDelete && <button className="btn btn-ghost" title="O'chirish" onClick={()=>onDelete(card.id)} style={{padding:"4px 5px",fontSize:9,borderRadius:5,color:"var(--red)",borderColor:"rgba(248,113,113,0.2)"}}>✕</button>}</div>}
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
           {card.items.map((it, i) => (
@@ -8690,12 +8691,11 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
               {o.l.split(" ")[0]}
             </button>
           ))}
-          {onRemove && (
-            <button className="btn btn-ghost" title="Kartani o'chirish"
-              onClick={() => onRemove(card.id)}
-              style={{ padding: "4px 6px", fontSize: 10, borderRadius: 6, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}>
-              ✕
-            </button>
+          {(onRemove || onDelete) && (
+            <div style={{ display: "flex", gap: 2 }}>
+              {onRemove && <button className="btn btn-ghost" title="Yashirish" onClick={() => onRemove(card.id)} style={{ padding: "4px 5px", fontSize: 9, borderRadius: 5, color: "var(--muted)", borderColor: "var(--border)" }}>👁</button>}
+              {onDelete && <button className="btn btn-ghost" title="O'chirish" onClick={() => onDelete(card.id)} style={{ padding: "4px 5px", fontSize: 9, borderRadius: 5, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}>✕</button>}
+            </div>
           )}
         </div>
       </div>
@@ -9099,7 +9099,7 @@ FAQAT JSON.`;
 
       {/* Dashboard kartalar */}
       {dashCards.length > 0 && (
-        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash"} onRemoveCard={(id) => removeDashCard(id)} />
+        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash"} onDeleteCard={(id) => removeDashCard(id)} />
       )}
 
       {/* ── Ma'lumot yo'q holat ── */}
