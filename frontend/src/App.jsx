@@ -5859,9 +5859,11 @@ MAZMUN QOIDALARI:
       <div className="chat-input-row">
         <input ref={chatFileRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.txt,.csv,.md,.pdf,.docx,.doc,.xlsx,.xls,.json" style={{ display: "none" }}
           onChange={e => { if (e.target.files[0]) handleChatFile(e.target.files[0]); e.target.value = ""; }} />
-        <button onClick={() => chatFileRef.current?.click()} title="Fayl yuklash"
-          style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid var(--border)", background: attachedFile ? "rgba(0,201,190,0.1)" : "var(--s2)", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        <button onClick={() => chatFileRef.current?.click()} title="Fayl yuklash (rasm, PDF, Excel, Word)"
+          style={{ minWidth: 44, height: 44, borderRadius: 12, border: "1px solid var(--border)", background: attachedFile ? "linear-gradient(135deg,rgba(0,201,190,0.15),rgba(0,201,190,0.08))" : "var(--s2)", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = attachedFile ? "var(--teal)" : "var(--muted)"; }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
         <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing yoki 🎤 bosing..."} value={input}
           onChange={e => setInput(e.target.value)}
