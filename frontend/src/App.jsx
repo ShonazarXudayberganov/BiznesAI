@@ -5331,13 +5331,84 @@ function VoiceButton({ onResult }) {
 // ─────────────────────────────────────────────────────────────
 function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
-  const chatKey = "u_" + (user?.id || "anon") + "_chat_h";
+  const uid = user?.id || "anon";
+  const sessionsKey = "u_" + uid + "_chat_sessions";
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [activeSrcIds, setActiveSrcIds] = useState(() => connectedSources.map(s => s.id));
-  const [messages, setMessages] = useState(() => LS.get(chatKey, [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing.", time: new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) }]));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [qCat, setQCat] = useState("all");
+  const [showSessions, setShowSessions] = useState(false);
+
+  // ── Chat sessiyalar tizimi ──
+  const nowTS = () => new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+  const defaultMsg = [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing.", time: nowTS() }];
+
+  const [sessions, setSessions] = useState(() => {
+    const saved = LS.get(sessionsKey, []);
+    // 3 kundan eski sessiyalarni o'chirish
+    const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
+    const fresh = saved.filter(s => s.createdAt > threeDaysAgo);
+    if (fresh.length !== saved.length) LS.set(sessionsKey, fresh);
+    if (!fresh.length) {
+      const first = { id: Date.now(), title: "Yangi suhbat", createdAt: Date.now(), messages: defaultMsg };
+      LS.set(sessionsKey, [first]);
+      return [first];
+    }
+    return fresh;
+  });
+  const [activeSessionId, setActiveSessionId] = useState(() => sessions[0]?.id || Date.now());
+
+  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
+  const messages = activeSession?.messages || defaultMsg;
+
+  const setMessages = (updater) => {
+    setSessions(prev => {
+      const updated = prev.map(s => s.id === activeSessionId ? { ...s, messages: typeof updater === "function" ? updater(s.messages) : updater } : s);
+      LS.set(sessionsKey, updated);
+      return updated;
+    });
+  };
+
+  // Yangi sessiya yaratish
+  const newSession = () => {
+    // Joriy sessiya sarlavhasini yangilash
+    const curMsgs = activeSession?.messages || [];
+    const firstUserMsg = curMsgs.find(m => m.role === "user");
+    if (firstUserMsg && activeSession) {
+      const title = firstUserMsg.content.substring(0, 40) + (firstUserMsg.content.length > 40 ? "..." : "");
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, title } : s));
+    }
+    const s = { id: Date.now(), title: "Yangi suhbat", createdAt: Date.now(), messages: defaultMsg };
+    setSessions(prev => { const u = [s, ...prev].slice(0, 20); LS.set(sessionsKey, u); return u; });
+    setActiveSessionId(s.id);
+    setShowSessions(false);
+  };
+
+  // Sessiya tanlash
+  const selectSession = (id) => { setActiveSessionId(id); setShowSessions(false); };
+
+  // Sessiya o'chirish
+  const deleteSession = (id) => {
+    setSessions(prev => {
+      const u = prev.filter(s => s.id !== id);
+      if (!u.length) { const n = { id: Date.now(), title: "Yangi suhbat", createdAt: Date.now(), messages: defaultMsg }; LS.set(sessionsKey, [n]); setActiveSessionId(n.id); return [n]; }
+      LS.set(sessionsKey, u);
+      if (id === activeSessionId) setActiveSessionId(u[0].id);
+      return u;
+    });
+  };
+
+  // Sessiya sarlavhasini yangilash (birinchi user xabaridan)
+  useEffect(() => {
+    const firstUser = messages.find(m => m.role === "user");
+    if (firstUser && activeSession?.title === "Yangi suhbat") {
+      const title = firstUser.content.substring(0, 40) + (firstUser.content.length > 40 ? "..." : "");
+      setSessions(prev => { const u = prev.map(s => s.id === activeSessionId ? { ...s, title } : s); LS.set(sessionsKey, u); return u; });
+    }
+  }, [messages.length]);
+
+  const chatKey = "u_" + uid + "_chat_h"; // Legacy uchun
   const topRef = useRef(null);
   const bottomRef = useRef(null);
   const qScrollRef = useRef(null);
@@ -5413,7 +5484,7 @@ MAZMUN QOIDALARI:
       });
       // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
-      setMessages(m => { LS.set(chatKey, m.slice(-50)); return m; });
+      setMessages(m => m); // Sessions tizimi avtomatik saqlaydi
     } catch (e) {
       setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
     }
@@ -5564,12 +5635,17 @@ MAZMUN QOIDALARI:
           <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish"> Yukla</button>
           <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
-        <button onClick={() => { if(confirm("Chat tarixini tozalashni xohlaysizmi?")){ setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi.", time: new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) }]); LS.del(chatKey); }}}
-          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(248,113,113,0.3)", background:"rgba(248,113,113,0.08)", color:"#F87171", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6, transition:"all .2s" }}
-          onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.15)";e.currentTarget.style.borderColor="rgba(248,113,113,0.5)"}}
-          onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.08)";e.currentTarget.style.borderColor="rgba(248,113,113,0.3)"}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          Tozalash
+        <button onClick={newSession}
+          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(0,201,190,0.3)", background:"rgba(0,201,190,0.08)", color:"var(--teal)", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}
+          onMouseEnter={e=>{e.currentTarget.style.background="rgba(0,201,190,0.15)"}}
+          onMouseLeave={e=>{e.currentTarget.style.background="rgba(0,201,190,0.08)"}}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yangi
+        </button>
+        <button onClick={() => setShowSessions(p => !p)}
+          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid var(--border)", background: showSessions ? "var(--s3)" : "var(--s2)", color:"var(--text2)", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Tarix ({sessions.length})
         </button>
       </div>
 
@@ -5599,6 +5675,31 @@ MAZMUN QOIDALARI:
       </div>
 
       {/* ── Chat xabarlar (wrapper with floating scroll buttons) ── */}
+      {/* ── Sessiyalar paneli ── */}
+      {showSessions && (
+        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 10, marginBottom: 10, maxHeight: 200, overflowY: "auto", flexShrink: 0 }}>
+          {sessions.map(s => {
+            const isActive = s.id === activeSessionId;
+            const age = Math.floor((Date.now() - s.createdAt) / 86400000);
+            const dateStr = new Date(s.createdAt).toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+            return (
+              <div key={s.id} onClick={() => selectSession(s.id)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 4, background: isActive ? "var(--s3)" : "transparent", border: isActive ? "1px solid var(--border-hi)" : "1px solid transparent", transition: "all .15s" }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--s2)"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                <div style={{ width: 4, height: 24, borderRadius: 2, background: isActive ? "var(--teal)" : "transparent", flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: isActive ? 700 : 400, color: isActive ? "var(--text)" : "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{dateStr} · {s.messages?.length || 0} xabar {age > 0 ? `· ${age} kun oldin` : ""}</div>
+                </div>
+                {age >= 2 && <span style={{ fontSize: 8, color: "var(--red)", padding: "1px 5px", borderRadius: 4, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>{3 - age}k</span>}
+                <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12, padding: "2px 4px" }}>✕</button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="chat-msgs-wrap">
         <div className="chat-msgs">
           <div ref={topRef} />
