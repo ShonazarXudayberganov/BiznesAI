@@ -3345,43 +3345,68 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetsFound.push({ gid: 0, name: firstData.table?.cols?.[0]?.label ? "List 1" : "List 1", rows: first.rows, cols: first.cols });
       }
 
-      // Qolgan listlarni topish — HTML dan barcha gid larni ajratish
+      // Qolgan listlarni topish — bir necha usul bilan
+      push("Barcha listlar qidirilmoqda...", "info");
+
+      // 1-USUL: Export HTML dan sheet nomlari va gid larni olish
       let gidCandidates = [];
       try {
-        const htmlUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
-        const htmlRes = await fetch(htmlUrl);
-        const htmlText = await htmlRes.text();
-        // gid=XXXXX pattern larni topish
-        const gidMatches = htmlText.match(/gid=(\d+)/g) || [];
-        const gids = [...new Set(gidMatches.map(m => parseInt(m.replace("gid=", ""))))].filter(g => g !== 0);
-        if (gids.length > 0) {
-          gidCandidates = gids;
-          push(`${gids.length + 1} ta list topildi`, "info");
+        const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=0`;
+        // Sheets public export URL dan redirect bo'lganda sheet info olish
+        const pubUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/pubhtml`;
+        const pubRes = await fetch(pubUrl);
+        if (pubRes.ok) {
+          const pubText = await pubRes.text();
+          // Sheet nomlari va gid larni HTML dan ajratish
+          const sheetMatches = pubText.match(/gid=(\d+)[^>]*>([^<]+)</g) || [];
+          sheetMatches.forEach(m => {
+            const gidM = m.match(/gid=(\d+)/);
+            const nameM = m.match(/>([^<]+)$/);
+            if (gidM) {
+              const gid = parseInt(gidM[1]);
+              const name = nameM ? nameM[1].trim() : `List ${gid}`;
+              if (gid !== 0 && !gidCandidates.find(c => c.gid === gid)) {
+                gidCandidates.push({ gid, name });
+              }
+            }
+          });
         }
       } catch { }
 
-      // Agar HTML dan topilmasa — 0-19 gacha tekshirish
+      // 2-USUL: Agar pubhtml dan topilmasa — keng qidirish
       if (gidCandidates.length === 0) {
-        for (let g = 1; g <= 19; g++) gidCandidates.push(g);
+        // Keng diapazonda tekshirish — Google Sheets odatda ketma-ket gid bermaydi
+        // Birinchi 20 ta potensial gid ni tekshiramiz
+        for (let g = 1; g <= 20; g++) gidCandidates.push({ gid: g, name: `List ${g + 1}` });
+        // Katta gid lar ham bo'lishi mumkin
+        const bigGids = [100, 200, 300, 400, 500, 1000, 2000];
+        bigGids.forEach(g => gidCandidates.push({ gid: g, name: `List gid-${g}` }));
       }
 
-      // Parallel fetch
-      const promises = gidCandidates.map(async (g, idx) => {
-        try {
-          const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${g}`;
-          const testRes = await fetch(testUrl);
-          if (!testRes.ok) return null;
-          const testText = await testRes.text();
-          const testData = parseGvizResponse(testText);
-          if (testData.status === "error") return null;
-          const parsed = gvizToRows(testData.table);
-          if (parsed.rows.length === 0) return null;
-          return { gid: g, name: `List ${idx + 2}`, rows: parsed.rows, cols: parsed.cols };
-        } catch { return null; }
-      });
+      push(`${gidCandidates.length} ta potensial list tekshirilmoqda...`, "info");
 
-      const results = await Promise.all(promises);
-      results.forEach(r => { if (r) sheetsFound.push(r); });
+      // Parallel fetch — barcha potensial listlarni tekshirish
+      const batchSize = 5; // 5 tadan parallel
+      for (let bi = 0; bi < gidCandidates.length; bi += batchSize) {
+        const batch = gidCandidates.slice(bi, bi + batchSize);
+        const promises = batch.map(async (candidate) => {
+          try {
+            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${candidate.gid}`;
+            const testRes = await fetch(testUrl);
+            if (!testRes.ok) return null;
+            const testText = await testRes.text();
+            const testData = parseGvizResponse(testText);
+            if (testData.status === "error") return null;
+            const parsed = gvizToRows(testData.table);
+            if (parsed.rows.length === 0) return null;
+            // Birinchi list bilan bir xil bo'lsa — skip (duplicate)
+            if (parsed.rows.length === first.rows.length && JSON.stringify(parsed.rows[0]) === JSON.stringify(first.rows[0])) return null;
+            return { gid: candidate.gid, name: candidate.name, rows: parsed.rows, cols: parsed.cols };
+          } catch { return null; }
+        });
+        const results = await Promise.all(promises);
+        results.forEach(r => { if (r) sheetsFound.push(r); });
+      }
 
       if (sheetsFound.length === 0) throw new Error("Barcha listlar bo'sh — hech qanday ma'lumot yo'q");
 
@@ -3424,7 +3449,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         onUpdate({
           ...src,
           connected: true, active: true,
-          data: sheetsFound[0].rows, // Default ko'rsatish uchun
+          data: allRows, // BARCHA listlar birlashtirilgan
           files: [fileEntry],
           activeSheet: sheetNames[0],
           updatedAt: new Date().toLocaleString("uz-UZ"),
