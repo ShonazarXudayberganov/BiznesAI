@@ -5675,25 +5675,22 @@ MAZMUN QOIDALARI:
       </div>
 
       {/* ── Chat xabarlar (wrapper with floating scroll buttons) ── */}
-      {/* ── Sessiyalar paneli ── */}
+      {/* ── Sessiyalar paneli (ixcham, 1 qator scroll) ── */}
       {showSessions && (
-        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 10, marginBottom: 10, maxHeight: 200, overflowY: "auto", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 8, flexShrink: 0 }} className="hide-scroll">
           {sessions.map(s => {
             const isActive = s.id === activeSessionId;
             const age = Math.floor((Date.now() - s.createdAt) / 86400000);
-            const dateStr = new Date(s.createdAt).toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
             return (
               <div key={s.id} onClick={() => selectSession(s.id)}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 4, background: isActive ? "var(--s3)" : "transparent", border: isActive ? "1px solid var(--border-hi)" : "1px solid transparent", transition: "all .15s" }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--s2)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
-                <div style={{ width: 4, height: 24, borderRadius: 2, background: isActive ? "var(--teal)" : "transparent", flexShrink: 0 }} />
+                style={{ padding: "6px 12px", borderRadius: 8, cursor: "pointer", background: isActive ? "var(--s3)" : "var(--s1)", border: `1px solid ${isActive ? "var(--teal)" : "var(--border)"}`, transition: "all .15s", flexShrink: 0, minWidth: 120, maxWidth: 180, display: "flex", alignItems: "center", gap: 6 }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.borderColor = "var(--border)"; }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: isActive ? 700 : 400, color: isActive ? "var(--text)" : "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                  <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{dateStr} · {s.messages?.length || 0} xabar {age > 0 ? `· ${age} kun oldin` : ""}</div>
+                  <div style={{ fontSize: 10, fontWeight: isActive ? 700 : 400, color: isActive ? "var(--teal)" : "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div style={{ fontSize: 8, color: "var(--muted)", fontFamily: "var(--fm)" }}>{s.messages?.length || 0} xabar {age > 0 ? `· ${age}k` : ""}</div>
                 </div>
-                {age >= 2 && <span style={{ fontSize: 8, color: "var(--red)", padding: "1px 5px", borderRadius: 4, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.15)" }}>{3 - age}k</span>}
-                <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12, padding: "2px 4px" }}>✕</button>
+                <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10, padding: 0, flexShrink: 0, lineHeight: 1 }}>✕</button>
               </div>
             );
           })}
