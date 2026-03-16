@@ -3664,34 +3664,78 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       // 2. Profil ma'lumotlari (followers, bio, va h.k.)
       const profile = await fbFetch(`v21.0/${igId}?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`);
 
-      // 3. Postlar — like_count, comments_count bilan
+      // 3. Postlar — like, comments + INSIGHTS (reach, impressions, saved, shares)
       let posts = [];
       try {
         const mediaJson = await fbFetch(`v21.0/${igId}/media?fields=id,caption,media_type,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
-        posts = (mediaJson.data || []).map(p => ({
-          id: p.id,
-          caption: (p.caption || "").substring(0, 120),
-          type: p.media_type,
-          date: p.timestamp?.slice(0, 10) || "",
-          time: p.timestamp?.slice(11, 16) || "",
-          likes: p.like_count || 0,
-          comments: p.comments_count || 0,
-          engagement: (p.like_count || 0) + (p.comments_count || 0),
-          url: p.permalink || "",
-        }));
+        const rawPosts = mediaJson.data || [];
+        // Har bir post uchun insights olish (ketma-ket, rate limit uchun)
+        for (const p of rawPosts) {
+          let reach = 0, impressions = 0, saved = 0, shares = 0;
+          try {
+            const ins = await fbFetch(`v21.0/${p.id}/insights?metric=reach,impressions,saved,shares&access_token=${token}`);
+            (ins.data || []).forEach(m => {
+              if (m.name === "reach") reach = m.values?.[0]?.value || 0;
+              if (m.name === "impressions") impressions = m.values?.[0]?.value || 0;
+              if (m.name === "saved") saved = m.values?.[0]?.value || 0;
+              if (m.name === "shares") shares = m.values?.[0]?.value || 0;
+            });
+          } catch { }
+          posts.push({
+            id: p.id,
+            caption: (p.caption || "").substring(0, 120),
+            type: p.media_type,
+            date: p.timestamp?.slice(0, 10) || "",
+            time: p.timestamp?.slice(11, 16) || "",
+            likes: p.like_count || 0,
+            comments: p.comments_count || 0,
+            reach, impressions, saved, shares,
+            engagement: (p.like_count || 0) + (p.comments_count || 0) + saved + shares,
+            url: p.permalink || "",
+          });
+          // Rate limit uchun kichik pauza
+          if (rawPosts.length > 10) await new Promise(r => setTimeout(r, 200));
+        }
       } catch (e2) { push("Postlarni yuklab bo'lmadi: " + e2.message, "warn"); }
 
-      // 4. Statistika hisoblash
+      // 4. PROFIL INSIGHTS — reach, impressions, follower o'sishi (kunlik)
+      let profileInsights = {};
+      try {
+        const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
+        const pIns = await fbFetch(`v21.0/${igId}/insights?metric=reach,impressions,profile_views,website_clicks,follower_count&period=day&since=${d30}&until=${today}&access_token=${token}`);
+        (pIns.data || []).forEach(m => {
+          const vals = (m.values || []).map(v => v.value || 0);
+          const total = vals.reduce((a, b) => a + b, 0);
+          profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
+        });
+      } catch { }
+
+      // 5. AUDIENCE — shahar, mamlakat, yosh-jins
+      let audience = {};
+      try {
+        const aud = await fbFetch(`v21.0/${igId}/insights?metric=audience_city,audience_country,audience_gender_age&period=lifetime&access_token=${token}`);
+        (aud.data || []).forEach(m => {
+          audience[m.name] = m.values?.[0]?.value || {};
+        });
+      } catch { }
+
+      // 6. Statistika hisoblash
       const totalLikes = posts.reduce((a, p) => a + (p.likes || 0), 0);
       const totalComments = posts.reduce((a, p) => a + (p.comments || 0), 0);
-      const totalEngagement = totalLikes + totalComments;
+      const totalReach = posts.reduce((a, p) => a + (p.reach || 0), 0);
+      const totalImpressions = posts.reduce((a, p) => a + (p.impressions || 0), 0);
+      const totalSaved = posts.reduce((a, p) => a + (p.saved || 0), 0);
+      const totalShares = posts.reduce((a, p) => a + (p.shares || 0), 0);
+      const totalEngagement = totalLikes + totalComments + totalSaved + totalShares;
       const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0;
       const avgComments = posts.length ? Math.round(totalComments / posts.length) : 0;
+      const avgReach = posts.length ? Math.round(totalReach / posts.length) : 0;
       const sortedPosts = [...posts].sort((a, b) => (b.engagement || 0) - (a.engagement || 0));
       const topPost = sortedPosts[0];
       const typeCount = posts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {});
 
-      // 5. Profil summary
+      // 7. Profil summary (KENGAYTIRILGAN)
       const summary = {
         _type: "PROFIL_STATISTIKA",
         username: profile.username,
@@ -3704,9 +3748,17 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         post_types: typeCount,
         total_likes: totalLikes,
         total_comments: totalComments,
+        total_reach: totalReach,
+        total_impressions: totalImpressions,
+        total_saved: totalSaved,
+        total_shares: totalShares,
         total_engagement: totalEngagement,
         avg_likes_per_post: avgLikes,
         avg_comments_per_post: avgComments,
+        avg_reach_per_post: avgReach,
+        engagement_rate: profile.followers_count > 0 ? ((totalEngagement / posts.length / profile.followers_count) * 100).toFixed(2) + "%" : "0%",
+        profile_insights: profileInsights,
+        audience: audience,
         top_post_caption: topPost?.caption || "—",
         top_post_engagement: topPost?.engagement || 0,
         last_updated: new Date().toLocaleString("uz-UZ"),
@@ -3720,7 +3772,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         profileName: profile.username,
         config: { ...src.config, token, igId, lastFetch: Date.now() },
       });
-      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post, ${totalLikes.toLocaleString()} like yuklandi`, "ok");
+      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post, reach: ${totalReach.toLocaleString()}, ${totalLikes.toLocaleString()} like, ${totalSaved.toLocaleString()} saved`, "ok");
     } catch (e) {
       push("Instagram xato: " + e.message, "error");
     }
@@ -7374,18 +7426,20 @@ function generateDashboards(source, colSelection) {
       const avgComment = Math.round(totalComments / fetched);
       const engRate = followers > 0 ? (totalEng / fetched / followers * 100).toFixed(2) : "0";
 
-      // 1. Asosiy raqamlar
-      cards.push({
-        id: "ig_main", title: "Instagram Statistika", icon: "📊", type: "stats",
-        stats: [
-          { l: "Obunachilar", v: fmtN(followers), c: "#E879F9", i: "👥" },
-          { l: "Jami postlar", v: fmtN(summary.total_posts || 0), c: "#4ADE80", i: "📸" },
-          { l: "O'rtacha like", v: fmtN(avgLike), c: "#F87171", i: "❤️" },
-          { l: "O'rtacha izoh", v: fmtN(avgComment), c: "#FBBF24", i: "💬" },
-          { l: "Engagement rate", v: engRate + "%", c: "#00C9BE", i: "📈" },
-          { l: "Like/Izoh nisbati", v: avgComment > 0 ? (avgLike / avgComment).toFixed(0) + ":1" : "—", c: "#A78BFA", i: "⚖️" },
-        ]
-      });
+      // 1. Asosiy raqamlar (kengaytirilgan — reach, saves bilan)
+      const statsItems = [
+        { l: "Obunachilar", v: fmtN(followers), c: "#E879F9", i: "👥" },
+        { l: "Jami postlar", v: fmtN(summary.total_posts || 0), c: "#4ADE80", i: "📸" },
+        { l: "O'rtacha like", v: fmtN(avgLike), c: "#F87171", i: "❤️" },
+        { l: "O'rtacha izoh", v: fmtN(avgComment), c: "#FBBF24", i: "💬" },
+        { l: "Engagement rate", v: summary.engagement_rate || engRate + "%", c: "#00C9BE", i: "📈" },
+      ];
+      if (summary.total_reach) statsItems.push({ l: "Jami reach", v: fmtN(summary.total_reach), c: "#60A5FA", i: "👁" });
+      if (summary.total_impressions) statsItems.push({ l: "Impressions", v: fmtN(summary.total_impressions), c: "#38BDF8", i: "📊" });
+      if (summary.total_saved) statsItems.push({ l: "Saqlangan", v: fmtN(summary.total_saved), c: "#A78BFA", i: "🔖" });
+      if (summary.total_shares) statsItems.push({ l: "Ulashilgan", v: fmtN(summary.total_shares), c: "#FB923C", i: "↗" });
+      if (summary.avg_reach_per_post) statsItems.push({ l: "O'rt reach/post", v: fmtN(summary.avg_reach_per_post), c: "#EC4899", i: "📡" });
+      cards.push({ id: "ig_main", title: "Instagram Statistika", icon: "📊", type: "stats", stats: statsItems });
 
       // 2. Engagement rate gauge
       cards.push({
