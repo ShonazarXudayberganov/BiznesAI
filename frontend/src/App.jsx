@@ -434,14 +434,43 @@ ${JSON.stringify(teachers, null, 2)}`;
     }
 
     // Boshqa manbalar uchun (Excel, Sheets, API, Manual)
-    // Texnik ustunlarni filtrlash — AI ga yubormaslik
     const techKeys = new Set(["id","_id","_type","_entity","source_id","webhook_url","created_at","updated_at","__v","_v"]);
-    const rows = (s.data?.slice(0, 40) || []).map(row => {
-      const clean = {};
-      Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
-      return clean;
+    const allData = s.data || [];
+    
+    // Agar _sheet marker bor (multi-sheet) — har bir listdan namuna
+    const sheets = {};
+    allData.forEach(row => {
+      const sh = row._sheet || "default";
+      if (!sheets[sh]) sheets[sh] = [];
+      sheets[sh].push(row);
     });
-    return `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv):\n${JSON.stringify(rows, null, 2)}`;
+    const sheetNames = Object.keys(sheets);
+    
+    let context = `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv`;
+    if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(", ")}`;
+    context += `):\n`;
+    
+    if (sheetNames.length > 1) {
+      // Multi-sheet: har bir listdan 5 ta namuna + statistika
+      sheetNames.forEach(sh => {
+        const rows = sheets[sh];
+        const sample = rows.slice(0, 5).map(row => {
+          const clean = {};
+          Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
+          return clean;
+        });
+        context += `\n--- ${sh} (${rows.length} ta qator) ---\n${JSON.stringify(sample, null, 2)}\n`;
+      });
+    } else {
+      // Oddiy: 60 ta qator
+      const rows = allData.slice(0, 60).map(row => {
+        const clean = {};
+        Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
+        return clean;
+      });
+      context += JSON.stringify(rows, null, 2);
+    }
+    return context;
   }).join("\n\n");
 }
 
