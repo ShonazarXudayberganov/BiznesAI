@@ -8550,11 +8550,23 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
 MANBA: "${workingSrc.name}" (${workingSrc.data.length} qator)
 DATA:${ctx}
 
-Faqat 1 ta karta qaytar — stats, chart yoki highlight.
-MANFIY raqam TAQIQLANGAN. Label O'ZBEK tilida.
+SO'ROVGA QARAB KARTA TURINI TANLA:
+- "statistika/raqam/nechta/jami" → stats karta
+- "trend/grafik/chart/dinamika" → chart karta (chartType: "line" yoki "area")
+- "top/reyting/eng yaxshi" → chart karta (chartType: "bar")
+- "taqsimot/ulush/pie" → chart karta (chartType: "pie")
+- "umumiy" → 1 stats + 1 chart
+
+1-2 ta karta qaytar. MANFIY raqam TAQIQLANGAN. Label O'ZBEK tilida, max 10 belgi.
+
+JSON FORMAT:
+- stats: {"type":"stats","title":"...","icon":"📊","stats":[{"l":"Nom","v":"123","c":"#00C9BE"}]}
+- bar: {"type":"chart","title":"...","icon":"📊","chartType":"bar","data":[{"name":"Label","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
+- line: {"type":"chart","title":"...","icon":"📈","chartType":"line","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#4ADE80"]}
+- pie: {"type":"chart","title":"...","icon":"📊","chartType":"pie","data":[{"name":"Nom","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA"]}
 
 \`\`\`json
-{"cards":[{"type":"stats yoki chart","title":"...","icon":"📊","stats":[{"l":"Nom","v":"123","c":"#00C9BE"}]}]}
+{"cards":[...]}
 \`\`\`
 FAQAT JSON.`;
       let result = "";
@@ -8786,7 +8798,7 @@ FAQAT JSON.`;
           </div>
           {/* Tayyor so'rovlar */}
           <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12 }} className="hide-scroll">
-            {["Umumiy statistika", "Top 5 ko'rsatkich", "Oylik trend", "Taqsimot (pie)"].map(q => (
+            {["Umumiy raqamlar", "Top 5 bar grafik", "Trend line grafik", "Taqsimot pie grafik", "Solishtirma tahlil"].map(q => (
               <button key={q} className="btn btn-ghost btn-xs" onClick={() => addDashChart(q)} disabled={dashLoading}
                 style={{ flexShrink: 0, fontSize: 10 }}>{q}</button>
             ))}
