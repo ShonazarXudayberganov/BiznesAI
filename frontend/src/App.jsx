@@ -829,22 +829,56 @@ const CSS = `
     radial-gradient(ellipse 60% 40% at 80% 10%,rgba(167,139,250,0.06) 0%,transparent 50%),
     radial-gradient(ellipse 40% 60% at 50% 100%,rgba(6,16,26,0.6) 0%,transparent 50%);
 }
-/* ═══ ROSE — Bronza luxury ═══ */
+/* ═══ ROSE — Ochiq kulrang-bronza (LIGHT) ═══ */
 [data-theme="rose"]{
-  --bg:#0C0A08;--s1:#15120E;--s2:#1E1A15;--s3:#27221C;--s4:#312B24;
-  --glass:rgba(21,18,14,0.94);
-  --border:rgba(212,168,83,0.1);--border2:rgba(212,168,83,0.04);--border-hi:rgba(212,168,83,0.16);
-  --gold:#E8B84B;--gold2:#F0CC70;--gold-glow:rgba(232,184,75,0.16);
-  --teal:#D4A853;--teal2:#E8C47A;--teal-glow:rgba(212,168,83,0.1);
-  --green:#A3BE8C;--red:#BF616A;--purple:#B48EAD;--blue:#D4A853;--orange:#D08770;
-  --accent1:#E8B84B;--accent2:#D4A853;
-  --text:#ECEFF4;--text2:#BFA97A;--muted:#8A7550;--muted2:#5E503C;
-  --shadow-sm:0 1px 3px rgba(12,10,8,0.5);--shadow-md:0 4px 16px rgba(12,10,8,0.45);--shadow-lg:0 10px 40px rgba(12,10,8,0.5);
-  --shadow-glow-gold:0 0 24px rgba(232,184,75,0.18);--shadow-glow-teal:0 0 24px rgba(212,168,83,0.12);
-  --chart-grid:rgba(212,168,83,0.06);--chart-label:#A09070;--chart-tip-bg:rgba(21,18,14,0.96);--chart-tip-border:rgba(232,184,75,0.3);
+  --bg:#EEEDED;--s1:#FAFAFA;--s2:#E4E3E3;--s3:#D8D6D6;--s4:#CCCACA;
+  --glass:rgba(250,250,250,0.92);
+  --border:rgba(100,85,60,0.1);--border2:rgba(100,85,60,0.05);--border-hi:rgba(100,85,60,0.18);
+  --gold:#7A5A18;--gold2:#8B6914;--gold-glow:rgba(122,90,24,0.08);
+  --teal:#6A5828;--teal2:#806A30;--teal-glow:rgba(106,88,40,0.06);
+  --green:#4A7030;--red:#9A3A30;--purple:#6A5A4A;--blue:#5A6535;--orange:#906828;
+  --accent1:#7A5A18;--accent2:#6A5828;
+  --text:#1E1A10;--text2:#4A4030;--muted:#8A8070;--muted2:#B0A898;
+  --shadow-sm:0 1px 3px rgba(40,35,20,0.06);--shadow-md:0 4px 16px rgba(40,35,20,0.06);--shadow-lg:0 10px 40px rgba(40,35,20,0.08);
+  --shadow-glow-gold:0 0 20px rgba(122,90,24,0.08);--shadow-glow-teal:0 0 20px rgba(106,88,40,0.06);
+  --chart-grid:rgba(122,90,24,0.08);--chart-label:#7A7060;--chart-tip-bg:rgba(250,250,250,0.96);--chart-tip-border:rgba(122,90,24,0.2);
   --bg-pattern:
-    radial-gradient(ellipse 80% 50% at 80% 90%,rgba(212,168,83,0.05) 0%,transparent 50%),
-    radial-gradient(ellipse 60% 40% at 20% 10%,rgba(232,184,75,0.03) 0%,transparent 45%);
+    radial-gradient(ellipse 80% 50% at 80% 90%,rgba(180,150,80,0.05) 0%,transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 10%,rgba(200,170,100,0.04) 0%,transparent 45%);
+}
+/* ═══ MINT — Ochiq yashil-ko'k pastel (LIGHT) ═══ */
+[data-theme="mint"]{
+  --bg:#ECF4E8;--s1:#FFFFFF;--s2:#E2F0DC;--s3:#D4E8CC;--s4:#C4DDB8;
+  --glass:rgba(255,255,255,0.92);
+  --border:rgba(80,130,80,0.12);--border2:rgba(80,130,80,0.06);--border-hi:rgba(80,130,80,0.2);
+  --gold:#2D8A4E;--gold2:#3A9D5E;--gold-glow:rgba(45,138,78,0.1);
+  --teal:#4A8A8C;--teal2:#5A9DA0;--teal-glow:rgba(74,138,140,0.08);
+  --green:#2D8A4E;--red:#C0392B;--purple:#6A7B90;--blue:#4A8A8C;--orange:#C07830;
+  --accent1:#2D8A4E;--accent2:#4A8A8C;
+  --text:#1A2E1A;--text2:#3D5A3D;--muted:#7A9A7A;--muted2:#A0BCA0;
+  --shadow-sm:0 1px 3px rgba(0,30,0,0.06);--shadow-md:0 4px 16px rgba(0,30,0,0.06);--shadow-lg:0 10px 40px rgba(0,30,0,0.08);
+  --shadow-glow-gold:0 0 20px rgba(45,138,78,0.08);--shadow-glow-teal:0 0 20px rgba(74,138,140,0.06);
+  --chart-grid:rgba(45,138,78,0.08);--chart-label:#5A8A5A;--chart-tip-bg:rgba(255,255,255,0.96);--chart-tip-border:rgba(45,138,78,0.2);
+  --bg-pattern:
+    radial-gradient(ellipse 90% 50% at 80% 85%,rgba(171,231,178,0.15) 0%,transparent 50%),
+    radial-gradient(ellipse 70% 40% at 15% 10%,rgba(147,191,199,0.1) 0%,transparent 45%);
+}
+/* ═══ OLIVE — Ochiq zaytun-krem elegantlik (LIGHT) ═══ */
+[data-theme="olive"]{
+  --bg:#F8F3E1;--s1:#FFFFFF;--s2:#EDE8D4;--s3:#E3DBBB;--s4:#D4CCA8;
+  --glass:rgba(255,255,255,0.92);
+  --border:rgba(100,90,50,0.1);--border2:rgba(100,90,50,0.05);--border-hi:rgba(100,90,50,0.18);
+  --gold:#5A6030;--gold2:#6B7040;--gold-glow:rgba(90,96,48,0.1);
+  --teal:#8A7B50;--teal2:#A09060;--teal-glow:rgba(138,123,80,0.06);
+  --green:#5A6030;--red:#A04030;--purple:#7A6A50;--blue:#6A7A4A;--orange:#A08040;
+  --accent1:#5A6030;--accent2:#8A7B50;
+  --text:#2A2810;--text2:#4A4530;--muted:#8A8460;--muted2:#B0AA90;
+  --shadow-sm:0 1px 3px rgba(30,28,10,0.06);--shadow-md:0 4px 16px rgba(30,28,10,0.06);--shadow-lg:0 10px 40px rgba(30,28,10,0.08);
+  --shadow-glow-gold:0 0 20px rgba(90,96,48,0.08);--shadow-glow-teal:0 0 20px rgba(138,123,80,0.06);
+  --chart-grid:rgba(90,96,48,0.08);--chart-label:#7A7550;--chart-tip-bg:rgba(255,255,255,0.96);--chart-tip-border:rgba(90,96,48,0.2);
+  --bg-pattern:
+    radial-gradient(ellipse 80% 50% at 75% 90%,rgba(174,183,132,0.12) 0%,transparent 50%),
+    radial-gradient(ellipse 60% 40% at 20% 15%,rgba(227,219,187,0.1) 0%,transparent 45%);
 }
 html,body,#root{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
@@ -1199,14 +1233,71 @@ select.field{cursor:pointer;-webkit-appearance:none}
 [data-theme="aurora"] .field{background:rgba(15,28,48,0.7);backdrop-filter:blur(8px)}
 [data-theme="aurora"] .nav-btn.active{border-left-color:#6EE7B7}
 
-/* ROSE — issiq gradient borderlar, bronza glow */
-[data-theme="rose"] .logo-main span{color:#E8B84B}
-[data-theme="rose"] .grad{background:linear-gradient(135deg,#E8B84B,#D4A853);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#D4A853,#B8860B);box-shadow:0 2px 12px rgba(212,168,83,0.3)}
-[data-theme="rose"] .card{border-color:rgba(212,168,83,0.1);box-shadow:0 0 16px rgba(212,168,83,0.03),0 4px 16px rgba(0,0,0,0.3)}
-[data-theme="rose"] .sidebar{border-right:1px solid rgba(212,168,83,0.08)}
-[data-theme="rose"] .nav-btn.active{border-left-color:#D4A853}
-[data-theme="rose"] .topbar{border-bottom-color:rgba(212,168,83,0.06)}
+/* ROSE — ochiq bronza-krem (light mode) */
+[data-theme="rose"] .logo-main span{color:#8B6914}
+[data-theme="rose"] .grad{background:linear-gradient(135deg,#8B6914,#7A6530);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#8B6914,#7A5A10);color:#fff;box-shadow:0 2px 12px rgba(139,105,20,0.25)}
+[data-theme="rose"] .card{background:#FAFAFA;border-color:rgba(122,90,24,0.08);box-shadow:0 1px 4px rgba(40,35,20,0.05)}
+[data-theme="rose"] .sidebar{background:#FAFAFA;border-right-color:rgba(122,90,24,0.08)}
+[data-theme="rose"] .topbar{background:rgba(250,250,250,0.9);border-bottom-color:rgba(122,90,24,0.06)}
+[data-theme="rose"] .field{background:#E4E3E3;border-color:rgba(122,90,24,0.12);color:#1E1A10}
+[data-theme="rose"] .nav-btn{color:#4A4030}
+[data-theme="rose"] .nav-btn:hover{background:rgba(122,90,24,0.05);color:#7A5A18}
+[data-theme="rose"] .nav-btn.active{background:rgba(122,90,24,0.07);color:#7A5A18;border-left-color:#7A5A18}
+[data-theme="rose"] .btn-ghost{border-color:rgba(122,90,24,0.12);color:#4A4030}
+[data-theme="rose"] .btn-ghost:hover{background:rgba(122,90,24,0.05)}
+[data-theme="rose"] .msg .bubble{background:#E4E3E3;border-color:rgba(122,90,24,0.08)}
+[data-theme="rose"] .msg.user .bubble{background:rgba(122,90,24,0.05);border-color:rgba(122,90,24,0.1)}
+[data-theme="rose"] .landing{background:#EEEDED}
+[data-theme="rose"] .land-nav{background:rgba(238,237,237,0.92)}
+[data-theme="rose"] .modal-overlay{background:rgba(30,26,16,0.2)}
+[data-theme="rose"] .modal-box{background:#FAFAFA;border-color:rgba(122,90,24,0.1)}
+[data-theme="rose"] .notif{background:#FAFAFA;border-color:rgba(122,90,24,0.08)}
+[data-theme="rose"] .drop-zone{border-color:rgba(122,90,24,0.15);background:linear-gradient(135deg,rgba(122,90,24,0.02),rgba(122,90,24,0.04))}
+
+/* MINT — ochiq yashil (light mode) */
+[data-theme="mint"] .logo-main span{color:#2D8A4E}
+[data-theme="mint"] .grad{background:linear-gradient(135deg,#2D8A4E,#4A8A8C);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="mint"] .btn-primary{background:linear-gradient(135deg,#2D8A4E,#238040);color:#fff;box-shadow:0 2px 12px rgba(45,138,78,0.25)}
+[data-theme="mint"] .card{background:#FFFFFF;border-color:rgba(45,138,78,0.1);box-shadow:0 1px 4px rgba(0,30,0,0.05)}
+[data-theme="mint"] .sidebar{background:#FFFFFF;border-right-color:rgba(45,138,78,0.1)}
+[data-theme="mint"] .topbar{background:rgba(255,255,255,0.9);border-bottom-color:rgba(45,138,78,0.08)}
+[data-theme="mint"] .field{background:#E8F4E2;border-color:rgba(45,138,78,0.15);color:#1A2E1A}
+[data-theme="mint"] .nav-btn{color:#3D5A3D}
+[data-theme="mint"] .nav-btn:hover{background:rgba(45,138,78,0.06);color:#2D8A4E}
+[data-theme="mint"] .nav-btn.active{background:rgba(45,138,78,0.08);color:#2D8A4E;border-left-color:#2D8A4E}
+[data-theme="mint"] .btn-ghost{border-color:rgba(45,138,78,0.15);color:#3D5A3D}
+[data-theme="mint"] .btn-ghost:hover{background:rgba(45,138,78,0.06)}
+[data-theme="mint"] .msg .bubble{background:#E8F4E2;border-color:rgba(45,138,78,0.1)}
+[data-theme="mint"] .msg.user .bubble{background:rgba(45,138,78,0.08);border-color:rgba(45,138,78,0.15)}
+[data-theme="mint"] .landing{background:#ECF4E8}
+[data-theme="mint"] .land-nav{background:rgba(236,244,232,0.92)}
+[data-theme="mint"] .modal-overlay{background:rgba(0,30,0,0.25)}
+[data-theme="mint"] .modal-box{background:#FFFFFF;border-color:rgba(45,138,78,0.12)}
+[data-theme="mint"] .notif{background:#FFFFFF;border-color:rgba(45,138,78,0.1)}
+[data-theme="mint"] .drop-zone{border-color:rgba(45,138,78,0.2);background:linear-gradient(135deg,rgba(45,138,78,0.03),rgba(45,138,78,0.06))}
+
+/* OLIVE — ochiq zaytun-krem (light mode) */
+[data-theme="olive"] .logo-main span{color:#5A6030}
+[data-theme="olive"] .grad{background:linear-gradient(135deg,#5A6030,#8A7B50);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="olive"] .btn-primary{background:linear-gradient(135deg,#5A6030,#4A5020);color:#fff;box-shadow:0 2px 12px rgba(90,96,48,0.25)}
+[data-theme="olive"] .card{background:#FFFFFF;border-color:rgba(90,96,48,0.1);box-shadow:0 1px 4px rgba(30,28,10,0.05)}
+[data-theme="olive"] .sidebar{background:#FFFFFF;border-right-color:rgba(90,96,48,0.1)}
+[data-theme="olive"] .topbar{background:rgba(255,255,255,0.9);border-bottom-color:rgba(90,96,48,0.08)}
+[data-theme="olive"] .field{background:#EDE8D4;border-color:rgba(90,96,48,0.15);color:#2A2810}
+[data-theme="olive"] .nav-btn{color:#4A4530}
+[data-theme="olive"] .nav-btn:hover{background:rgba(90,96,48,0.06);color:#5A6030}
+[data-theme="olive"] .nav-btn.active{background:rgba(90,96,48,0.08);color:#5A6030;border-left-color:#5A6030}
+[data-theme="olive"] .btn-ghost{border-color:rgba(90,96,48,0.15);color:#4A4530}
+[data-theme="olive"] .btn-ghost:hover{background:rgba(90,96,48,0.06)}
+[data-theme="olive"] .msg .bubble{background:#EDE8D4;border-color:rgba(90,96,48,0.1)}
+[data-theme="olive"] .msg.user .bubble{background:rgba(90,96,48,0.08);border-color:rgba(90,96,48,0.15)}
+[data-theme="olive"] .landing{background:#F8F3E1}
+[data-theme="olive"] .land-nav{background:rgba(248,243,225,0.92)}
+[data-theme="olive"] .modal-overlay{background:rgba(30,28,10,0.25)}
+[data-theme="olive"] .modal-box{background:#FFFFFF;border-color:rgba(90,96,48,0.12)}
+[data-theme="olive"] .notif{background:#FFFFFF;border-color:rgba(90,96,48,0.1)}
+[data-theme="olive"] .drop-zone{border-color:rgba(90,96,48,0.2);background:linear-gradient(135deg,rgba(90,96,48,0.03),rgba(90,96,48,0.06))}
 
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
@@ -1683,9 +1774,9 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
         : new Date(Date.now() + 30 * 86400000).toISOString();
       Auth.updateUser(user.id, { plan: plan.id, billing, plan_expiry: newExpiry });
       // Save payment to history
-      const payments = LS.get("payments_" + user.id, []);
-      payments.unshift({ id: Date.now(), plan: plan.id, amount: price, method, date: new Date().toISOString(), billing, status: "paid" });
-      LS.set("payments_" + user.id, payments.slice(0, 50));
+      const pmts = LS.get("payments_" + String(user.id || ""), []);
+      pmts.unshift({ id: Date.now(), plan: plan.id, amount: price, method, date: new Date().toISOString(), billing, status: "paid" });
+      LS.set("payments_" + String(user.id || ""), pmts.slice(0, 50));
       setStep("done");
       setTimeout(() => { onSuccess(plan); }, 1200);
     }, 2200);
@@ -1780,13 +1871,14 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 // PROFILE & BILLING PAGE
 // ─────────────────────────────────────────────────────────────
 function ProfilePage({ user, onPlanChange, push, sources }) {
+  if (!user) return <div className="card" style={{textAlign:"center",padding:32}}>Foydalanuvchi topilmadi</div>;
   const [tab, setTab] = useState("profile");
   const [billing, setBilling] = useState("monthly");
-  const [editName, setEditName] = useState(user.name);
+  const [editName, setEditName] = useState(user.name || "");
   const [payModal, setPayModal] = useState(null);
-  const [payments] = useState(() => LS.get("payments_" + user.id, []));
+  const [payments] = useState(() => LS.get("payments_" + String(user.id || ""), []));
 
-  const currentPlan = PLANS[user.plan] || PLANS.free;
+  const currentPlan = PLANS[user?.plan] || PLANS.free;
   const currentMonth = new Date().toISOString().slice(0, 7);
   const aiUsed = user.ai_requests_month === currentMonth ? (user.ai_requests_used || 0) : 0;
   const aiLimit = currentPlan.limits.ai_requests;
@@ -1825,11 +1917,11 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
               <div className="card-title">Shaxsiy ma'lumotlar</div>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
                 <div style={{ width: 52, height: 52, borderRadius: 14, background: `linear-gradient(135deg,${currentPlan.color}30,${currentPlan.color}10)`, border: `1px solid ${currentPlan.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: currentPlan.color }}>
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.name || "U").charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 700 }}>{user.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{user.email}</div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 700 }}>{user.name || "Foydalanuvchi"}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{user.email || ""}</div>
                   <span className="badge b-ok mt4" style={{ borderColor: currentPlan.color + "40", color: currentPlan.color, background: currentPlan.color + "12" }}>{currentPlan.nameUz}</span>
                 </div>
               </div>
@@ -1884,9 +1976,9 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
             <div className="card">
               <div className="card-title">Hisob ma'lumotlari</div>
               {[
-                { l: "Ro'yxatdan o'tgan", v: new Date(user.created).toLocaleDateString("uz-UZ") },
-                { l: "Oxirgi kirish", v: new Date(user.lastLogin || user.created).toLocaleDateString("uz-UZ") },
-                { l: "Foydalanuvchi ID", v: user.id.slice(0, 8) + "..." },
+                { l: "Ro'yxatdan o'tgan", v: user.created ? new Date(user.created).toLocaleDateString("uz-UZ") : "—" },
+                { l: "Oxirgi kirish", v: (user.lastLogin || user.created) ? new Date(user.lastLogin || user.created).toLocaleDateString("uz-UZ") : "—" },
+                { l: "Foydalanuvchi ID", v: String(user.id || "").slice(0, 8) + "..." },
               ].map((r, i) => (
                 <div key={i} className="flex jb mb8">
                   <span style={{ fontSize: 11, color: "var(--muted)" }}>{r.l}</span>
@@ -4820,34 +4912,25 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
       const ctx = buildMergedContext([workingSource]);
       const srcType = SOURCE_TYPES[workingSource.type];
 
-      const prompt = `Sen — yuqori malakali biznes data tahlilchisi. Biznes egasi quyidagi GRAFIK so'rovini berdi:
+      const prompt = `Sen — professional biznes tahlilchi. Foydalanuvchi so'rovi:
 
 "${query}"
 
 MANBA: "${workingSource.name}" (${srcType?.label || workingSource.type}, ${workingSource.data.length} ta yozuv)
-
 MA'LUMOTLAR:${ctx}
 
-VAZIFANG:
-1. Ma'lumotlarni CHUQUR TAHLIL QIL — har bir raqamni hisoblash, solishtirish, foizini chiqar
-2. HAQIQIY, TUSHUNARLI grafiklar yarat — biznes egasi bir qarashda TUSHUNISHI kerak
-3. Har bir grafik SARLAVHASI aniq bo'lsin — "Oylik savdo dinamikasi (mln so'm)" kabi, nima ekanini ko'rsatsin
-4. Grafik DATA aniq, HAQIQIY raqamlardan iborat bo'lsin — taxminiy EMAS
-5. LABEL lar tushunarli bo'lsin — "cat1" emas, "Yanvar", "Guruh A", "Lidlar" kabi
-6. Stats kartada MUHIM KO'RSATKICHLAR bo'lsin — jami, o'rtacha, o'sish %, eng yuqori, eng past
-7. Highlight kartada AMALIY XULOSALAR bo'lsin — muammo va tavsiya
-
-GRAFIK QOIDALARI:
-- Pie chart — 3-7 ta segment, kichik segmentlarni "Boshqa" ga birlashtir
-- Bar chart — max 8-10 ta ustun, eng muhimlarini ko'rsat
-- Line chart — vaqt bo'yicha trend, kamida 4 nuqta
-- X-axis labellar QISQA bo'lsin — max 10 belgi (masalan: "Yan", "Fev", "Mart", "Guruh-1")
-- Raqamlar tushunarli bo'lsin — 1500000 emas, "1.5M" yoki "1,500,000"
-- Har bir grafik biznes egasiga FOYDALI bo'lishi SHART
-- BIRINCHI karta ALBATTA "stats" turi bo'lsin — asosiy raqamlar
-- OXIRGI karta "highlight" turi bo'lsin — XULOSALAR va TAVSIYALAR
-- keys massivida O'ZBEK nomlari ishlatilsin: "daromad", "xarajat", "foyda" (inglizcha emas!)
-- Pie data: name ham O'ZBEK tilida bo'lsin
+MUHIM QOIDALAR:
+1. Foydalanuvchi NECHTA chart so'ragan bo'lsa, SHUNCHTA qaytar. 1 ta so'rasa — 1 ta. 3 ta so'rasa — 3 ta. Aniq aytmasa — 1 ta stats + 1-2 ta chart + 1 ta highlight = jami 3-4 ta.
+2. Agar so'ralgan ma'lumot MANBADA YO'Q bo'lsa — chart yaratma, buning o'rniga highlight kartada: "Bu ma'lumot manbada mavjud emas. Manbada quyidagi ustunlar bor: ..." deb yoz.
+3. Har bir raqam HAQIQIY bo'lishi kerak — ma'lumotlardan aniq HISOBLA. Taxminiy raqam TAQIQLANGAN.
+4. Chart ichidagi labellar O'ZBEK TILIDA va TUSHUNARLI bo'lsin: "Yanvar", "Guruh A" (EMAS: "cat1", "val1", "field_name")
+5. X-axis labellar MAX 10 BELGI: "Yan 2025", "Guruh-1", "Lidlar"
+6. Raqamlarni FORMATLASH: 1500000 → "1,500,000" yoki "1.5M"
+7. Stats kartada har bir raqam: qiymat + nomi + rangi. Min 4 ta raqam.
+8. Chart sarlavhasi ANIQ nima ekanini ko'rsatsin: "Oylik savdo (mln so'm)", "Top 5 guruh (o'quvchi soni)"
+9. Pie: max 6 segment, kichiklar → "Boshqa"
+10. Bar: max 8 ustun
+11. Line: min 4 nuqta (trend uchun)
 
 \`\`\`json
 {
@@ -4901,28 +4984,26 @@ GRAFIK QOIDALARI:
 }
 \`\`\`
 
-QOIDALAR:
-1. Ma'lumotlardan HAQIQIY RAQAMLAR hisoblab chiqar — taxminiy emas, ANIQ!
-2. Har bir chart uchun DATA arrayini O'ZING tuzib ber — foydalanuvchining raw datasidan hisobla
-3. Barcha matn O'ZBEK tilida
-4. Ranglar: #00C9BE (teal), #E8B84B (gold), #A78BFA (purple), #4ADE80 (green), #F87171 (red), #60A5FA (blue), #FB923C (orange), #E879F9 (pink), #FBBF24 (yellow), #38BDF8 (sky)
-
-KARTALAR TARTIBI VA TARKIBI (QATTIQ QOIDA):
-- BIRINCHI KARTA: "stats" turi — ASOSIY RAQAMLAR. Jami, o'rtacha, eng yuqori, eng past, o'sish %. Kamida 4-6 ta raqamli ko'rsatkich. Bu eng MUHIM karta!
-- IKKINCHI KARTA: "stats" turi — SOLISHTIRMA RAQAMLAR. O'tgan davr bilan solishtirish, foizlar, nisbatlar. Chartga SIG'MAYDIGAN muhim raqamlar shu yerda bo'lsin.
-- KEYIN: 2-3 ta "chart" turidagi kartalar — vizual grafiklar (bar, line, pie)
-- OXIRGI KARTA: "highlight" turi — XULOSALAR va AMALIY TAVSIYALAR. Kamida 4-5 ta xulosa.
-
-MUHIM: Ba'zi raqamlar chartga mos EMAS (masalan: jami summa, foiz, o'rtacha qiymat). Bunday raqamlarni CHART ga qo'yma — "stats" kartaga qo'y! Stats karta = oddiy raqamlar ro'yxati, chart = faqat grafik bilan ko'rsatish mantiqiy bo'lgan ma'lumotlar.
-
-Jami 5-7 ta karta bo'lsin: 2 ta stats + 2-3 ta chart + 1 ta highlight
+TARTIB:
+1. Birinchi: "stats" karta — asosiy RAQAMLAR (min 4 ta ko'rsatkich)
+2. O'rtada: "chart" karta(lar) — FAQAT vizual ma'nosi bor ma'lumotlar
+3. Oxirida: "highlight" karta — XULOSA va TAVSIYA
 
 TEXNIK FORMAT:
-- Pie: data: [{"name":"...", "value":number}], keys kerak EMAS
-- Bar/line/area: data: [{"name":"label", "col1":num}], keys: ["col1"], xKey: "name"
-- Scatter: data: [{"x":num, "y":num}], xLabel, yLabel qo'sh
-- Stats: stats: [{"l":"Nomi","v":"1,234","c":"#rang","i":"emoji"}] — v da formatlangan raqam
-- Highlight: items: [{"l":"Xulosa","v":"tushuntirish","c":"#rang"}]
+- stats: {"type":"stats","title":"...","icon":"📊","stats":[{"l":"Nomi","v":"1,234","c":"#00C9BE","i":"📈"}]}
+- chart bar: {"type":"chart","title":"...","icon":"📊","chartType":"bar","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
+- chart pie: {"type":"chart","title":"...","icon":"📊","chartType":"pie","data":[{"name":"Kategoriya","value":50}],"colors":["#00C9BE","#E8B84B"]}
+- chart line: {"type":"chart","title":"...","icon":"📈","chartType":"line","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
+- gauge: {"type":"gauge","title":"...","icon":"📊","value":73,"max":100,"label":"73%","color":"#4ADE80"}
+- highlight: {"type":"highlight","title":"Xulosa","icon":"💡","items":[{"l":"Topilma","v":"tushuntirish","c":"#00C9BE"}]}
+- Ranglar: #00C9BE #E8B84B #A78BFA #4ADE80 #F87171 #60A5FA #FB923C #E879F9
+
+MUHIM OGOHLANTIRISH:
+- Foydalanuvchi FAQAT bitta narsa so'ragan bo'lsa — FAQAT bitta chart yoki stats qaytar. Ortiqcha chart QILMA!
+- Agar "umumiy statistika" so'ralsa — 1 ta stats + 1 ta highlight = 2 ta karta. Tamom.
+- Agar "trend" so'ralsa — 1 ta line chart. Tamom.
+- Agar "solishtirish" so'ralsa — 1 ta bar chart. Tamom.
+- ORTIQCHA CHART YARATISH TAQIQLANGAN. Faqat so'ralganini qaytar.
 
 FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
@@ -4934,7 +5015,32 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           const jsonMatch = result.match(/\{[\s\S]*\}/);
           if (!jsonMatch) return;
           const parsed = JSON.parse(jsonMatch[0]);
-          const cards = (parsed.cards || []).map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` }));
+          const rawCards = parsed.cards || [];
+
+          // ── VALIDATSIYA — noto'g'ri kartalarni filtrlash ──
+          const cards = rawCards.map((c, i) => ({ ...c, id: `ai_${Date.now()}_${i}` })).filter(c => {
+            if (!c.type) return false;
+            // Stats — kamida 1 ta stat bo'lishi kerak
+            if (c.type === "stats" && (!Array.isArray(c.stats) || c.stats.length === 0)) return false;
+            // Chart — data bo'lishi va kamida 1 ta element
+            if (c.type === "chart") {
+              if (!Array.isArray(c.data) || c.data.length === 0) return false;
+              // Pie uchun value tekshirish
+              if (c.chartType === "pie" && !c.data.every(d => d.value != null || d.name != null)) return false;
+              // Bar/line uchun keys tekshirish
+              if (["bar","line","area","stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
+              // Data ichida hamma NaN bo'lsa — o'chirish
+              if (c.chartType !== "pie") {
+                const k = c.keys?.[0];
+                if (k && c.data.every(d => isNaN(parseFloat(d[k])))) return false;
+              }
+            }
+            // Highlight — kamida 1 ta item
+            if (c.type === "highlight" && (!Array.isArray(c.items) || c.items.length === 0)) return false;
+            // Gauge — value bo'lishi kerak
+            if (c.type === "gauge" && (c.value == null || isNaN(c.value))) return false;
+            return true;
+          });
           if (!cards.length) return;
           // Cache ga saqlash (component unmount bo'lgan bo'lishi mumkin)
           const prev = LS.get(curCacheKey, []);
@@ -5243,21 +5349,26 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
 
     const systemPrompt = {
       role: "system",
-      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi va strategik maslahatchi. Sening maqsading — biznes egasini HAYRATGA SOLADIGAN darajada chuqur, aniq va foydali javoblar berish.${bizContext}
+      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi. Biznes egasiga HAYRATLANTIRADIGAN darajada foydali javoblar ber.${bizContext}
 
-QOIDALAR:
-1. HAMMA JAVOB O'ZBEK TILIDA — professional, ravon, tushunarli
-2. ANIQ RAQAMLAR bilan gapir — "ko'p" emas, "1,247 ta" de. "o'sdi" emas, "23.5% ga o'sdi" de
-3. Har bir javobda AMALIY TAVSIYALAR bo'lsin — nima qilish kerak, qanday yaxshilash mumkin
-4. Ma'lumotlardan INSIGHT lar chiqar — oddiy takrorlash emas, chuqur TAHLIL
-5. Muammolarni ANIQLASH — qayerda pul yo'qolayapti, qayerda imkoniyat bor
-6. SOLISHTIRISH — o'tgan davr bilan, o'rtacha bilan, maqsad bilan
-7. PROGNOZ — kelgusi 1-3 oy uchun bashorat
-8. Javobni STRUKTURALI yoz — sarlavhalar, nuqtalar, raqamlar alohida ajratilgan
-9. Biznes egasi sifatida QAROR QABUL QILISHGA yordam ber
-10. Keraksiz texnik ma'lumot BERMA — faqat biznes qiymati bor narsalarni yoz
-11. Agar ma'lumot yetarli bo'lmasa — qanday ma'lumot kerakligini so'ra
-12. MUHIM: Bitta savolga 300-500 so'z oralig'ida javob ber — na kam, na ko'p`
+JAVOB FORMATI — bu juda MUHIM:
+1. Javobni STRUKTURALI yoz — sarlavhalar, nuqtalar bilan
+2. Har bir muhim raqamni BOLD qil: **1,247 ta**, **23.5%**, **3.2M so'm**
+3. Har bir bo'limga mos EMOJI qo'y: 📊 Statistika, 📈 O'sish, ⚠️ Muammo, 💡 Tavsiya, 🎯 Maqsad, 💰 Moliya, 👥 Mijozlar
+4. Raqamlarni JADVAL ko'rinishida ber (markdown table):
+   | Ko'rsatkich | Qiymat | O'zgarish |
+   |-------------|--------|-----------|
+   | Savdo       | 1.2M   | +15%      |
+5. Muhim xulosalarni > blockquote bilan ajrat
+6. Ro'yxatlarni • bullet bilan yoz
+
+MAZMUN QOIDALARI:
+- ANIQ RAQAMLAR — "ko'p" emas, "1,247 ta". "o'sdi" emas, "+23.5%"
+- AMALIY TAVSIYA — har bir topilmaga "nima qilish kerak" yoz
+- MUAMMO + YECHIM — faqat muammo emas, yechim ham ber
+- SOLISHTIRISH — o'rtacha bilan, maqsad bilan
+- Agar ma'lumot YO'Q — "Bu ma'lumot manbada mavjud emas" de, o'ylab chiqarma
+- O'ZBEK TILIDA, 200-400 so'z`
     };
 
     try {
@@ -5465,7 +5576,7 @@ QOIDALAR:
                     {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
                   </div>
                 )}
-                <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
+                {m.role === "assistant" ? <RenderMD text={m.content} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>}
               </div>
             </div>
           ))}
@@ -6945,124 +7056,113 @@ function generateDashboards(source, colSelection) {
   if (type === "instagram") {
     const summary = data.find(d => d._type === "PROFIL_STATISTIKA");
     const posts = data.filter(d => !d._type);
+    const fmtN = (n) => { if (n >= 1000000) return (n/1000000).toFixed(1) + "M"; if (n >= 1000) return (n/1000).toFixed(1) + "K"; return String(n); };
 
     if (summary) {
-      // 1. Profil umumiy statistika
+      const followers = summary.followers_count || 0;
+      const totalLikes = summary.total_likes || 0;
+      const totalComments = summary.total_comments || 0;
+      const totalEng = summary.total_engagement || 0;
+      const fetched = summary.fetched_posts || 1;
+      const avgLike = Math.round(totalLikes / fetched);
+      const avgComment = Math.round(totalComments / fetched);
+      const engRate = followers > 0 ? (totalEng / fetched / followers * 100).toFixed(2) : "0";
+
+      // 1. Asosiy raqamlar
       cards.push({
-        id: "ig_profile", title: "Profil Statistika", icon: "", size: "full", type: "stats",
+        id: "ig_main", title: "Instagram Statistika", icon: "📊", type: "stats",
         stats: [
-          { l: "Obunachilar", v: (summary.followers_count || 0).toLocaleString(), c: "#E879F9", i: "" },
-          { l: "Obunalar", v: (summary.follows_count || 0).toLocaleString(), c: "#60A5FA", i: "" },
-          { l: "Jami Postlar", v: (summary.total_posts || 0).toLocaleString(), c: "#4ADE80", i: "" },
-          { l: "Jami Like", v: (summary.total_likes || 0).toLocaleString(), c: "#F87171", i: "" },
-          { l: "Jami Izoh", v: (summary.total_comments || 0).toLocaleString(), c: "#FBBF24", i: "" },
-          { l: "Engagement", v: (summary.total_engagement || 0).toLocaleString(), c: "#00C9BE", i: "" },
+          { l: "Obunachilar", v: fmtN(followers), c: "#E879F9", i: "👥" },
+          { l: "Jami postlar", v: fmtN(summary.total_posts || 0), c: "#4ADE80", i: "📸" },
+          { l: "O'rtacha like", v: fmtN(avgLike), c: "#F87171", i: "❤️" },
+          { l: "O'rtacha izoh", v: fmtN(avgComment), c: "#FBBF24", i: "💬" },
+          { l: "Engagement rate", v: engRate + "%", c: "#00C9BE", i: "📈" },
+          { l: "Like/Izoh nisbati", v: avgComment > 0 ? (avgLike / avgComment).toFixed(0) + ":1" : "—", c: "#A78BFA", i: "⚖️" },
         ]
       });
+
       // 2. Engagement rate gauge
-      const engRate = summary.total_posts > 0 && summary.followers_count > 0 ? ((summary.total_engagement || 0) / (summary.fetched_posts || 1) / summary.followers_count * 100).toFixed(2) : 0;
       cards.push({
-        id: "ig_eng_rate", title: "Engagement Rate", icon: "", type: "gauge",
-        value: parseFloat(engRate), max: 10, label: `${engRate}%`, color: "#E879F9"
-      });
-      // 3. O'rtacha like/izoh
-      cards.push({
-        id: "ig_avg", title: "O'rtacha Ko'rsatkichlar", icon: "", type: "stats",
-        stats: [
-          { l: "O'rtacha Like", v: (summary.avg_likes_per_post || 0).toLocaleString(), c: "#F87171", i: "" },
-          { l: "O'rtacha Izoh", v: (summary.avg_comments_per_post || 0).toLocaleString(), c: "#FBBF24", i: "" },
-          { l: "Yuklangan Post", v: (summary.fetched_posts || 0).toLocaleString(), c: "#60A5FA", i: "" },
-        ]
+        id: "ig_gauge", title: "Engagement Rate", icon: "📈", type: "gauge",
+        value: parseFloat(engRate), max: 10, label: engRate + "%",
+        color: parseFloat(engRate) > 3 ? "#4ADE80" : parseFloat(engRate) > 1 ? "#FBBF24" : "#F87171"
       });
     }
 
     if (posts.length > 0) {
-      // 4. Post engagement trend (line)
-      const trendData = posts.slice(0, 25).reverse().map(p => ({
-        name: p.date?.slice(5) || "", likes: p.likes || 0, comments: p.comments || 0
-      }));
-      cards.push({
-        id: "ig_trend", title: "Engagement Trendi", icon: "", type: "chart", chartType: "area",
-        data: trendData, keys: ["likes", "comments"], xKey: "name", colors: ["#F87171", "#FBBF24"]
-      });
-
-      // 5. Like taqsimoti (bar)
-      cards.push({
-        id: "ig_likes_bar", title: "Postlar bo'yicha Like", icon: "", type: "chart", chartType: "bar",
-        data: posts.slice(0, 15).map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, likes: p.likes || 0 })),
-        keys: ["likes"], xKey: "name", colors: ["#F87171"]
-      });
-
-      // 6. Izohlar (bar)
-      cards.push({
-        id: "ig_comments_bar", title: "Postlar bo'yicha Izoh", icon: "", type: "chart", chartType: "bar",
-        data: posts.slice(0, 15).map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, comments: p.comments || 0 })),
-        keys: ["comments"], xKey: "name", colors: ["#FBBF24"]
-      });
-
-      // 7. Post turi taqsimoti (pie)
-      const typeCounts = {};
-      posts.forEach(p => { typeCounts[p.type || "OTHER"] = (typeCounts[p.type || "OTHER"] || 0) + 1; });
-      cards.push({
-        id: "ig_types", title: "Post Turlari", icon: "", type: "chart", chartType: "pie",
-        data: Object.entries(typeCounts).map(([name, value]) => ({ name: name === "VIDEO" ? "Video" : name === "IMAGE" ? "Rasm" : name === "CAROUSEL_ALBUM" ? "Karusel" : name, value })),
-        colors: C
-      });
-
-      // 8. Top 10 post engagement (bar)
-      const top10 = [...posts].sort((a, b) => (b.engagement || 0) - (a.engagement || 0)).slice(0, 10);
-      cards.push({
-        id: "ig_top10", title: "Top 10 Engagement", icon: "", type: "chart", chartType: "bar",
-        data: top10.map((p, i) => ({ name: p.caption?.slice(0, 12) || `#${i + 1}`, engagement: p.engagement || 0 })),
-        keys: ["engagement"], xKey: "name", colors: ["#00C9BE"]
-      });
-
-      // 9. Kunlik post soni (line)
-      const dayCounts = {};
-      posts.forEach(p => { if (p.date) { dayCounts[p.date] = (dayCounts[p.date] || 0) + 1; } });
-      const dayData = Object.entries(dayCounts).sort().slice(-20).map(([name, count]) => ({ name: name.slice(5), count }));
-      if (dayData.length > 1)
+      // 3. Like va Izoh trendi (oxirgi 20 post, sana bo'yicha)
+      const sorted = [...posts].filter(p => p.date).sort((a, b) => a.date?.localeCompare(b.date)).slice(-20);
+      if (sorted.length >= 3) {
         cards.push({
-          id: "ig_daily", title: "Kunlik Postlar", icon: "", type: "chart", chartType: "line",
-          data: dayData, keys: ["count"], xKey: "name", colors: ["#A78BFA"]
-        });
-
-      // 10. Engagement vs Like scatter
-      if (posts.some(p => p.likes > 0))
-        cards.push({
-          id: "ig_scatter", title: "Like vs Izoh", icon: "⋯", type: "chart", chartType: "scatter",
-          data: posts.filter(p => p.likes > 0 || p.comments > 0).map(p => ({ x: p.likes || 0, y: p.comments || 0 })),
-          xLabel: "Like", yLabel: "Izoh"
-        });
-
-      // 11. Like bo'yicha eng yaxshi post
-      const bestPost = [...posts].sort((a, b) => (b.likes || 0) - (a.likes || 0))[0];
-      if (bestPost)
-        cards.push({
-          id: "ig_best", title: "Eng Yaxshi Post", icon: "", type: "highlight",
-          items: [
-            { l: "Caption", v: bestPost.caption || "—" },
-            { l: "Like", v: (bestPost.likes || 0).toLocaleString(), c: "#F87171" },
-            { l: "Izoh", v: (bestPost.comments || 0).toLocaleString(), c: "#FBBF24" },
-            { l: "Sana", v: bestPost.date || "—" },
-            { l: "Turi", v: bestPost.type || "—", c: "#A78BFA" },
-          ]
-        });
-
-      // 12. Engagement haftalik (agar 7+ post bo'lsa)
-      if (posts.length >= 7) {
-        const weekly = [];
-        for (let i = 0; i < posts.length; i += 7) {
-          const chunk = posts.slice(i, i + 7);
-          const wLikes = chunk.reduce((a, p) => a + (p.likes || 0), 0);
-          const wComments = chunk.reduce((a, p) => a + (p.comments || 0), 0);
-          weekly.push({ name: `Hafta ${Math.floor(i / 7) + 1}`, likes: wLikes, comments: wComments });
-        }
-        cards.push({
-          id: "ig_weekly", title: "Haftalik Engagement", icon: "", type: "chart", chartType: "area",
-          data: weekly.reverse(), keys: ["likes", "comments"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+          id: "ig_trend", title: "Like va Izoh trendi (oxirgi postlar)", icon: "📈", type: "chart", chartType: "area",
+          data: sorted.map(p => ({ name: (p.date || "").slice(5, 10), like: p.likes || 0, izoh: p.comments || 0 })),
+          keys: ["like", "izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
         });
       }
+
+      // 4. Post turlari taqsimoti (pie)
+      const typeCounts = {};
+      posts.forEach(p => {
+        const t = p.type === "VIDEO" ? "Video" : p.type === "IMAGE" ? "Rasm" : p.type === "CAROUSEL_ALBUM" ? "Karusel" : p.type || "Boshqa";
+        typeCounts[t] = (typeCounts[t] || 0) + 1;
+      });
+      if (Object.keys(typeCounts).length > 1) {
+        cards.push({
+          id: "ig_types", title: "Post turlari taqsimoti", icon: "📊", type: "chart", chartType: "pie",
+          data: Object.entries(typeCounts).map(([name, value]) => ({ name, value })),
+          colors: ["#E879F9", "#60A5FA", "#4ADE80", "#FBBF24"]
+        });
+      }
+
+      // 5. Top 5 eng yaxshi post (bar — tushunarli nomlar bilan)
+      const top5 = [...posts].sort((a, b) => ((b.likes || 0) + (b.comments || 0)) - ((a.likes || 0) + (a.comments || 0))).slice(0, 5);
+      cards.push({
+        id: "ig_top5", title: "Top 5 eng yaxshi post", icon: "🏆", type: "chart", chartType: "bar",
+        data: top5.map((p, i) => ({
+          name: `#${i + 1} ${(p.date || "").slice(5, 10)}`,
+          like: p.likes || 0,
+          izoh: p.comments || 0
+        })),
+        keys: ["like", "izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+      });
+
+      // 6. Post turi bo'yicha o'rtacha engagement (bar)
+      const typeStats = {};
+      posts.forEach(p => {
+        const t = p.type === "VIDEO" ? "Video" : p.type === "IMAGE" ? "Rasm" : p.type === "CAROUSEL_ALBUM" ? "Karusel" : "Boshqa";
+        if (!typeStats[t]) typeStats[t] = { likes: 0, comments: 0, count: 0 };
+        typeStats[t].likes += p.likes || 0;
+        typeStats[t].comments += p.comments || 0;
+        typeStats[t].count++;
+      });
+      if (Object.keys(typeStats).length > 1) {
+        cards.push({
+          id: "ig_type_avg", title: "Tur bo'yicha o'rtacha engagement", icon: "📊", type: "chart", chartType: "bar",
+          data: Object.entries(typeStats).map(([name, s]) => ({
+            name, "O'rt like": Math.round(s.likes / s.count), "O'rt izoh": Math.round(s.comments / s.count)
+          })),
+          keys: ["O'rt like", "O'rt izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+        });
+      }
+
+      // 7. Eng yaxshi va eng yomon post xulosasi
+      const best = [...posts].sort((a, b) => ((b.likes||0)+(b.comments||0)) - ((a.likes||0)+(a.comments||0)))[0];
+      const worst = [...posts].sort((a, b) => ((a.likes||0)+(a.comments||0)) - ((b.likes||0)+(b.comments||0)))[0];
+      const items = [];
+      if (best) items.push(
+        { l: "🏆 Eng yaxshi post", v: `${fmtN(best.likes||0)} like, ${fmtN(best.comments||0)} izoh (${best.date || ""})`, c: "#4ADE80" },
+        { l: "📝 Caption", v: (best.caption || "").slice(0, 80) + ((best.caption||"").length > 80 ? "..." : ""), c: "#60A5FA" }
+      );
+      if (worst && posts.length > 3) items.push(
+        { l: "📉 Eng past post", v: `${fmtN(worst.likes||0)} like, ${fmtN(worst.comments||0)} izoh (${worst.date || ""})`, c: "#F87171" }
+      );
+      const avgEng = posts.reduce((a,p) => a + (p.likes||0) + (p.comments||0), 0) / posts.length;
+      const goodPosts = posts.filter(p => (p.likes||0) + (p.comments||0) > avgEng * 1.5).length;
+      items.push(
+        { l: "⭐ O'rtachadan yuqori postlar", v: `${goodPosts} ta (${Math.round(goodPosts/posts.length*100)}%)`, c: "#00C9BE" },
+        { l: "💡 Tavsiya", v: Object.entries(typeStats).sort((a,b) => (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0] ? `"${Object.entries(typeStats).sort((a,b) => (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0][0]}" turidagi postlar eng samarali` : "Ko'proq post chiqaring", c: "#E879F9" }
+      );
+      cards.push({ id: "ig_summary", title: "Xulosalar va tavsiyalar", icon: "💡", type: "highlight", items });
     }
     return cards;
   }
@@ -7542,10 +7642,12 @@ function AiProgressBar({ loading }) {
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: "obsidian", name: "Obsidian", desc: "Klassik qora, toza", icon: "◆" },
-  { id: "midnight", name: "Midnight", desc: "Chuqur ko'k, neon", icon: "◇" },
-  { id: "aurora", name: "Aurora", desc: "Tabiat, shimoliy shu'la", icon: "✦" },
-  { id: "rose", name: "Rose", desc: "Issiq bronza, luxury", icon: "✧" },
+  { id: "obsidian", name: "Obsidian", desc: "Klassik qora", icon: "◆" },
+  { id: "midnight", name: "Midnight", desc: "Tungi ko'k", icon: "◇" },
+  { id: "aurora", name: "Aurora", desc: "Shimoliy shu'la", icon: "✦" },
+  { id: "rose", name: "Rose", desc: "Ochiq bronza krem", icon: "✧" },
+  { id: "mint", name: "Mint", desc: "Ochiq yashil pastel", icon: "❋" },
+  { id: "olive", name: "Olive", desc: "Ochiq zaytun krem", icon: "✿" },
 ];
 
 function useTheme() {
@@ -7567,7 +7669,9 @@ const THEME_PREVIEWS = {
   obsidian: { grad: "linear-gradient(135deg,#D4A853,#00D4C8)", accent: "#D4A853" },
   midnight: { grad: "linear-gradient(135deg,#38BDF8,#34D399)", accent: "#38BDF8" },
   aurora: { grad: "linear-gradient(135deg,#6EE7B7,#22D3EE)", accent: "#6EE7B7" },
-  rose: { grad: "linear-gradient(135deg,#E8B84B,#D4A853)", accent: "#E8B84B" },
+  rose: { grad: "linear-gradient(135deg,#B89A50,#EEEDED)", accent: "#7A5A18" },
+  mint: { grad: "linear-gradient(135deg,#ABE7B2,#93BFC7)", accent: "#ABE7B2" },
+  olive: { grad: "linear-gradient(135deg,#AEB784,#E3DBBB)", accent: "#AEB784" },
 };
 
 function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
@@ -7646,6 +7750,81 @@ function LiveClock() {
       </span>
     </div>
   );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MARKDOWN RENDERER (oddiy, chat uchun)
+// ─────────────────────────────────────────────────────────────
+function RenderMD({ text }) {
+  if (!text) return null;
+  const lines = String(text).split("\n");
+  const elements = [];
+  let tableRows = [];
+  let inTable = false;
+
+  const fmt = (s) => {
+    // Bold, italic, code
+    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--text);font-weight:700">$1</b>');
+    r = r.replace(/\*(.+?)\*/g, '<i>$1</i>');
+    r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:1px 5px;border-radius:4px;font-family:var(--fm);font-size:11px">$1</code>');
+    return r;
+  };
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    // Table
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      if (trimmed.replace(/[|\-\s:]/g, "").length === 0) { inTable = true; return; } // separator
+      tableRows.push(trimmed.split("|").filter(c => c.trim()).map(c => c.trim()));
+      inTable = true;
+      return;
+    }
+    if (inTable && tableRows.length > 0) {
+      const hdr = tableRows[0];
+      const body = tableRows.slice(1);
+      elements.push(
+        <div key={`t${i}`} style={{ overflowX:"auto", margin:"8px 0" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+            <thead><tr>{hdr.map((h,j) => <th key={j} style={{ padding:"6px 10px", textAlign:"left", borderBottom:"2px solid var(--border-hi)", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
+            <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "var(--s2)" }}>{row.map((c,ci) => <td key={ci} style={{ padding:"5px 10px", borderBottom:"1px solid var(--border)", fontSize:12 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
+      tableRows = [];
+      inTable = false;
+    }
+    // Headers
+    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13, fontWeight:700, marginTop:12, marginBottom:4, color:"var(--text)" }}>{trimmed.slice(4)}</div>); return; }
+    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:14, fontWeight:800, marginTop:14, marginBottom:6, color:"var(--teal)" }}>{trimmed.slice(3)}</div>); return; }
+    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:16, fontWeight:800, marginTop:16, marginBottom:8, color:"var(--gold)" }}>{trimmed.slice(2)}</div>); return; }
+    // Blockquote
+    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", paddingLeft:12, margin:"6px 0", color:"var(--text2)", fontStyle:"italic", fontSize:12.5 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
+    // Bullet
+    if (trimmed.startsWith("- ") || trimmed.startsWith("• ") || trimmed.startsWith("* ")) {
+      elements.push(<div key={i} style={{ paddingLeft:12, position:"relative", margin:"2px 0", fontSize:13 }}><span style={{ position:"absolute", left:0, color:"var(--teal)" }}>•</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
+      return;
+    }
+    // Numbered list
+    const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
+    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:16, position:"relative", margin:"2px 0", fontSize:13 }}><span style={{ position:"absolute", left:0, color:"var(--gold)", fontWeight:700, fontFamily:"var(--fm)", fontSize:11 }}>{numMatch[1]}.</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
+    // Empty line
+    if (!trimmed) { elements.push(<div key={i} style={{ height:6 }}/>); return; }
+    // Normal text
+    elements.push(<div key={i} style={{ margin:"2px 0", fontSize:13, lineHeight:1.7 }} dangerouslySetInnerHTML={{__html:fmt(trimmed)}}/>);
+  });
+  // Flush remaining table
+  if (tableRows.length > 0) {
+    const hdr = tableRows[0]; const body = tableRows.slice(1);
+    elements.push(
+      <div key="tlast" style={{ overflowX:"auto", margin:"8px 0" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+          <thead><tr>{hdr.map((h,j) => <th key={j} style={{ padding:"6px 10px", textAlign:"left", borderBottom:"2px solid var(--border-hi)", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
+          <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "var(--s2)" }}>{row.map((c,ci) => <td key={ci} style={{ padding:"5px 10px", borderBottom:"1px solid var(--border)", fontSize:12 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
+        </table>
+      </div>
+    );
+  }
+  return <div>{elements}</div>;
 }
 
 const AngledXTick = ({ x, y, payload }) => (
@@ -8043,6 +8222,26 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove }) {
 // ─────────────────────────────────────────────────────────────
 function DashboardPage({ sources, aiConfig, setPage, user }) {
   const [anomalyOpen, setAnomalyOpen] = useState(false);
+  const [readAnomalies, setReadAnomalies] = useState(() => {
+    try { return LS.get("u_" + (user?.id || "anon") + "_read_anomalies", []); } catch { return []; }
+  });
+  const [hiddenAnomalies, setHiddenAnomalies] = useState(() => {
+    try { return LS.get("u_" + (user?.id || "anon") + "_hidden_anomalies", []); } catch { return []; }
+  });
+  const markAnomalyRead = (key) => {
+    const updated = [...new Set([...readAnomalies, key])];
+    setReadAnomalies(updated);
+    LS.set("u_" + (user?.id || "anon") + "_read_anomalies", updated);
+  };
+  const hideAnomaly = (key) => {
+    const updated = [...new Set([...hiddenAnomalies, key])];
+    setHiddenAnomalies(updated);
+    LS.set("u_" + (user?.id || "anon") + "_hidden_anomalies", updated);
+  };
+  const resetHiddenAnomalies = () => {
+    setHiddenAnomalies([]);
+    LS.del("u_" + (user?.id || "anon") + "_hidden_anomalies");
+  };
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
@@ -8117,11 +8316,13 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
 
       {/* ── Anomaliya Aniqlash (avtomatik, collapse) ── */}
       {(() => {
-        const anomalies = detectAnomalies(connected);
-        if (anomalies.length === 0) return null;
+        const allAnomalies = detectAnomalies(connected);
+        const anomalies = allAnomalies.filter(a => !hiddenAnomalies.includes(a.source + "|" + a.field + "|" + a.type));
+        if (anomalies.length === 0 && hiddenAnomalies.length === 0) return null;
         const dangerCount = anomalies.filter(a => a.severity === 'danger').length;
         const warnCount = anomalies.filter(a => a.severity === 'warning').length;
         const infoCount = anomalies.filter(a => a.severity !== 'danger' && a.severity !== 'warning').length;
+        const unreadCount = anomalies.filter(a => !readAnomalies.includes(a.source + "|" + a.field + "|" + a.type)).length;
         const sevColors = { danger: { bg: "rgba(248,113,113,0.06)", border: "rgba(248,113,113,0.25)", color: "#F87171", label: "Xavfli" }, warning: { bg: "rgba(251,191,36,0.06)", border: "rgba(251,191,36,0.25)", color: "#FBBF24", label: "Ogohlantirish" }, info: { bg: "rgba(96,165,250,0.06)", border: "rgba(96,165,250,0.25)", color: "#60A5FA", label: "Ma'lumot" } };
         return (
           <div className="mb20" style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: "20px 24px", position: "relative", overflow: "hidden" }}>
@@ -8133,14 +8334,15 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24"/></svg>
                 </div>
                 <div>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar aniqlandi</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{anomalyOpen ? "Batafsil ko'rish" : "Bosib oching"} — {anomalies.length} ta topilma</div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar {unreadCount > 0 && <span style={{ color: "var(--red)", fontSize: 12 }}>({unreadCount} yangi)</span>}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{anomalies.length} ta topilma {hiddenAnomalies.length > 0 && `· ${hiddenAnomalies.length} yashirilgan`}</div>
                 </div>
               </div>
               <div className="flex aic gap6">
                 {dangerCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{dangerCount} xavfli</span>}
                 {warnCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{warnCount} ogohlantirish</span>}
                 {infoCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60A5FA", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{infoCount} ma'lumot</span>}
+                {hiddenAnomalies.length > 0 && <span onClick={e => { e.stopPropagation(); resetHiddenAnomalies(); }} style={{ padding: "4px 10px", borderRadius: 20, background: "var(--s3)", border: "1px solid var(--border)", color: "var(--muted)", fontSize: 10, fontFamily: "var(--fh)", cursor: "pointer" }}>Barchasini ko'rsatish</span>}
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .3s", transform: anomalyOpen ? "rotate(180deg)" : "rotate(0)" }}><polyline points="6 9 12 15 18 9"/></svg>
               </div>
             </div>
@@ -8153,11 +8355,16 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${sev.border}`; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
                     {/* Karta header */}
-                    <div className="flex aic gap8 mb8">
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: sev.color, flexShrink: 0, boxShadow: `0 0 8px ${sev.color}60` }} />
-                      <span style={{ fontFamily: "var(--fh)", fontSize: 10, fontWeight: 700, color: sev.color, textTransform: "uppercase", letterSpacing: 1 }}>{sev.label}</span>
-                      <span style={{ fontSize: 9, color: "var(--muted)", marginLeft: "auto", background: "var(--s2)", padding: "2px 8px", borderRadius: 8 }}>{a.source}</span>
-                    </div>
+                    {(() => { const aKey = a.source + "|" + a.field + "|" + a.type; const isRead = readAnomalies.includes(aKey); return (
+                    <div className="flex aic gap6 mb8">
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: isRead ? "var(--muted)" : sev.color, flexShrink: 0, boxShadow: isRead ? "none" : `0 0 8px ${sev.color}60` }} />
+                      <span style={{ fontFamily: "var(--fh)", fontSize: 10, fontWeight: 700, color: isRead ? "var(--muted)" : sev.color, textTransform: "uppercase", letterSpacing: 1 }}>{sev.label}</span>
+                      <span style={{ fontSize: 9, color: "var(--muted)", background: "var(--s2)", padding: "2px 8px", borderRadius: 8 }}>{a.source}</span>
+                      <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                        {!isRead && <button onClick={e => { e.stopPropagation(); markAnomalyRead(aKey); }} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "2px 8px", fontSize: 8, color: "var(--teal)", cursor: "pointer", fontFamily: "var(--fh)" }}>O'qildim</button>}
+                        <button onClick={e => { e.stopPropagation(); hideAnomaly(aKey); }} style={{ background: "none", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 6, padding: "2px 6px", fontSize: 8, color: "var(--red)", cursor: "pointer" }}>✕</button>
+                      </div>
+                    </div>); })()}
                     {/* Ustun nomi */}
                     <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, marginBottom: 8, color: "var(--text)" }}>{a.fieldName || a.field?.replace(/_/g, " ")}</div>
                     {/* Raqamlar */}
@@ -8442,6 +8649,38 @@ export default function App() {
     if (!user) return false;
     return Auth.checkLimit(user, limitKey, sources);
   };
+
+  // ── AVTOMATIK ANOMALIYA TEKSHIRUV (har 5 daqiqada) ──
+  const lastAutoCheckRef = useRef(0);
+  useEffect(() => {
+    if (!user || !sources?.length) return;
+    const runAutoCheck = () => {
+      const now = Date.now();
+      if (now - lastAutoCheckRef.current < 300000) return; // 5 daqiqadan kam bo'lsa — o'tkazib yuborish
+      lastAutoCheckRef.current = now;
+      const connected = (Array.isArray(sources) ? sources : []).filter(s => s.connected && s.active && s.data?.length > 5);
+      if (!connected.length) return;
+      const anomalies = detectAnomalies(connected);
+      const pfx = "u_" + (user?.id || "anon") + "_";
+      const prevCount = LS.get(pfx + "last_anomaly_count", 0);
+      LS.set(pfx + "last_anomaly_count", anomalies.length);
+      // Yangi anomaliyalar bor bo'lsa — alert qo'shish
+      if (anomalies.length > prevCount) {
+        const newCount = anomalies.length - prevCount;
+        const dangerous = anomalies.filter(a => a.severity === "danger");
+        if (dangerous.length > 0) {
+          addAlert({ title: `${dangerous.length} ta xavfli anomaliya aniqlandi`, message: dangerous[0]?.explanation || "Ma'lumotlarda g'ayrioddiy o'zgarish", type: "warn", icon: "⚠️" });
+          push(`⚠️ ${dangerous.length} ta xavfli anomaliya topildi!`, "warn");
+        } else if (newCount > 0) {
+          addAlert({ title: `${newCount} ta yangi anomaliya`, message: "Dashboard da batafsil ko'ring", type: "info", icon: "📊" });
+        }
+      }
+    };
+    // Darhol tekshirish + har 5 daqiqada
+    const t1 = setTimeout(runAutoCheck, 3000);
+    const t2 = setInterval(runAutoCheck, 300000);
+    return () => { clearTimeout(t1); clearInterval(t2); };
+  }, [user?.id, sources?.length]);
 
   // ── Not logged in ──
   if (!user) {
