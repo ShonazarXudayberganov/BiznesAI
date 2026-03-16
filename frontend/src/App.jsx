@@ -4955,6 +4955,9 @@ QOIDALAR:
 - Raqam HAQIQIY bo'lsin — hisobla, o'ylab chiqarma
 - Label O'ZBEK tilida, max 10 belgi
 - Raqam formati: 1500000 → "1.5M"
+- "qiymat" so'zini HECH QACHON ishlatma! ANIQ nom yoz: "like soni", "daromad", "o'quvchilar"
+- Chart title ANIQ bo'lsin: "Postlar bo'yicha like soni" (EMAS: "Dinamika", "Trend")
+- keys da ANIQ nom: ["like_soni"], ["daromad_som"] (EMAS: ["qiymat", "value"])
 
 \`\`\`json
 {
@@ -8559,11 +8562,17 @@ SO'ROVGA QARAB KARTA TURINI TANLA:
 
 1-2 ta karta qaytar. MANFIY raqam TAQIQLANGAN. Label O'ZBEK tilida, max 10 belgi.
 
+MUHIM — LABEL VA NOM QOIDALARI:
+- "qiymat" so'zini HECH QACHON ishlatma! O'rniga ANIQ nom yoz: "like soni", "o'quvchilar", "daromad (so'm)", "guruhlar"
+- Chart title ANIQ bo'lsin: "Postlar bo'yicha like soni" (EMAS: "Postlar dinamikasi")
+- keys da ANIQ nom: ["like_soni"] yoki ["oqvchilar"] (EMAS: ["qiymat"])
+- Tooltip da foydalanuvchi nima ko'rayotganini TUSHUNISHI kerak
+
 JSON FORMAT:
-- stats: {"type":"stats","title":"...","icon":"📊","stats":[{"l":"Nom","v":"123","c":"#00C9BE"}]}
-- bar: {"type":"chart","title":"...","icon":"📊","chartType":"bar","data":[{"name":"Label","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
-- line: {"type":"chart","title":"...","icon":"📈","chartType":"line","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#4ADE80"]}
-- pie: {"type":"chart","title":"...","icon":"📊","chartType":"pie","data":[{"name":"Nom","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA"]}
+- stats: {"type":"stats","title":"Asosiy ko'rsatkichlar","icon":"📊","stats":[{"l":"Jami o'quvchilar","v":"836","c":"#00C9BE"}]}
+- bar: {"type":"chart","title":"Top 5 guruh (o'quvchi soni)","icon":"📊","chartType":"bar","data":[{"name":"Guruh A","oqvchilar":25}],"keys":["oqvchilar"],"xKey":"name","colors":["#00C9BE"]}
+- line: {"type":"chart","title":"Oylik like dinamikasi","icon":"📈","chartType":"line","data":[{"name":"Yan","like_soni":100}],"keys":["like_soni"],"xKey":"name","colors":["#4ADE80"]}
+- pie: {"type":"chart","title":"Post turlari taqsimoti","icon":"📊","chartType":"pie","data":[{"name":"Rasm","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA"]}
 
 \`\`\`json
 {"cards":[...]}
