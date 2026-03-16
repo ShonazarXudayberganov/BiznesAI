@@ -3346,7 +3346,6 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       }
 
       // ── Barcha listlarni topish — SHEET NOMI bo'yicha ──
-      push("Barcha listlar qidirilmoqda...", "info");
 
       // Birinchi list ma'lumotidan sheet nomlarini topish
       // Google gviz birinchi list da boshqa listlarni ko'rsatmaydi, shuning uchun
@@ -3359,7 +3358,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetList = sheetNames.split(",").map(s => s.trim()).filter(Boolean);
       } else {
         // Bo'sh — foydalanuvchiga yozishni so'rash, faqat gid 0-15 tekshirish
-        push("List nomlarini kiriting yoki gid bo'yicha qidirilmoqda...", "info");
+
         // gid bo'yicha tez tekshirish
         for (let g = 1; g <= 15; g++) {
           try {
@@ -3379,7 +3378,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetList = []; // sheet nom bo'yicha qidirmaslik
       }
 
-      if (sheetList.length > 0) push(`${sheetList.length} ta list yuklanmoqda...`, "info");
+
 
       // Sheet nomini URL encode qilib, parallel fetch (10 tadan)
       for (let bi = 0; bi < sheetList.length; bi += 10) {
