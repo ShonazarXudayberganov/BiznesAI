@@ -3393,12 +3393,6 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             if (testData.status === "error") return null;
             const parsed = gvizToRows(testData.table);
             if (parsed.rows.length === 0) return null;
-            // Dublikat tekshirish — birinchi list bilan bir xil bo'lsa skip
-            if (parsed.rows.length === first.rows.length && parsed.cols.length === first.cols.length) {
-              if (JSON.stringify(parsed.rows[0] || {}) === JSON.stringify(first.rows[0] || {})) return null;
-            }
-            // Allaqachon topilgan list bilan dublikat
-            if (sheetsFound.some(s => s.rows.length === parsed.rows.length && JSON.stringify(s.rows[0]) === JSON.stringify(parsed.rows[0]))) return null;
             return { gid: bi, name, rows: parsed.rows, cols: parsed.cols };
           } catch { return null; }
         });
