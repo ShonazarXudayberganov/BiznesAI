@@ -8477,7 +8477,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
 
 function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }) {
   const cType = chartOverrides[card.id] || card.chartType;
-  const CARD_H = 380; // Barcha kartalar uchun YAGONA balandlik
+  const CARD_H = 440; // Barcha kartalar uchun YAGONA balandlik
 
   // Yaxshilangan Tooltip
   const CustomTip = ({ active, payload, label }) => {
