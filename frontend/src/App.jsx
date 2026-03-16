@@ -8678,30 +8678,41 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
 
   return (
     <CardWrap>
+      {/* Tepada: sarlavha + yashirish/o'chirish */}
       <div className="flex aic jb mb6">
         <div className="card-title" style={{ marginBottom: 0, fontSize: 12 }}>{card.icon} {card.title}</div>
-        <div className="flex gap4 aic">
-          {filteredOptions.map(o => (
-            <button key={o.id} className="btn btn-ghost" title={o.l}
-              onClick={() => setChartOverride(card.id, o.id)}
-              style={{
-                padding: "4px 8px", fontSize: 10, borderRadius: 6,
-                ...(cType === o.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {})
-              }}>
-              {o.l.split(" ")[0]}
-            </button>
-          ))}
-          {(onRemove || onDelete) && (
-            <div style={{ display: "flex", gap: 2 }}>
-              {onRemove && <button className="btn btn-ghost" title="Yashirish" onClick={() => onRemove(card.id)} style={{ padding: "4px 5px", fontSize: 9, borderRadius: 5, color: "var(--muted)", borderColor: "var(--border)" }}>👁</button>}
-              {onDelete && <button className="btn btn-ghost" title="O'chirish" onClick={() => onDelete(card.id)} style={{ padding: "4px 5px", fontSize: 9, borderRadius: 5, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}>✕</button>}
-            </div>
-          )}
-        </div>
+        {(onRemove || onDelete) && (
+          <div style={{ display: "flex", gap: 4 }}>
+            {onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish"
+              style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", fontSize: 12 }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>}
+            {onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish"
+              style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)"; }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>}
+          </div>
+        )}
       </div>
+      {/* O'rtada: grafik */}
       <div style={{ flex: 1, minHeight: 0 }}>
         {renderChart()}
       </div>
+      {/* Pastda: chart turi tugmalari */}
+      {filteredOptions.length > 1 && (
+        <div style={{ display: "flex", gap: 4, justifyContent: "center", paddingTop: 6, borderTop: "1px solid var(--border)" }}>
+          {filteredOptions.map(o => (
+            <button key={o.id} onClick={() => setChartOverride(card.id, o.id)} title={o.l}
+              style={{ padding: "3px 10px", fontSize: 9, borderRadius: 6, border: "1px solid var(--border)", background: cType === o.id ? "var(--teal)" : "transparent", color: cType === o.id ? "#000" : "var(--muted)", cursor: "pointer", transition: "all .15s", fontFamily: "var(--fh)", fontWeight: 600 }}>
+              {o.l.split(" ")[0]}
+            </button>
+          ))}
+        </div>
+      )}
     </CardWrap>
   );
 }
