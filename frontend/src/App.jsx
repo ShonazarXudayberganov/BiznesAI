@@ -4990,26 +4990,29 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
   const isSpecialSource = workingSource && (workingSource.type === "instagram" || workingSource.type === "telegram");
 
   // ── Cache: har bir manba uchun AI kartalarni localStorage da saqlash ──
-  const cacheKey = "u_" + (user?.id || "anon") + "_charts_" + (workingSource?.id || "none");
+  const srcId = workingSource?.id || "none";
+  const cacheKey = "u_" + (user?.id || "anon") + "_charts_" + srcId;
+  const srcIdRef = useRef(srcId);
   const [aiCards, setAiCards] = useState(() => {
     try { return LS.get(cacheKey, []); } catch { return []; }
   });
 
-  // Cache ga yozish (aiCards o'zgarganda)
+  // Manba o'zgarganda — YANGI manba cache dan yuklash
   useEffect(() => {
-    if (aiCards.length > 0 && workingSource?.id) {
-      LS.set(cacheKey, aiCards);
-    }
-  }, [aiCards, cacheKey]);
-
-  // Manba o'zgarganda — cache dan yuklash (reset EMAS!)
-  useEffect(() => {
-    if (!workingSource?.id) return;
-    const cached = LS.get(cacheKey, []);
+    srcIdRef.current = srcId;
+    const key = "u_" + (user?.id || "anon") + "_charts_" + srcId;
+    const cached = LS.get(key, []);
     setAiCards(Array.isArray(cached) ? cached : []);
     setAiError("");
     setLastQuery("");
-  }, [workingSource?.id]);
+  }, [srcId]);
+
+  // Cache ga yozish — FAQAT joriy manba uchun
+  useEffect(() => {
+    if (aiCards.length > 0 && srcIdRef.current === srcId) {
+      LS.set(cacheKey, aiCards);
+    }
+  }, [aiCards]);
 
   // Tayyor so'rovlar (barcha manba turlari uchun)
   const QUICK_CHARTS = useMemo(() => {
@@ -6242,7 +6245,7 @@ JAVOB QOIDALARI:
                   }}> Yukla</button>
                 </div>
               </div>
-              <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.85, color: "var(--text)" }}>{result}</div>
+              <RenderMD text={result} />
             </div>
 
             {/* Aloqador chartlar */}
@@ -6640,7 +6643,7 @@ HISOBOT QOIDALARI:
                   <button className="chat-export-btn" onClick={() => setReport("")} title="Yopish">✕</button>
                 </div>
               </div>
-              <div style={{ whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.9, color: "var(--text)" }}>{report}</div>
+              <RenderMD text={report} />
             </div>
 
             {/* Aloqador chartlar */}
