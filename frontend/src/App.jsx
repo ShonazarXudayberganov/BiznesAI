@@ -8458,21 +8458,73 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
 
-  // Custom widgets
+  // Custom widgets — AI avtomatik raqam hisoblaydi
   const widgetsKey = "u_" + (user?.id || "anon") + "_widgets";
   const [widgets, setWidgets] = useState(() => LS.get(widgetsKey, []));
   const [showAddWidget, setShowAddWidget] = useState(false);
-  const [newWidget, setNewWidget] = useState({ label: "", query: "", color: "#00C9BE" });
+  const [newWidget, setNewWidget] = useState({ label: "", sourceId: "", color: "#00C9BE" });
+  const [widgetLoading, setWidgetLoading] = useState(null);
 
-  const addWidget = () => {
-    if (!newWidget.label.trim()) return;
-    // Widget — AI so'rovini saqlaydi, natijani cache da saqlaydi
-    const w = { id: Date.now(), label: newWidget.label, query: newWidget.query, color: newWidget.color, value: "—", updatedAt: "" };
+  const addWidget = async () => {
+    if (!newWidget.label.trim() || !newWidget.sourceId) return;
+    const src = sources.find(s => s.id === newWidget.sourceId);
+    if (!src?.data?.length) return;
+    const w = { id: Date.now(), label: newWidget.label, sourceId: newWidget.sourceId, color: newWidget.color, value: "...", sub: "" };
     const updated = [...widgets, w];
     setWidgets(updated); LS.set(widgetsKey, updated);
-    setShowAddWidget(false); setNewWidget({ label: "", query: "", color: "#00C9BE" });
+    setShowAddWidget(false);
+    // AI dan raqam olish
+    setWidgetLoading(w.id);
+    try {
+      const ctx = buildMergedContext([src]);
+      const prompt = `Foydalanuvchi "${newWidget.label}" ko'rsatkichini bilmoqchi. Manba: "${src.name}" (${src.data.length} qator).
+MA'LUMOTLAR:${ctx}
+
+FAQAT bitta qisqa javob ber — JSON formatda:
+{"value":"123","sub":"tushuntirish"}
+
+value = asosiy raqam (formatlangan: 1.5K, 2.3M)
+sub = qisqa izoh (masalan: "jami summa", "o'rtacha", "836 tadan")
+
+Agar hisoblab bo'lmasa: {"value":"—","sub":"ma'lumot yetarli emas"}
+FAQAT JSON, boshqa narsa yozma.`;
+      let result = "";
+      await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
+      const match = result.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        setWidgets(prev => {
+          const u = prev.map(x => x.id === w.id ? { ...x, value: parsed.value || "—", sub: parsed.sub || "" } : x);
+          LS.set(widgetsKey, u); return u;
+        });
+      }
+    } catch { }
+    setWidgetLoading(null);
+    setNewWidget({ label: "", sourceId: "", color: "#00C9BE" });
   };
   const removeWidget = (id) => { const u = widgets.filter(w => w.id !== id); setWidgets(u); LS.set(widgetsKey, u); };
+  // Widget yangilash
+  const refreshWidget = async (w) => {
+    const src = sources.find(s => s.id === w.sourceId);
+    if (!src?.data?.length) return;
+    setWidgetLoading(w.id);
+    try {
+      const ctx = buildMergedContext([src]);
+      const prompt = `"${w.label}" ko'rsatkichini hisobla. Manba: "${src.name}" (${src.data.length} qator). DATA:${ctx}
+FAQAT JSON: {"value":"123","sub":"izoh"}`;
+      let result = "";
+      await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
+      const match = result.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        setWidgets(prev => {
+          const u = prev.map(x => x.id === w.id ? { ...x, value: parsed.value || "—", sub: parsed.sub || "" } : x);
+          LS.set(widgetsKey, u); return u;
+        });
+      }
+    } catch { }
+    setWidgetLoading(null);
+  };
   const [activeSrc, setActiveSrc] = useState(null);
   const [chartOverrides, setChartOverrides] = useState({});
 
@@ -8528,23 +8580,44 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
             <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
             <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 10 }}>
-            {widgets.map(w => (
-              <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "12px 14px", position: "relative" }}>
-                <button onClick={() => removeWidget(w.id)} style={{ position: "absolute", top: 6, right: 6, background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: w.color }}>{w.value}</div>
-                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{w.label}</div>
-              </div>
-            ))}
-          </div>
+          {widgets.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+              {widgets.map(w => {
+                const isLoading = widgetLoading === w.id;
+                return (
+                  <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", transition: "all .2s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = w.color + "40"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                    <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4 }}>
+                      <button onClick={() => refreshWidget(w)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }} title="Yangilash">↻</button>
+                      <button onClick={() => removeWidget(w.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
+                    </div>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: w.color }}>
+                      {isLoading ? <span style={{ fontSize: 12, color: "var(--muted)" }}>AI hisoblayapti...</span> : w.value || "—"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, fontWeight: 600 }}>{w.label}</div>
+                    {w.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{w.sub}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {showAddWidget && (
             <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginTop: 8 }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input className="field f1" placeholder="Ko'rsatkich nomi" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
+                <input className="field f1" placeholder="Nima bilmoqchisiz? (masalan: Jami o'quvchilar soni)" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
+              </div>
+              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                <select className="field f1" value={newWidget.sourceId} onChange={e => setNewWidget(p => ({ ...p, sourceId: e.target.value }))}>
+                  <option value="">Manba tanlang...</option>
+                  {connected.map(s => <option key={s.id} value={s.id}>{s.name} ({s.data?.length} qator)</option>)}
+                </select>
                 <input type="color" value={newWidget.color} onChange={e => setNewWidget(p => ({ ...p, color: e.target.value }))} style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer" }} />
               </div>
               <div className="flex gap8">
-                <button className="btn btn-primary btn-sm" onClick={addWidget}>Qo'shish</button>
+                <button className="btn btn-primary btn-sm" onClick={addWidget} disabled={!newWidget.label || !newWidget.sourceId || widgetLoading}>
+                  {widgetLoading ? "AI hisoblayapti..." : "Qo'shish"}
+                </button>
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowAddWidget(false)}>Bekor</button>
               </div>
             </div>
