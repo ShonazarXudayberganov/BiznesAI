@@ -450,19 +450,43 @@ ${JSON.stringify(teachers, null, 2)}`;
     if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(", ")}`;
     context += `):\n`;
     
-    if (sheetNames.length > 1) {
-      // Multi-sheet: har bir listdan 5 ta namuna + statistika
+    // Ustunlarni aniqlash
+    const sampleRow = allData[0] || {};
+    const allKeys = Object.keys(sampleRow).filter(k => !techKeys.has(k) && !k.startsWith("_"));
+    const numCols = allKeys.filter(k => {
+      const vals = allData.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")));
+      return vals.filter(v => !isNaN(v)).length > 10;
+    });
+
+    if (total > 200 || sheetNames.length > 1) {
+      // KATTA DATA yoki MULTI-SHEET — statistika + namuna
+      context += `\nUSTUNLAR: ${allKeys.join(", ")}\nRAQAMLI USTUNLAR: ${numCols.join(", ")}\n`;
+      
+      // Har bir list uchun statistika
       sheetNames.forEach(sh => {
         const rows = sheets[sh];
-        const sample = rows.slice(0, 5).map(row => {
+        context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
+        // Raqamli ustunlar statistikasi
+        numCols.slice(0, 8).forEach(col => {
+          const vals = rows.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ""))).filter(v => !isNaN(v) && v >= 0);
+          if (vals.length > 0) {
+            const sum = vals.reduce((a, b) => a + b, 0);
+            const avg = sum / vals.length;
+            const max = Math.max(...vals);
+            const min = Math.min(...vals);
+            context += `  ${col}: o'rtacha=${avg.toFixed(2)}, min=${min}, max=${max}, jami=${sum.toFixed(0)}, soni=${vals.length}\n`;
+          }
+        });
+        // 3 ta namuna qator
+        const sample = rows.slice(0, 3).map(row => {
           const clean = {};
           Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
           return clean;
         });
-        context += `\n--- ${sh} (${rows.length} ta qator) ---\n${JSON.stringify(sample, null, 2)}\n`;
+        context += `  Namuna: ${JSON.stringify(sample)}\n`;
       });
     } else {
-      // Oddiy: 60 ta qator
+      // KICHIK DATA — to'liq yuborish (60 qator)
       const rows = allData.slice(0, 60).map(row => {
         const clean = {};
         Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
