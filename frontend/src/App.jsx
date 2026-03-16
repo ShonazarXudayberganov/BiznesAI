@@ -3345,50 +3345,65 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetsFound.push({ gid: 0, name: firstData.table?.cols?.[0]?.label ? "List 1" : "List 1", rows: first.rows, cols: first.cols });
       }
 
-      // Qolgan listlarni topish — bir necha usul bilan
+      // ── Barcha listlarni topish — 3 bosqichli qidirish ──
       push("Barcha listlar qidirilmoqda...", "info");
+      let gidList = []; // {gid, name}
 
-      // 1-USUL: Export HTML dan sheet nomlari va gid larni olish
-      let gidCandidates = [];
+      // 1-USUL: pubhtml dan sheet tab larni ajratish
       try {
-        const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=0`;
-        // Sheets public export URL dan redirect bo'lganda sheet info olish
         const pubUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/pubhtml`;
         const pubRes = await fetch(pubUrl);
         if (pubRes.ok) {
           const pubText = await pubRes.text();
-          // Sheet nomlari va gid larni HTML dan ajratish
-          const sheetMatches = pubText.match(/gid=(\d+)[^>]*>([^<]+)</g) || [];
-          sheetMatches.forEach(m => {
-            const gidM = m.match(/gid=(\d+)/);
-            const nameM = m.match(/>([^<]+)$/);
-            if (gidM) {
-              const gid = parseInt(gidM[1]);
-              const name = nameM ? nameM[1].trim() : `List ${gid}`;
-              if (gid !== 0 && !gidCandidates.find(c => c.gid === gid)) {
-                gidCandidates.push({ gid, name });
-              }
-            }
-          });
+          // <li> ichidagi gid va nomlarni topish
+          const liMatches = [...pubText.matchAll(/gid=(\d+)/g)];
+          const nameMatches = [...pubText.matchAll(/<a[^>]*gid=(\d+)[^>]*>([^<]+)<\/a>/g)];
+          
+          if (nameMatches.length > 0) {
+            nameMatches.forEach(m => {
+              const gid = parseInt(m[1]);
+              const name = m[2].trim();
+              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name });
+            });
+          } else if (liMatches.length > 0) {
+            const uniqueGids = [...new Set(liMatches.map(m => parseInt(m[1])))];
+            uniqueGids.forEach((gid, i) => {
+              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name: `List ${i + 1}` });
+            });
+          }
         }
       } catch { }
 
-      // 2-USUL: Agar pubhtml dan topilmasa — keng qidirish
-      if (gidCandidates.length === 0) {
-        // Keng diapazonda tekshirish — Google Sheets odatda ketma-ket gid bermaydi
-        // Birinchi 20 ta potensial gid ni tekshiramiz
-        for (let g = 1; g <= 20; g++) gidCandidates.push({ gid: g, name: `List ${g + 1}` });
-        // Katta gid lar ham bo'lishi mumkin
-        const bigGids = [100, 200, 300, 400, 500, 1000, 2000];
-        bigGids.forEach(g => gidCandidates.push({ gid: g, name: `List gid-${g}` }));
+      // 2-USUL: htmlview dan sheet nomlarni olish
+      if (gidList.length <= 1) {
+        try {
+          const hvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/htmlview`;
+          const hvRes = await fetch(hvUrl);
+          if (hvRes.ok) {
+            const hvText = await hvRes.text();
+            const hvMatches = [...hvText.matchAll(/gid=(\d+)/g)];
+            const uniqueGids = [...new Set(hvMatches.map(m => parseInt(m[1])))];
+            uniqueGids.forEach((gid, i) => {
+              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name: `List ${i + 1}` });
+            });
+          }
+        } catch { }
       }
 
-      push(`${gidCandidates.length} ta potensial list tekshirilmoqda...`, "info");
+      // 3-USUL: Keng qidirish (fallback)
+      if (gidList.length <= 1) {
+        for (let g = 0; g <= 30; g++) {
+          if (!gidList.find(c => c.gid === g)) gidList.push({ gid: g, name: `List ${g + 1}` });
+        }
+      }
 
-      // Parallel fetch — barcha potensial listlarni tekshirish
-      const batchSize = 5; // 5 tadan parallel
-      for (let bi = 0; bi < gidCandidates.length; bi += batchSize) {
-        const batch = gidCandidates.slice(bi, bi + batchSize);
+      // gid=0 ni olib tashlaymiz (birinchi list allaqachon yuklangan)
+      const otherGids = gidList.filter(g => g.gid !== 0);
+      push(`${otherGids.length + 1} ta list tekshirilmoqda...`, "info");
+
+      // Batch parallel fetch — 5 tadan
+      for (let bi = 0; bi < otherGids.length; bi += 5) {
+        const batch = otherGids.slice(bi, bi + 5);
         const promises = batch.map(async (candidate) => {
           try {
             const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${candidate.gid}`;
@@ -3399,14 +3414,19 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             if (testData.status === "error") return null;
             const parsed = gvizToRows(testData.table);
             if (parsed.rows.length === 0) return null;
-            // Birinchi list bilan bir xil bo'lsa — skip (duplicate)
-            if (parsed.rows.length === first.rows.length && JSON.stringify(parsed.rows[0]) === JSON.stringify(first.rows[0])) return null;
+            // Birinchi list bilan dublikat tekshirish
+            if (parsed.rows.length === first.rows.length && parsed.cols.length === first.cols.length) {
+              const firstRow1 = JSON.stringify(first.rows[0] || {});
+              const thisRow1 = JSON.stringify(parsed.rows[0] || {});
+              if (firstRow1 === thisRow1) return null;
+            }
             return { gid: candidate.gid, name: candidate.name, rows: parsed.rows, cols: parsed.cols };
           } catch { return null; }
         });
         const results = await Promise.all(promises);
         results.forEach(r => { if (r) sheetsFound.push(r); });
       }
+      push(`${sheetsFound.length} ta list topildi (${sheetsFound.reduce((a,s) => a + s.rows.length, 0)} qator)`, sheetsFound.length > 1 ? "ok" : "info");
 
       if (sheetsFound.length === 0) throw new Error("Barcha listlar bo'sh — hech qanday ma'lumot yo'q");
 
