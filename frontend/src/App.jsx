@@ -8059,11 +8059,9 @@ function RenderMD({ text }) {
   let inTable = false;
 
   const fmt = (s) => {
-    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--accent1,var(--gold));font-weight:700">$1</b>');
-    r = r.replace(/\*(.+?)\*/g, '<i style="color:var(--text2)">$1</i>');
+    let r = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    r = r.replace(/\*(.+?)\*/g, '<i>$1</i>');
     r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:2px 6px;border-radius:5px;font-family:var(--fm);font-size:11px;color:var(--teal)">$1</code>');
-    // Raqam highlight: 1,234 yoki 56.7% ga rang berish
-    r = r.replace(/(\d[\d,.]*(K|M|%|so'm|ta)?)/g, '<span style="color:var(--teal);font-weight:600;font-family:var(--fm)">$1</span>');
     return r;
   };
 
