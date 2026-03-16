@@ -3345,12 +3345,28 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetsFound.push({ gid: 0, name: firstData.table?.cols?.[0]?.label ? "List 1" : "List 1", rows: first.rows, cols: first.cols });
       }
 
-      // Qolgan listlarni tekshirish (gid 1-9)
-      const gidCandidates = [];
-      for (let g = 1; g <= 9; g++) gidCandidates.push(g);
+      // Qolgan listlarni topish — HTML dan barcha gid larni ajratish
+      let gidCandidates = [];
+      try {
+        const htmlUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+        const htmlRes = await fetch(htmlUrl);
+        const htmlText = await htmlRes.text();
+        // gid=XXXXX pattern larni topish
+        const gidMatches = htmlText.match(/gid=(\d+)/g) || [];
+        const gids = [...new Set(gidMatches.map(m => parseInt(m.replace("gid=", ""))))].filter(g => g !== 0);
+        if (gids.length > 0) {
+          gidCandidates = gids;
+          push(`${gids.length + 1} ta list topildi`, "info");
+        }
+      } catch { }
 
-      // Parallel fetch — tezroq ishlaydi
-      const promises = gidCandidates.map(async (g) => {
+      // Agar HTML dan topilmasa — 0-19 gacha tekshirish
+      if (gidCandidates.length === 0) {
+        for (let g = 1; g <= 19; g++) gidCandidates.push(g);
+      }
+
+      // Parallel fetch
+      const promises = gidCandidates.map(async (g, idx) => {
         try {
           const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${g}`;
           const testRes = await fetch(testUrl);
@@ -3360,7 +3376,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           if (testData.status === "error") return null;
           const parsed = gvizToRows(testData.table);
           if (parsed.rows.length === 0) return null;
-          return { gid: g, name: `List ${g + 1}`, rows: parsed.rows, cols: parsed.cols };
+          return { gid: g, name: `List ${idx + 2}`, rows: parsed.rows, cols: parsed.cols };
         } catch { return null; }
       });
 
