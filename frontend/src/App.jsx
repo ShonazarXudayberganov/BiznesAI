@@ -7502,9 +7502,9 @@ function generateDashboards(source, colSelection) {
   const allKeys = Object.keys(genData[0] || {});
 
   // Sana/vaqt/ID kabi ustunlarni raqamdan chiqarish
-  const datePatterns = /sana|date|time|vaqt|kun|oy|yil|month|year|day|created|updated|_at$|_id$|^id$/i;
+  const skipPatterns = /sana|date|time|vaqt|kun|oy|yil|month|year|day|created|updated|_at$|_id$|^id$|^_|password|token|hash|email|phone|url|webhook|source|domain|mobile/i;
   const autoNumKeys = allKeys.filter(k => {
-    if (datePatterns.test(k)) return false; // Sana ustunlari raqam emas
+    if (skipPatterns.test(k)) return false; // Texnik/sana ustunlari raqam emas
     const vals = genData.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")));
     const valid = vals.filter(v => !isNaN(v) && v !== 0);
     if (valid.length <= genData.length * 0.3) return false;
@@ -7528,10 +7528,14 @@ function generateDashboards(source, colSelection) {
   if (!numKeys.length) return cards; // Raqamli ustun yo'q
 
   // 1. Umumiy statistika
+  const cleanLabel = (k) => k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   const statItems = numKeys.slice(0, 6).map((k, i) => {
-    const vals = genData.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")) || 0);
+    const vals = genData.map(r => Math.max(0, parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")) || 0));
     const sum = vals.reduce((a, b) => a + b, 0);
-    return { l: k, v: fmtNum(Math.round(sum)), c: C[i % C.length], i: "" };
+    const avg = vals.length > 0 ? Math.round(sum / vals.length) : 0;
+    // Agar summa juda katta (ID larga o'xshaydi) — o'rtachani ko'rsat
+    const display = sum > 100000 && avg < 1000 ? avg : Math.round(sum);
+    return { l: cleanLabel(k), v: fmtNum(Math.max(0, display)), c: C[i % C.length], i: "" };
   });
   if (statItems.length > 0)
     cards.push({ id: "gen_stats", title: "Umumiy Statistika", icon: "", size: "full", type: "stats", stats: statItems });
@@ -7539,7 +7543,7 @@ function generateDashboards(source, colSelection) {
   // 2. Top qiymatlar (bar chart) — eng asosiy raqamli ustun bo'yicha
   if (numKeys[0]) {
     const barData = [...genData].sort((a, b) => (parseFloat(String(b[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0) - (parseFloat(String(a[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0))
-      .slice(0, 15).map(r => ({ name: String(r[labelKey] || "").substring(0, 14), [numKeys[0]]: parseFloat(String(r[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0 }));
+      .slice(0, 15).map(r => ({ name: String(r[labelKey] || "").substring(0, 14).replace(/_/g, " "), [numKeys[0]]: Math.max(0, parseFloat(String(r[numKeys[0]]).replace(/[^0-9.-]/g, "")) || 0) }));
     cards.push({
       id: "gen_bar_top", title: `Top ${numKeys[0]}`, icon: "▨", type: "chart", chartType: "bar",
       data: barData, keys: [numKeys[0]], xKey: "name", colors: [C[0]]
