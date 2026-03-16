@@ -5865,9 +5865,21 @@ MAZMUN QOIDALARI:
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = attachedFile ? "var(--teal)" : "var(--muted)"; }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
         </button>
-        <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing yoki 🎤 bosing..."} value={input}
+        <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing, fayl paste qiling yoki 🎤 bosing..."} value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }} />
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
+          onPaste={e => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+              if (item.kind === "file") {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) handleChatFile(file);
+                return;
+              }
+            }
+          }} />
         <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
         <button className="chat-send-btn" onClick={() => sendMsg()} disabled={loading || (!input.trim() && !attachedFile)}>
           {loading ? <span className="typing-ind" style={{ justifyContent: "center", gap: 3 }}><span /><span /><span /></span> : "➤"}
