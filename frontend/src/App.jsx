@@ -1164,6 +1164,7 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .chat-send-btn:active:not(:disabled){transform:scale(0.95)}
 .chat-send-btn:disabled{opacity:.35;cursor:not-allowed;background:var(--s3)}
 @keyframes pulse-voice{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0.4)}50%{box-shadow:0 0 0 8px rgba(248,113,113,0)}}
+@keyframes dashProg{0%{width:10%;opacity:.7}50%{width:80%;opacity:1}100%{width:10%;opacity:.7}}
 .chat-export-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s var(--ease);display:flex;align-items:center;gap:4px;font-family:var(--fh);font-size:10px;font-weight:500;}
 .chat-export-btn:hover{border-color:var(--border-hi);color:var(--text);background:var(--s3)}
 .typing-ind{display:flex;gap:5px;align-items:center}
@@ -8614,7 +8615,14 @@ FAQAT JSON.`;
                       <button onClick={() => removeWidget(w.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
                     </div>
                     <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: w.color }}>
-                      {isLoading ? <span style={{ fontSize: 12, color: "var(--muted)" }}>AI hisoblayapti...</span> : w.value || "—"}
+                      {isLoading ? (
+                        <div>
+                          <div style={{ height: 2, background: "var(--s3)", borderRadius: 2, marginBottom: 4, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 2, background: w.color, animation: "dashProg 1.5s ease infinite" }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: "var(--muted)" }}>AI hisoblayapti</span>
+                        </div>
+                      ) : w.value || "—"}
                     </div>
                     <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, fontWeight: 600 }}>{w.label}</div>
                     {w.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{w.sub}</div>}
@@ -8783,6 +8791,15 @@ FAQAT JSON.`;
                 style={{ flexShrink: 0, fontSize: 10 }}>{q}</button>
             ))}
           </div>
+          {/* Mini progress bar */}
+          {dashLoading && (
+            <div style={{ marginBottom: 12, borderRadius: 6, overflow: "hidden" }}>
+              <div style={{ height: 3, background: "var(--s3)", borderRadius: 6 }}>
+                <div style={{ height: "100%", borderRadius: 6, background: "linear-gradient(90deg,var(--teal),var(--green))", width: "70%", animation: "dashProg 2s ease infinite" }} />
+              </div>
+              <div style={{ fontSize: 10, color: "var(--teal)", marginTop: 4, fontFamily: "var(--fh)" }}>AI tahlil qilmoqda...</div>
+            </div>
+          )}
         </div>
       )}
 
