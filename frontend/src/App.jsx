@@ -3639,11 +3639,15 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
   // Prod: Nginx proxy /igbizproxy → graph.facebook.com
   const fbFetch = async (endpoint) => {
     const url = `/igbizproxy/${endpoint}`;
+    console.log("[IG]", endpoint.split("?")[0]);
     const res = await fetch(url);
     const text = await res.text();
     let json;
     try { json = JSON.parse(text); } catch { throw new Error("API javob xato: " + text.substring(0, 120)); }
-    if (json.error) throw new Error(json.error.message || "Facebook API xato");
+    if (json.error) {
+      console.warn("[IG] Error:", json.error.message, json.error.code);
+      throw new Error(json.error.message || "Facebook API xato");
+    }
     return json;
   };
 
@@ -3675,11 +3679,11 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         const rawPosts = mediaJson.data || [];
         // Har bir post uchun insights olish
         push(`${rawPosts.length} ta post insights yuklanmoqda...`, "info");
+        let insightErrors = 0;
         for (let pi = 0; pi < rawPosts.length; pi++) {
           const p = rawPosts[pi];
           let reach = 0, impressions = 0, saved = 0, shares = 0, plays = 0;
           try {
-            // Post turiga qarab metric larni tanlash
             const isVideo = p.media_type === "VIDEO";
             const metrics = isVideo ? "reach,impressions,saved,shares,plays" : "reach,impressions,saved";
             const ins = await fbFetch(`v21.0/${p.id}/insights?metric=${metrics}&access_token=${token}`);
@@ -3690,7 +3694,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               if (m.name === "shares") shares = m.values?.[0]?.value || 0;
               if (m.name === "plays") plays = m.values?.[0]?.value || 0;
             });
-          } catch { }
+          } catch (insErr) { insightErrors++; if (insightErrors === 1) push("Post insights xato: " + insErr.message, "warn"); }
           posts.push({
             id: p.id,
             caption: (p.caption || "").substring(0, 120),
@@ -3723,7 +3727,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               const total = vals.reduce((a, b) => a + b, 0);
               profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
             });
-          } catch { }
+            push(`Profil ${metric}: ✓`, "ok");
+          } catch (pe) { push(`Profil ${metric}: ${pe.message}`, "warn"); }
         }
       } catch { }
 
@@ -3734,7 +3739,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           try {
             const aud = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&access_token=${token}`);
             (aud.data || []).forEach(m => { audience[m.name] = m.values?.[0]?.value || {}; });
-          } catch { }
+            push(`Audience ${metric}: ✓`, "ok");
+          } catch (ae) { push(`Audience ${metric}: ${ae.message}`, "warn"); }
         }
       } catch { }
 
@@ -3795,7 +3801,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         profileName: profile.username,
         config: { ...src.config, token, igId, lastFetch: Date.now() },
       });
-      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post, reach: ${totalReach.toLocaleString()}, ${totalLikes.toLocaleString()} like, ${totalSaved.toLocaleString()} saved`, "ok");
+      const hasInsights = totalReach > 0 || totalSaved > 0;
+      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post${hasInsights ? `, reach: ${totalReach.toLocaleString()}, saved: ${totalSaved.toLocaleString()}` : " (Insights: ruxsat kerak)"}${insightErrors > 0 ? ` · ${insightErrors} ta post insights xato` : ""}`, "ok");
     } catch (e) {
       push("Instagram xato: " + e.message, "error");
     }
