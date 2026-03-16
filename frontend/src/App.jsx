@@ -3685,14 +3685,14 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           let reach = 0, impressions = 0, saved = 0, shares = 0, plays = 0;
           try {
             const isVideo = p.media_type === "VIDEO";
-            const metrics = isVideo ? "reach,impressions,saved,shares,plays" : "reach,impressions,saved";
+            const metrics = isVideo ? "reach,saved,shares,comments,likes" : "reach,saved,comments,likes";
             const ins = await fbFetch(`v21.0/${p.id}/insights?metric=${metrics}&access_token=${token}`);
             (ins.data || []).forEach(m => {
-              if (m.name === "reach") reach = m.values?.[0]?.value || 0;
-              if (m.name === "impressions") impressions = m.values?.[0]?.value || 0;
-              if (m.name === "saved") saved = m.values?.[0]?.value || 0;
-              if (m.name === "shares") shares = m.values?.[0]?.value || 0;
-              if (m.name === "plays") plays = m.values?.[0]?.value || 0;
+              const val = m.values?.[0]?.value || m.total_value?.value || 0;
+              if (m.name === "reach") reach = val;
+              if (m.name === "impressions") impressions = val;
+              if (m.name === "saved" || m.name === "saves") saved = val;
+              if (m.name === "shares") shares = val;
             });
           } catch (insErr) { insightErrors++; if (insightErrors === 1) push("Post insights xato: " + insErr.message, "warn"); }
           posts.push({
@@ -3719,29 +3719,50 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
         const today = new Date().toISOString().slice(0, 10);
         // reach va impressions alohida so'rash (ba'zi akkountlarda follower_count ishlamaydi)
-        for (const metric of ["reach", "impressions", "profile_views"]) {
+        // v22+ yangi metriclar
+        for (const metric of ["reach", "accounts_engaged", "total_interactions", "likes", "comments", "shares", "saves", "replies"]) {
           try {
-            const pIns = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=day&since=${d30}&until=${today}&access_token=${token}`);
+            const pIns = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=day&metric_type=total_value&since=${d30}&until=${today}&access_token=${token}`);
             (pIns.data || []).forEach(m => {
-              const vals = (m.values || []).map(v => v.value || 0);
+              const vals = (m.values || []).map(v => v.value || (typeof v.value === "object" ? Object.values(v.value).reduce((a,b)=>a+b,0) : 0));
               const total = vals.reduce((a, b) => a + b, 0);
               profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
             });
-            push(`Profil ${metric}: ✓`, "ok");
-          } catch (pe) { push(`Profil ${metric}: ${pe.message}`, "warn"); }
+          } catch { }
         }
+        const pKeys = Object.keys(profileInsights);
+        push(`Profil insights: ${pKeys.length > 0 ? pKeys.join(", ") : "ruxsat kerak"}`, pKeys.length > 0 ? "ok" : "warn");
       } catch { }
 
       // 5. AUDIENCE — shahar, mamlakat, yosh-jins (100+ follower kerak)
       let audience = {};
       try {
-        for (const metric of ["audience_city", "audience_country", "audience_gender_age"]) {
+        // v22+ yangi audience metriclar
+        for (const metric of ["follower_demographics", "reached_audience_demographics", "engaged_audience_demographics"]) {
           try {
-            const aud = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&access_token=${token}`);
-            (aud.data || []).forEach(m => { audience[m.name] = m.values?.[0]?.value || {}; });
-            push(`Audience ${metric}: ✓`, "ok");
-          } catch (ae) { push(`Audience ${metric}: ${ae.message}`, "warn"); }
+            const aud = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=city&access_token=${token}`);
+            (aud.data || []).forEach(m => {
+              const val = m.total_value?.breakdowns?.[0]?.results || m.values?.[0]?.value || {};
+              if (Array.isArray(val)) {
+                const obj = {}; val.forEach(r => { obj[r.dimension_values?.join(", ") || "unknown"] = r.value || 0; });
+                audience[metric + "_city"] = obj;
+              } else { audience[metric] = val; }
+            });
+          } catch { }
+          // Age/gender breakdown
+          try {
+            const aud2 = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=age,gender&access_token=${token}`);
+            (aud2.data || []).forEach(m => {
+              const val = m.total_value?.breakdowns?.[0]?.results || [];
+              if (Array.isArray(val)) {
+                const obj = {}; val.forEach(r => { obj[r.dimension_values?.join(" ") || "unknown"] = r.value || 0; });
+                audience[metric + "_age_gender"] = obj;
+              }
+            });
+          } catch { }
         }
+        const aKeys = Object.keys(audience);
+        push(`Audience: ${aKeys.length > 0 ? aKeys.length + " ta metrik" : "ruxsat kerak (100+ follower)"}`, aKeys.length > 0 ? "ok" : "warn");
       } catch { }
 
       // 6. Statistika hisoblash
@@ -3751,7 +3772,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       const totalImpressions = posts.reduce((a, p) => a + (p.impressions || 0), 0);
       const totalSaved = posts.reduce((a, p) => a + (p.saved || 0), 0);
       const totalShares = posts.reduce((a, p) => a + (p.shares || 0), 0);
-      const totalPlays = posts.reduce((a, p) => a + (p.plays || 0), 0);
+      const totalPlays = 0; // v22 da plays olib tashlangan
       const totalEngagement = totalLikes + totalComments + totalSaved + totalShares;
       const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0;
       const avgComments = posts.length ? Math.round(totalComments / posts.length) : 0;
