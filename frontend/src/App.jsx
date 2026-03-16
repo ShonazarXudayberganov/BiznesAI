@@ -4918,25 +4918,28 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
       const ctx = buildMergedContext([workingSource]);
       const srcType = SOURCE_TYPES[workingSource.type];
 
-      const prompt = `Sen — professional biznes tahlilchi. Foydalanuvchi so'rovi:
+      const prompt = `Biznes tahlilchi. So'rov: "${query}"
 
-"${query}"
+MANBA: "${workingSource.name}" (${workingSource.data.length} ta yozuv)
+DATA:${ctx}
 
-MANBA: "${workingSource.name}" (${srcType?.label || workingSource.type}, ${workingSource.data.length} ta yozuv)
-MA'LUMOTLAR:${ctx}
+SO'ROV TURINI ANIQLA:
+- Agar RAQAM so'ralsa (masalan: "nechta", "jami", "o'rtacha", "foiz") → FAQAT "stats" karta qaytar. Chart KERAK EMAS.
+- Agar GRAFIK so'ralsa (masalan: "trend", "grafik", "chart", "solishtirish") → "chart" karta qaytar.
+- Agar UMUMIY so'ralsa → 1 stats + 1 chart.
+- 1 ta narsa so'ralsa → 1 ta karta. 3 ta so'ralsa → 3 ta. ORTIQCHA QILMA.
 
-MUHIM QOIDALAR:
-1. Foydalanuvchi NECHTA chart so'ragan bo'lsa, SHUNCHTA qaytar. 1 ta so'rasa — 1 ta. 3 ta so'rasa — 3 ta. Aniq aytmasa — 1 ta stats + 1-2 ta chart + 1 ta highlight = jami 3-4 ta.
-2. Agar so'ralgan ma'lumot MANBADA YO'Q bo'lsa — chart yaratma, buning o'rniga highlight kartada: "Bu ma'lumot manbada mavjud emas. Manbada quyidagi ustunlar bor: ..." deb yoz.
-3. Har bir raqam HAQIQIY bo'lishi kerak — ma'lumotlardan aniq HISOBLA. Taxminiy raqam TAQIQLANGAN.
-4. Chart ichidagi labellar O'ZBEK TILIDA va TUSHUNARLI bo'lsin: "Yanvar", "Guruh A" (EMAS: "cat1", "val1", "field_name")
-5. X-axis labellar MAX 10 BELGI: "Yan 2025", "Guruh-1", "Lidlar"
-6. Raqamlarni FORMATLASH: 1500000 → "1,500,000" yoki "1.5M"
-7. Stats kartada har bir raqam: qiymat + nomi + rangi. Min 4 ta raqam.
-8. Chart sarlavhasi ANIQ nima ekanini ko'rsatsin: "Oylik savdo (mln so'm)", "Top 5 guruh (o'quvchi soni)"
-9. Pie: max 6 segment, kichiklar → "Boshqa"
-10. Bar: max 8 ustun
-11. Line: min 4 nuqta (trend uchun)
+MISOL:
+- "Nechta o'quvchi bor?" → FAQAT 1 ta stats karta: {"type":"stats","title":"O'quvchilar soni","stats":[{"l":"Jami","v":"836","c":"#00C9BE"}]}
+- "Oylik trend ko'rsat" → FAQAT 1 ta chart karta
+- "Umumiy tahlil" → 1 stats + 1 chart + 1 highlight
+
+QOIDALAR:
+- Ma'lumot YO'Q bo'lsa → highlight da "Bu ma'lumot mavjud emas" yoz
+- MANFIY raqam TAQIQLANGAN
+- Raqam HAQIQIY bo'lsin — hisobla, o'ylab chiqarma
+- Label O'ZBEK tilida, max 10 belgi
+- Raqam formati: 1500000 → "1.5M"
 
 \`\`\`json
 {
