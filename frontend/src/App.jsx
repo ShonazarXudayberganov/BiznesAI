@@ -5334,7 +5334,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const chatKey = "u_" + (user?.id || "anon") + "_chat_h";
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
   const [activeSrcIds, setActiveSrcIds] = useState(() => connectedSources.map(s => s.id));
-  const [messages, setMessages] = useState(() => LS.get(chatKey, [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing. " }]));
+  const [messages, setMessages] = useState(() => LS.get(chatKey, [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing.", time: new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) }]));
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [qCat, setQCat] = useState("all");
@@ -5374,7 +5374,8 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     const fullMsg = text + (ctx ? `\n\n━━━ BIZNES MA'LUMOTLARI ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "");
     const disp = text; setInput("");
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
-    const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name) }, { role: "assistant", content: "" }];
+    const ts = new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name), time: ts }, { role: "assistant", content: "", time: ts }];
     setMessages(newMsgs); setLoading(true);
 
     // Professional system prompt — onboarding ma'lumotlari bilan moslashtirilgan
@@ -5412,7 +5413,7 @@ MAZMUN QOIDALARI:
       });
       // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
-      setMessages(m => { LS.set(chatKey, m.slice(-24)); return m; });
+      setMessages(m => { LS.set(chatKey, m.slice(-50)); return m; });
     } catch (e) {
       setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
     }
@@ -5563,7 +5564,7 @@ MAZMUN QOIDALARI:
           <button className="chat-export-btn" onClick={downloadChat} title="Yuklab olish"> Yukla</button>
           <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
-        <button onClick={() => { if(confirm("Chat tarixini tozalashni xohlaysizmi?")){ setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi." }]); LS.del(chatKey); }}}
+        <button onClick={() => { if(confirm("Chat tarixini tozalashni xohlaysizmi?")){ setMessages([{ role: "assistant", content: "Yangi suhbat boshlandi.", time: new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) }]); LS.del(chatKey); }}}
           style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(248,113,113,0.3)", background:"rgba(248,113,113,0.08)", color:"#F87171", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6, transition:"all .2s" }}
           onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.15)";e.currentTarget.style.borderColor="rgba(248,113,113,0.5)"}}
           onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.08)";e.currentTarget.style.borderColor="rgba(248,113,113,0.3)"}}>
@@ -5605,7 +5606,10 @@ MAZMUN QOIDALARI:
             <div key={i} className={`msg ${m.role === "user" ? "user" : ""}`}>
               <div className={`ava ${m.role === "user" ? "user" : "ai"}`} style={m.role === "assistant" ? { color: prov.color } : {}}>{m.role === "user" ? "U" : prov.icon}</div>
               <div className="bubble">
-                <span className="bubble-meta">{m.role === "user" ? "Siz" : `${prov.name} AI`}</span>
+                <div className="flex aic jb">
+                  <span className="bubble-meta">{m.role === "user" ? "Siz" : `${prov.name} AI`}</span>
+                  {m.time && <span style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{m.time}</span>}
+                </div>
                 {m.role === "user" && m.srcNames?.length > 0 && (
                   <div className="flex gap4 mb6" style={{ flexWrap: "wrap" }}>
                     {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
