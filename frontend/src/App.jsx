@@ -3653,13 +3653,17 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     if (!token) { push("Instagram Access Token kiriting", "warn"); return; }
     setLoading(true);
     try {
-      // 1. Facebook sahifalardan Instagram Business Account ID ni topish
-      const pages = await fbFetch(`v21.0/me/accounts?fields=id,name,instagram_business_account&access_token=${token}`);
-      const igAccount = pages.data?.find(p => p.instagram_business_account);
-      if (!igAccount?.instagram_business_account?.id) {
-        throw new Error("Instagram Business Account topilmadi. Token Facebook sahifasiga ulangan va Instagram Professional Account bo'lishi kerak.");
+      // 1. Instagram Business Account ID — config dan yoki avtomatik topish
+      let igId = (src.config?.igBusinessId || "").trim();
+      if (!igId) {
+        const pages = await fbFetch(`v21.0/me/accounts?fields=id,name,instagram_business_account&access_token=${token}`);
+        const igAccount = pages.data?.find(p => p.instagram_business_account);
+        if (!igAccount?.instagram_business_account?.id) {
+          throw new Error("Instagram Business Account topilmadi. Instagram Business ID ni qo'lda kiriting yoki Token Facebook sahifasiga ulangan bo'lishi kerak.");
+        }
+        igId = igAccount.instagram_business_account.id;
       }
-      const igId = igAccount.instagram_business_account.id;
+      push("Instagram profilni yuklamoqda...", "info");
 
       // 2. Profil ma'lumotlari (followers, bio, va h.k.)
       const profile = await fbFetch(`v21.0/${igId}?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`);
@@ -3669,16 +3673,22 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       try {
         const mediaJson = await fbFetch(`v21.0/${igId}/media?fields=id,caption,media_type,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
         const rawPosts = mediaJson.data || [];
-        // Har bir post uchun insights olish (ketma-ket, rate limit uchun)
-        for (const p of rawPosts) {
-          let reach = 0, impressions = 0, saved = 0, shares = 0;
+        // Har bir post uchun insights olish
+        push(`${rawPosts.length} ta post insights yuklanmoqda...`, "info");
+        for (let pi = 0; pi < rawPosts.length; pi++) {
+          const p = rawPosts[pi];
+          let reach = 0, impressions = 0, saved = 0, shares = 0, plays = 0;
           try {
-            const ins = await fbFetch(`v21.0/${p.id}/insights?metric=reach,impressions,saved,shares&access_token=${token}`);
+            // Post turiga qarab metric larni tanlash
+            const isVideo = p.media_type === "VIDEO";
+            const metrics = isVideo ? "reach,impressions,saved,shares,plays" : "reach,impressions,saved";
+            const ins = await fbFetch(`v21.0/${p.id}/insights?metric=${metrics}&access_token=${token}`);
             (ins.data || []).forEach(m => {
               if (m.name === "reach") reach = m.values?.[0]?.value || 0;
               if (m.name === "impressions") impressions = m.values?.[0]?.value || 0;
               if (m.name === "saved") saved = m.values?.[0]?.value || 0;
               if (m.name === "shares") shares = m.values?.[0]?.value || 0;
+              if (m.name === "plays") plays = m.values?.[0]?.value || 0;
             });
           } catch { }
           posts.push({
@@ -3689,35 +3699,43 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             time: p.timestamp?.slice(11, 16) || "",
             likes: p.like_count || 0,
             comments: p.comments_count || 0,
-            reach, impressions, saved, shares,
+            reach, impressions, saved, shares, plays,
             engagement: (p.like_count || 0) + (p.comments_count || 0) + saved + shares,
             url: p.permalink || "",
           });
-          // Rate limit uchun kichik pauza
-          if (rawPosts.length > 10) await new Promise(r => setTimeout(r, 200));
+          // Rate limit uchun pauza
+          await new Promise(r => setTimeout(r, 250));
         }
       } catch (e2) { push("Postlarni yuklab bo'lmadi: " + e2.message, "warn"); }
 
       // 4. PROFIL INSIGHTS — reach, impressions, follower o'sishi (kunlik)
       let profileInsights = {};
+      push("Profil insights yuklanmoqda (30 kunlik)...", "info");
       try {
         const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
         const today = new Date().toISOString().slice(0, 10);
-        const pIns = await fbFetch(`v21.0/${igId}/insights?metric=reach,impressions,profile_views,website_clicks,follower_count&period=day&since=${d30}&until=${today}&access_token=${token}`);
-        (pIns.data || []).forEach(m => {
-          const vals = (m.values || []).map(v => v.value || 0);
-          const total = vals.reduce((a, b) => a + b, 0);
-          profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
-        });
+        // reach va impressions alohida so'rash (ba'zi akkountlarda follower_count ishlamaydi)
+        for (const metric of ["reach", "impressions", "profile_views"]) {
+          try {
+            const pIns = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=day&since=${d30}&until=${today}&access_token=${token}`);
+            (pIns.data || []).forEach(m => {
+              const vals = (m.values || []).map(v => v.value || 0);
+              const total = vals.reduce((a, b) => a + b, 0);
+              profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
+            });
+          } catch { }
+        }
       } catch { }
 
-      // 5. AUDIENCE — shahar, mamlakat, yosh-jins
+      // 5. AUDIENCE — shahar, mamlakat, yosh-jins (100+ follower kerak)
       let audience = {};
       try {
-        const aud = await fbFetch(`v21.0/${igId}/insights?metric=audience_city,audience_country,audience_gender_age&period=lifetime&access_token=${token}`);
-        (aud.data || []).forEach(m => {
-          audience[m.name] = m.values?.[0]?.value || {};
-        });
+        for (const metric of ["audience_city", "audience_country", "audience_gender_age"]) {
+          try {
+            const aud = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&access_token=${token}`);
+            (aud.data || []).forEach(m => { audience[m.name] = m.values?.[0]?.value || {}; });
+          } catch { }
+        }
       } catch { }
 
       // 6. Statistika hisoblash
@@ -3727,6 +3745,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       const totalImpressions = posts.reduce((a, p) => a + (p.impressions || 0), 0);
       const totalSaved = posts.reduce((a, p) => a + (p.saved || 0), 0);
       const totalShares = posts.reduce((a, p) => a + (p.shares || 0), 0);
+      const totalPlays = posts.reduce((a, p) => a + (p.plays || 0), 0);
       const totalEngagement = totalLikes + totalComments + totalSaved + totalShares;
       const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0;
       const avgComments = posts.length ? Math.round(totalComments / posts.length) : 0;
@@ -3756,9 +3775,13 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         avg_likes_per_post: avgLikes,
         avg_comments_per_post: avgComments,
         avg_reach_per_post: avgReach,
+        total_plays: totalPlays,
         engagement_rate: profile.followers_count > 0 ? ((totalEngagement / posts.length / profile.followers_count) * 100).toFixed(2) + "%" : "0%",
         profile_insights: profileInsights,
         audience: audience,
+        // Top shaharlar va mamlakatlar
+        top_cities: audience.audience_city ? Object.entries(audience.audience_city).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => `${k}: ${v}`).join(", ") : "",
+        top_countries: audience.audience_country ? Object.entries(audience.audience_country).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => `${k}: ${v}`).join(", ") : "",
         top_post_caption: topPost?.caption || "—",
         top_post_engagement: topPost?.engagement || 0,
         last_updated: new Date().toLocaleString("uz-UZ"),
