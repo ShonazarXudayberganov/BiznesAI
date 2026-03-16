@@ -5403,6 +5403,60 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     setShowSessions(false);
   };
 
+  // ── Fayl yuklash ──
+  const chatFileRef = useRef(null);
+  const [attachedFile, setAttachedFile] = useState(null);
+
+  const handleChatFile = async (file) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    let content = "";
+    let preview = null;
+
+    try {
+      if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
+        // Rasm — base64
+        const b64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        preview = b64;
+        content = `[RASM YUKLANDI: ${file.name}, ${(file.size/1024).toFixed(1)}KB. Rasmni tavsiflab bering va savolga javob bering]`;
+      } else if (['txt','csv','md','log'].includes(ext)) {
+        content = await file.text();
+        content = `[FAYL: ${file.name}]\n${content.substring(0, 15000)}`;
+      } else if (ext === 'pdf') {
+        const buf = await file.arrayBuffer();
+        const decoder = new TextDecoder('utf-8', { fatal: false });
+        const raw = decoder.decode(buf);
+        const chunks = [];
+        const matches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
+        matches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) chunks.push(t[1]); });
+        content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${chunks.join(' ').substring(0, 15000) || "[PDF dan matn ajratib bo'lmadi]"}`;
+      } else if (ext === 'docx') {
+        const buf = await file.arrayBuffer();
+        const decoder = new TextDecoder('utf-8', { fatal: false });
+        const raw = decoder.decode(buf);
+        const xmlContent = raw.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
+        const text = xmlContent.map(t => t.replace(/<[^>]+>/g, '')).join(' ');
+        content = `[WORD FAYL: ${file.name}]\n${text.substring(0, 15000) || "[Word dan matn ajratib bo'lmadi]"}`;
+      } else if (['xlsx','xls'].includes(ext)) {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }).slice(0, 50);
+        content = `[EXCEL FAYL: ${file.name}, ${data.length} qator]\n${JSON.stringify(data.slice(0, 20), null, 2)}`;
+      } else {
+        content = `[FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB — bu format qo'llab-quvvatlanmaydi]`;
+      }
+    } catch (e) {
+      content = `[FAYL: ${file.name} — o'qishda xato: ${e.message}]`;
+    }
+
+    setAttachedFile({ name: file.name, ext, size: file.size, content, preview });
+  };
+
   // Sessiya tanlash
   const selectSession = (id) => { setActiveSessionId(id); setShowSessions(false); };
 
@@ -5460,8 +5514,10 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     }
     const chosenSrcs = sources.filter(s => activeSrcIds.includes(s.id) && s.connected && s.data?.length > 0);
     const ctx = buildMergedContext(chosenSrcs);
-    const fullMsg = text + (ctx ? `\n\n━━━ BIZNES MA'LUMOTLARI ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "");
-    const disp = text; setInput("");
+    const fileCtx = attachedFile ? `\n\n━━━ YUKLANGAN FAYL ━━━\n${attachedFile.content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
+    const fullMsg = text + (ctx ? `\n\n━━━ BIZNES MA'LUMOTLARI ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "") + fileCtx;
+    const disp = text + (attachedFile ? ` 📎 ${attachedFile.name}` : "");
+    setInput(""); setAttachedFile(null);
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
     const ts = new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
     const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name), time: ts }, { role: "assistant", content: "", time: ts }];
@@ -5495,6 +5551,7 @@ MAZMUN QOIDALARI:
 - MUAMMO + YECHIM — faqat muammo emas, yechim ham ber
 - SOLISHTIRISH — o'rtacha bilan, maqsad bilan
 - Agar ma'lumot YO'Q — "Bu ma'lumot manbada mavjud emas" de, o'ylab chiqarma
+- Agar fayl yuklangan bo'lsa — fayl mazmunini TAHLIL QIL va savollarga shu asosda javob ber
 - O'ZBEK TILIDA, 200-400 so'z`
     };
 
@@ -5781,13 +5838,36 @@ MAZMUN QOIDALARI:
         <button className="chat-q-arrow" onClick={() => scrollQ(1)} title="O'ngga">›</button>
       </div>
 
+      {/* ── Attached file preview ── */}
+      {attachedFile && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "var(--s2)", borderRadius: "10px 10px 0 0", borderBottom: "none", margin: "0 0 -1px 0" }}>
+          {attachedFile.preview ? (
+            <img src={attachedFile.preview} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: 32, height: 32, borderRadius: 6, background: "var(--s3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+              {attachedFile.ext === "pdf" ? "📕" : attachedFile.ext === "xlsx" || attachedFile.ext === "xls" ? "📊" : attachedFile.ext === "docx" ? "📘" : "📄"}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</div>
+            <div style={{ fontSize: 9, color: "var(--muted)" }}>{(attachedFile.size / 1024).toFixed(1)} KB</div>
+          </div>
+          <button onClick={() => setAttachedFile(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+      )}
       {/* ── Input ── */}
       <div className="chat-input-row">
-        <textarea className="chat-ta" rows={1} placeholder="Savolingizni yozing yoki 🎤 bosing..." value={input}
+        <input ref={chatFileRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.txt,.csv,.md,.pdf,.docx,.doc,.xlsx,.xls,.json" style={{ display: "none" }}
+          onChange={e => { if (e.target.files[0]) handleChatFile(e.target.files[0]); e.target.value = ""; }} />
+        <button onClick={() => chatFileRef.current?.click()} title="Fayl yuklash"
+          style={{ width: 38, height: 38, borderRadius: 10, border: "1px solid var(--border)", background: attachedFile ? "rgba(0,201,190,0.1)" : "var(--s2)", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing yoki 🎤 bosing..."} value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }} />
         <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
-        <button className="chat-send-btn" onClick={() => sendMsg()} disabled={loading || !input.trim()}>
+        <button className="chat-send-btn" onClick={() => sendMsg()} disabled={loading || (!input.trim() && !attachedFile)}>
           {loading ? <span className="typing-ind" style={{ justifyContent: "center", gap: 3 }}><span /><span /><span /></span> : "➤"}
         </button>
       </div>
@@ -7979,10 +8059,11 @@ function RenderMD({ text }) {
   let inTable = false;
 
   const fmt = (s) => {
-    // Bold, italic, code
-    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--text);font-weight:700">$1</b>');
-    r = r.replace(/\*(.+?)\*/g, '<i>$1</i>');
-    r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:1px 5px;border-radius:4px;font-family:var(--fm);font-size:11px">$1</code>');
+    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--accent1,var(--gold));font-weight:700">$1</b>');
+    r = r.replace(/\*(.+?)\*/g, '<i style="color:var(--text2)">$1</i>');
+    r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:2px 6px;border-radius:5px;font-family:var(--fm);font-size:11px;color:var(--teal)">$1</code>');
+    // Raqam highlight: 1,234 yoki 56.7% ga rang berish
+    r = r.replace(/(\d[\d,.]*(K|M|%|so'm|ta)?)/g, '<span style="color:var(--teal);font-weight:600;font-family:var(--fm)">$1</span>');
     return r;
   };
 
@@ -8009,22 +8090,24 @@ function RenderMD({ text }) {
       tableRows = [];
       inTable = false;
     }
+    // Divider
+    if (trimmed === "---" || trimmed === "***") { elements.push(<div key={i} style={{ height:1, background:"linear-gradient(90deg,transparent,var(--border-hi),transparent)", margin:"12px 0" }}/>); return; }
     // Headers
-    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13, fontWeight:700, marginTop:12, marginBottom:4, color:"var(--text)" }}>{trimmed.slice(4)}</div>); return; }
-    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:14, fontWeight:800, marginTop:14, marginBottom:6, color:"var(--teal)" }}>{trimmed.slice(3)}</div>); return; }
-    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:16, fontWeight:800, marginTop:16, marginBottom:8, color:"var(--gold)" }}>{trimmed.slice(2)}</div>); return; }
+    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13, fontWeight:700, marginTop:14, marginBottom:4, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:14, borderRadius:2, background:"var(--purple)" }}/>{trimmed.slice(4)}</div>); return; }
+    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:14, fontWeight:800, marginTop:16, marginBottom:6, color:"var(--teal)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:16, borderRadius:2, background:"var(--teal)" }}/>{trimmed.slice(3)}</div>); return; }
+    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:16, fontWeight:800, marginTop:18, marginBottom:8, color:"var(--gold)", paddingBottom:6, borderBottom:"1px solid var(--border)" }}>{trimmed.slice(2)}</div>); return; }
     // Blockquote
-    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", paddingLeft:12, margin:"6px 0", color:"var(--text2)", fontStyle:"italic", fontSize:12.5 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
+    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", paddingLeft:12, margin:"8px 0", padding:"8px 12px", color:"var(--text2)", fontSize:12.5, background:"rgba(0,212,200,0.04)", borderRadius:"0 8px 8px 0", lineHeight:1.7 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
     // Bullet
     if (trimmed.startsWith("- ") || trimmed.startsWith("• ") || trimmed.startsWith("* ")) {
-      elements.push(<div key={i} style={{ paddingLeft:12, position:"relative", margin:"2px 0", fontSize:13 }}><span style={{ position:"absolute", left:0, color:"var(--teal)" }}>•</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
+      elements.push(<div key={i} style={{ paddingLeft:16, position:"relative", margin:"3px 0", fontSize:13, lineHeight:1.6 }}><span style={{ position:"absolute", left:2, color:"var(--teal)", fontSize:8, top:6 }}>●</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
       return;
     }
     // Numbered list
     const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
-    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:16, position:"relative", margin:"2px 0", fontSize:13 }}><span style={{ position:"absolute", left:0, color:"var(--gold)", fontWeight:700, fontFamily:"var(--fm)", fontSize:11 }}>{numMatch[1]}.</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
+    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:20, position:"relative", margin:"3px 0", fontSize:13, lineHeight:1.6 }}><span style={{ position:"absolute", left:0, color:"var(--gold)", fontWeight:800, fontFamily:"var(--fm)", fontSize:11, background:"var(--gold)12", width:18, height:18, borderRadius:5, display:"inline-flex", alignItems:"center", justifyContent:"center", top:2 }}>{numMatch[1]}</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
     // Empty line
-    if (!trimmed) { elements.push(<div key={i} style={{ height:6 }}/>); return; }
+    if (!trimmed) { elements.push(<div key={i} style={{ height:8 }}/>); return; }
     // Normal text
     elements.push(<div key={i} style={{ margin:"2px 0", fontSize:13, lineHeight:1.7 }} dangerouslySetInnerHTML={{__html:fmt(trimmed)}}/>);
   });
