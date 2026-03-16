@@ -137,6 +137,114 @@ router.put('/:id/data', async (req, res) => {
   }
 });
 
+// ── GET /api/sources/:id/stats ── (bazadan statistika)
+router.get('/:id/stats', async (req, res) => {
+  try {
+    const check = await pool.query('SELECT id FROM sources WHERE id=$1 AND user_id=$2', [req.params.id, req.userId]);
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+
+    const result = await pool.query('SELECT data, row_count FROM source_data WHERE source_id=$1', [req.params.id]);
+    if (result.rows.length === 0) return res.json({ rowCount: 0, columns: [], stats: {} });
+
+    const data = result.rows[0].data || [];
+    if (!Array.isArray(data) || data.length === 0) return res.json({ rowCount: 0, columns: [], stats: {} });
+
+    // Ustunlar va statistika
+    const columns = Object.keys(data[0] || {}).filter(k => !k.startsWith('_'));
+    const stats = {};
+    const sheets = {};
+
+    data.forEach(row => {
+      const sh = row._sheet || 'default';
+      if (!sheets[sh]) sheets[sh] = 0;
+      sheets[sh]++;
+    });
+
+    // Raqamli ustunlar uchun statistika
+    columns.forEach(col => {
+      const vals = data.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
+      if (vals.length > data.length * 0.3) {
+        const sum = vals.reduce((a, b) => a + b, 0);
+        stats[col] = {
+          count: vals.length,
+          sum: Math.round(sum * 100) / 100,
+          avg: Math.round(sum / vals.length * 100) / 100,
+          min: Math.round(Math.min(...vals) * 100) / 100,
+          max: Math.round(Math.max(...vals) * 100) / 100,
+        };
+      }
+    });
+
+    res.json({ rowCount: data.length, columns, sheets, stats });
+  } catch (err) {
+    console.error('[SOURCES] stats error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ── POST /api/ai/context ── (AI uchun bazadan kontekst tayyorlash)
+router.post('/:id/ai-context', async (req, res) => {
+  try {
+    const check = await pool.query(
+      'SELECT s.*, sd.data, sd.row_count FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id WHERE s.id=$1 AND s.user_id=$2',
+      [req.params.id, req.userId]
+    );
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+
+    const source = check.rows[0];
+    const data = source.data || [];
+    const total = data.length;
+    if (total === 0) return res.json({ context: 'Ma\'lumot yo\'q' });
+
+    const techKeys = new Set(['id','_id','_type','_entity','source_id','webhook_url','created_at','updated_at','__v','_v']);
+    const allKeys = Object.keys(data[0] || {}).filter(k => !techKeys.has(k) && !k.startsWith('_'));
+
+    // Sheet lar bo'yicha guruhlash
+    const sheets = {};
+    data.forEach(row => {
+      const sh = row._sheet || 'default';
+      if (!sheets[sh]) sheets[sh] = [];
+      sheets[sh].push(row);
+    });
+    const sheetNames = Object.keys(sheets);
+
+    // Raqamli ustunlar
+    const numCols = allKeys.filter(k => {
+      const vals = data.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
+      return vals.filter(v => !isNaN(v)).length > 10;
+    });
+
+    let context = `MANBA: "${source.name}" (${source.type}, ${total} ta yozuv`;
+    if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(', ')}`;
+    context += `)\nUSTUNLAR: ${allKeys.join(', ')}\n`;
+
+    // Har bir list uchun statistika
+    sheetNames.forEach(sh => {
+      const rows = sheets[sh];
+      context += `\n--- ${sh} (${rows.length} qator) ---\n`;
+      numCols.slice(0, 10).forEach(col => {
+        const vals = rows.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
+        if (vals.length > 0) {
+          const sum = vals.reduce((a, b) => a + b, 0);
+          context += `  ${col}: o'rtacha=${(sum/vals.length).toFixed(2)}, min=${Math.min(...vals).toFixed(2)}, max=${Math.max(...vals).toFixed(2)}, soni=${vals.length}\n`;
+        }
+      });
+      // 3 ta namuna
+      const sample = rows.slice(0, 3).map(row => {
+        const clean = {};
+        Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith('_')) clean[k] = v; });
+        return clean;
+      });
+      context += `  Namuna: ${JSON.stringify(sample)}\n`;
+    });
+
+    res.json({ context, rowCount: total, sheetCount: sheetNames.length });
+  } catch (err) {
+    console.error('[SOURCES] ai-context error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
 // ── DELETE /api/sources/:id ── (manba o'chirish)
 router.delete('/:id', async (req, res) => {
   try {

@@ -102,6 +102,11 @@ export const SourcesAPI = {
 
   delete: (id) =>
     apiFetch(`/sources/${id}`, { method: 'DELETE' }),
+
+  getStats: (id) => apiFetch(`/sources/${id}/stats`),
+
+  getAiContext: (id) =>
+    apiFetch(`/sources/${id}/ai-context`, { method: 'POST' }),
 };
 
 // ── ALERTS API ──
@@ -219,6 +224,20 @@ export const AdminAPI = {
 
 // ── FILE UPLOAD API ──
 export const UploadAPI = {
+  // Backend da parse qilib bazaga saqlash (PDF, Word, Excel)
+  uploadAndParse: async (sourceId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = {};
+    if (_token) headers['Authorization'] = `Bearer ${_token}`;
+    const res = await fetch(`${API_BASE}/upload/${sourceId}/parse`, {
+      method: 'POST', headers, body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload xatosi');
+    return data;
+  },
+
   upload: async (sourceId, file) => {
     const formData = new FormData();
     formData.append('file', file);

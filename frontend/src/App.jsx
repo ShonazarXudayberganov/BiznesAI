@@ -169,10 +169,21 @@ function syncSourceToAPI(source) {
   const { data, files, ...meta } = source;
   // Manba metadata ni yangilash
   SourcesAPI.update(source.id, meta).catch(() => { });
-  // Agar data bor bo'lsa — alohida saqlash
+  // Data ni bazaga saqlash
   if (data && data.length > 0) {
-    SourcesAPI.saveData(source.id, data).catch(() => { });
+    // Katta data — bazaga saqlash (serverda PostgreSQL ga tushadi)
+    console.log(`[Sync] ${source.name}: ${data.length} qator bazaga yuklanmoqda...`);
+    SourcesAPI.saveData(source.id, data).catch(e => console.warn("[Sync] Data save error:", e.message));
   }
+}
+
+// Backend dan AI kontekst olish (baza orqali)
+async function getAiContextFromAPI(sourceId) {
+  try {
+    if (!Token.get()) return null;
+    const result = await SourcesAPI.getAiContext(sourceId);
+    return result?.context || null;
+  } catch { return null; }
 }
 
 // Backend API dan manbalarni yuklash
@@ -4868,6 +4879,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
 function DataHubPage({ sources, setSources, push, user }) {
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState(null);
+  const [showMoreTypes, setShowMoreTypes] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("var(--teal)");
 
@@ -4951,17 +4963,30 @@ function DataHubPage({ sources, setSources, push, user }) {
       ) : (
         <div className="add-panel mb16">
           <div className="section-hd mb12">Manba Turi Tanlang</div>
-          <div className="type-grid">
-            {Object.values(SOURCE_TYPES).map(st => (
-              <div key={st.id} className={`type-card ${newType === st.id ? "selected" : ""}`} onClick={() => setNewType(st.id)}
-                style={newType === st.id ? { borderColor: st.color, background: `${st.color}0F` } : {}}>
-                {newType === st.id && <div style={{ position: "absolute", top: 6, right: 6, width: 14, height: 14, borderRadius: 7, background: st.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#000", fontWeight: 700 }}>✓</div>}
-                <div className="type-card-ico">{st.icon}</div>
-                <div className="type-card-lbl" style={newType === st.id ? { color: st.color } : {}}>{st.label}</div>
-                <div className="type-card-desc">{st.desc}</div>
+          {(() => {
+            const primary = ["excel","sheets","instagram","crm","document","manual"];
+            const secondary = Object.keys(SOURCE_TYPES).filter(k => !primary.includes(k));
+            const [showMore, setShowMore2] = [showMoreTypes, setShowMoreTypes];
+            const visibleTypes = showMore ? Object.values(SOURCE_TYPES) : primary.map(k => SOURCE_TYPES[k]);
+            return (<>
+              <div className="type-grid">
+                {visibleTypes.map(st => (
+                  <div key={st.id} className={`type-card ${newType === st.id ? "selected" : ""}`} onClick={() => setNewType(st.id)}
+                    style={newType === st.id ? { borderColor: st.color, background: `${st.color}0F` } : {}}>
+                    {newType === st.id && <div style={{ position: "absolute", top: 6, right: 6, width: 14, height: 14, borderRadius: 7, background: st.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: "#000", fontWeight: 700 }}>✓</div>}
+                    <div className="type-card-ico">{st.icon}</div>
+                    <div className="type-card-lbl" style={newType === st.id ? { color: st.color } : {}}>{st.label}</div>
+                    <div className="type-card-desc">{st.desc}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              {!showMore && secondary.length > 0 && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowMoreTypes(true)} style={{ width: "100%", marginTop: 8, fontSize: 11 }}>
+                  + Ko'proq manba turlari ({secondary.length} ta)
+                </button>
+              )}
+            </>);
+          })()}
           {newType && (
             <div className="flex gap10 aic flex-wrap mt10">
               <div className="f1">
@@ -5585,7 +5610,9 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
 
   // ── Chat sessiyalar tizimi ──
   const nowTS = () => new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
-  const defaultMsg = [{ role: "assistant", content: "Salom! Qaysi manbalardan foydalanishimni tanlang, so'ngra savolingizni yozing.", time: nowTS() }];
+  const defaultMsg = [{ role: "assistant", content: connectedSources.length > 0
+    ? `Salom! Sizda ${connectedSources.length} ta manba ulangan. Manbani tanlang va savolingizni yozing.`
+    : "Salom! Boshlash uchun avval Data Hub sahifasidan manba ulang (Excel, Google Sheets yoki boshqa). Keyin menga savol bering — tahlil qilaman.", time: nowTS() }];
 
   const [sessions, setSessions] = useState(() => {
     const saved = LS.get(sessionsKey, []);
@@ -5738,7 +5765,16 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
       }
     }
     const chosenSrcs = sources.filter(s => activeSrcIds.includes(s.id) && s.connected && s.data?.length > 0);
-    const ctx = buildMergedContext(chosenSrcs);
+    // Avval backend bazadan context olish, keyin local fallback
+    let ctx = "";
+    if (Token.get() && chosenSrcs.length > 0) {
+      const apiContexts = await Promise.all(chosenSrcs.map(s => getAiContextFromAPI(s.id)));
+      const validCtx = apiContexts.filter(Boolean);
+      if (validCtx.length > 0) {
+        ctx = validCtx.map(c => "\n" + c).join("");
+      }
+    }
+    if (!ctx) ctx = buildMergedContext(chosenSrcs);
     const fileCtx = attachedFile ? `\n\n━━━ YUKLANGAN FAYL ━━━\n${attachedFile.content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
     const fullMsg = text + (ctx ? `\n\n━━━ BIZNES MA'LUMOTLARI ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "") + fileCtx;
     const disp = text + (attachedFile ? ` 📎 ${attachedFile.name}` : "");
@@ -7591,9 +7627,9 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>AI javoblari tanlangan tilda keladi. Interfeys hozircha O'zbek tilida.</div>
       </div>
 
-      {/* ── QANDAY ISHLAYDI ── */}
-      <div className="card">
-        <div className="card-title mb10"> AI Qanday Ishlaydi</div>
+      {/* ── QANDAY ISHLAYDI (yopiq) ── */}
+      <details className="card" style={{ cursor: "pointer" }}>
+        <summary className="card-title mb10" style={{ listStyle: "none", display: "flex", alignItems: "center", justifyContent: "space-between" }}><span>AI Qanday Ishlaydi</span><span style={{ fontSize: 10, color: "var(--muted)" }}>▼</span></summary>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {[
             { icon: "", title: "Bepul (Global AI)", desc: "Admin ulagan AI dan barcha foydalanuvchilar bepul foydalanadi. Har bir tarif o'z so'rov limitiga ega.", c: "var(--green)" },
@@ -7608,7 +7644,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
             </div>
           ))}
         </div>
-      </div>
+      </details>
     </div>
   );
 }
@@ -8974,6 +9010,20 @@ FAQAT JSON.`;
 
   return (
     <div>
+      {/* ── Bo'sh holat — manba ulanmagan ── */}
+      {connected.length === 0 && (
+        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📊</div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Xush kelibsiz!</div>
+          <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24, maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.7 }}>
+            Boshlash uchun ma'lumot manbasi ulang — Excel fayl, Google Sheets yoki boshqa manba. AI sizning ma'lumotlaringiz asosida tahlil qiladi.
+          </div>
+          <button className="btn btn-primary" onClick={() => setPage("datahub")} style={{ padding: "12px 28px", fontSize: 14 }}>
+            Manba qo'shish →
+          </button>
+        </div>
+      )}
+
       {/* ── Manba tanlash ── */}
       {connected.length > 0 && (
         <div className="flex gap6 mb16 aic flex-wrap">
@@ -9227,14 +9277,14 @@ FAQAT JSON.`;
 // MAIN APP
 // ─────────────────────────────────────────────────────────────
 const NAV = [
-  { id: "settings", ico: "", lbl: "AI Sozlamalar", group: "tizim" },
-  { id: "dashboard", ico: "", lbl: "Bosh Sahifa", group: "tizim" },
-  { id: "datahub", ico: "", lbl: "Data Hub", group: "ma'lumot", badge: "sources" },
-  { id: "charts", ico: "", lbl: "Grafiklar", group: "ma'lumot" },
-  { id: "chat", ico: "", lbl: "AI Maslahat", group: "ai" },
-  { id: "analytics", ico: "", lbl: "Tahlil", group: "ai" },
-  { id: "reports", ico: "", lbl: "Hisobotlar", group: "ai" },
-  { id: "alerts", ico: "", lbl: "AI Ogohlantirishlar", group: "ai", badge: "alerts" },
+  { id: "dashboard", ico: "", lbl: "Bosh Sahifa", group: "asosiy" },
+  { id: "datahub", ico: "", lbl: "Manbalar", group: "asosiy", badge: "sources" },
+  { id: "chat", ico: "", lbl: "AI Maslahat", group: "asosiy" },
+  { id: "charts", ico: "", lbl: "Grafiklar", group: "tahlil" },
+  { id: "analytics", ico: "", lbl: "Tahlil", group: "tahlil" },
+  { id: "reports", ico: "", lbl: "Hisobotlar", group: "tahlil" },
+  { id: "alerts", ico: "", lbl: "Ogohlantirishlar", group: "tahlil", badge: "alerts" },
+  { id: "settings", ico: "", lbl: "Sozlamalar", group: "boshqaruv" },
 ];
 
 export default function App() {
