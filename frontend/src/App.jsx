@@ -3386,15 +3386,17 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         const promises = batch.map(async (name) => {
           try {
             const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
+            console.log("[Sheets] Fetching:", name, testUrl);
             const testRes = await fetch(testUrl);
-            if (!testRes.ok) return null;
+            if (!testRes.ok) { console.warn("[Sheets]", name, "HTTP", testRes.status); return null; }
             const testText = await testRes.text();
             const testData = parseGvizResponse(testText);
-            if (testData.status === "error") return null;
+            if (testData.status === "error") { console.warn("[Sheets]", name, "API error:", testData.errors?.[0]?.message); return null; }
             const parsed = gvizToRows(testData.table);
+            console.log("[Sheets]", name, "=", parsed.rows.length, "rows");
             if (parsed.rows.length === 0) return null;
             return { gid: bi, name, rows: parsed.rows, cols: parsed.cols };
-          } catch { return null; }
+          } catch (err) { console.error("[Sheets]", name, "error:", err.message); return null; }
         });
         const results = await Promise.all(promises);
         results.forEach(r => { if (r) sheetsFound.push(r); });
