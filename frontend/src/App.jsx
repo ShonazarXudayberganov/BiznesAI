@@ -3345,68 +3345,42 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         sheetsFound.push({ gid: 0, name: firstData.table?.cols?.[0]?.label ? "List 1" : "List 1", rows: first.rows, cols: first.cols });
       }
 
-      // ── Barcha listlarni topish — 3 bosqichli qidirish ──
+      // ── Barcha listlarni topish — SHEET NOMI bo'yicha ──
       push("Barcha listlar qidirilmoqda...", "info");
-      let gidList = []; // {gid, name}
 
-      // 1-USUL: pubhtml dan sheet tab larni ajratish
-      try {
-        const pubUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/pubhtml`;
-        const pubRes = await fetch(pubUrl);
-        if (pubRes.ok) {
-          const pubText = await pubRes.text();
-          // <li> ichidagi gid va nomlarni topish
-          const liMatches = [...pubText.matchAll(/gid=(\d+)/g)];
-          const nameMatches = [...pubText.matchAll(/<a[^>]*gid=(\d+)[^>]*>([^<]+)<\/a>/g)];
-          
-          if (nameMatches.length > 0) {
-            nameMatches.forEach(m => {
-              const gid = parseInt(m[1]);
-              const name = m[2].trim();
-              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name });
-            });
-          } else if (liMatches.length > 0) {
-            const uniqueGids = [...new Set(liMatches.map(m => parseInt(m[1])))];
-            uniqueGids.forEach((gid, i) => {
-              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name: `List ${i + 1}` });
-            });
-          }
-        }
-      } catch { }
+      // Birinchi list ma'lumotidan sheet nomlarini topish
+      // Google gviz birinchi list da boshqa listlarni ko'rsatmaydi, shuning uchun
+      // foydalanuvchi kiritgan yoki keng qidirish kerak
+      const sheetNames = (src.config?.sheetNames || "").trim();
+      let sheetList = []; // Sheet nomlari
 
-      // 2-USUL: htmlview dan sheet nomlarni olish
-      if (gidList.length <= 1) {
-        try {
-          const hvUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/htmlview`;
-          const hvRes = await fetch(hvUrl);
-          if (hvRes.ok) {
-            const hvText = await hvRes.text();
-            const hvMatches = [...hvText.matchAll(/gid=(\d+)/g)];
-            const uniqueGids = [...new Set(hvMatches.map(m => parseInt(m[1])))];
-            uniqueGids.forEach((gid, i) => {
-              if (!gidList.find(g => g.gid === gid)) gidList.push({ gid, name: `List ${i + 1}` });
-            });
-          }
-        } catch { }
+      if (sheetNames) {
+        // Foydalanuvchi kiritgan sheet nomlarini ishlatish
+        sheetList = sheetNames.split(",").map(s => s.trim()).filter(Boolean);
+      } else {
+        // Standart nomlarni tekshirish (maktab, sinf nomlari)
+        const commonNames = [
+          "общий рейтинг школы", "1-класс", "2-класс", "3-класс", "4-класс",
+          "5-класс", "6-класс", "7-класс", "8-класс", "9-класс", "9 класс",
+          "10-класс", "11-класс", "1-klass", "2-klass", "3-klass", "4-klass",
+          "5-klass", "6-klass", "7-klass", "8-klass", "9-klass",
+          "Sheet1", "Sheet2", "Sheet3", "Sheet4", "Sheet5", "Sheet6", "Sheet7", "Sheet8", "Sheet9", "Sheet10",
+          "Лист1", "Лист2", "Лист3", "Лист4", "Лист5", "Лист6", "Лист7", "Лист8", "Лист9", "Лист10",
+          "List1", "List2", "List3", "List4", "List5",
+          "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+          "data", "students", "teachers", "grades", "results",
+        ];
+        sheetList = commonNames;
       }
 
-      // 3-USUL: Keng qidirish (fallback)
-      if (gidList.length <= 1) {
-        for (let g = 0; g <= 30; g++) {
-          if (!gidList.find(c => c.gid === g)) gidList.push({ gid: g, name: `List ${g + 1}` });
-        }
-      }
+      push(`${sheetList.length} ta sheet nomi tekshirilmoqda...`, "info");
 
-      // gid=0 ni olib tashlaymiz (birinchi list allaqachon yuklangan)
-      const otherGids = gidList.filter(g => g.gid !== 0);
-      push(`${otherGids.length + 1} ta list tekshirilmoqda...`, "info");
-
-      // Batch parallel fetch — 5 tadan
-      for (let bi = 0; bi < otherGids.length; bi += 5) {
-        const batch = otherGids.slice(bi, bi + 5);
-        const promises = batch.map(async (candidate) => {
+      // Sheet nomini URL encode qilib, parallel fetch
+      for (let bi = 0; bi < sheetList.length; bi += 5) {
+        const batch = sheetList.slice(bi, bi + 5);
+        const promises = batch.map(async (name) => {
           try {
-            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${candidate.gid}`;
+            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
             const testRes = await fetch(testUrl);
             if (!testRes.ok) return null;
             const testText = await testRes.text();
@@ -3414,13 +3388,13 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             if (testData.status === "error") return null;
             const parsed = gvizToRows(testData.table);
             if (parsed.rows.length === 0) return null;
-            // Birinchi list bilan dublikat tekshirish
+            // Dublikat tekshirish — birinchi list bilan bir xil bo'lsa skip
             if (parsed.rows.length === first.rows.length && parsed.cols.length === first.cols.length) {
-              const firstRow1 = JSON.stringify(first.rows[0] || {});
-              const thisRow1 = JSON.stringify(parsed.rows[0] || {});
-              if (firstRow1 === thisRow1) return null;
+              if (JSON.stringify(parsed.rows[0] || {}) === JSON.stringify(first.rows[0] || {})) return null;
             }
-            return { gid: candidate.gid, name: candidate.name, rows: parsed.rows, cols: parsed.cols };
+            // Allaqachon topilgan list bilan dublikat
+            if (sheetsFound.some(s => s.rows.length === parsed.rows.length && JSON.stringify(s.rows[0]) === JSON.stringify(parsed.rows[0]))) return null;
+            return { gid: bi, name, rows: parsed.rows, cols: parsed.cols };
           } catch { return null; }
         });
         const results = await Promise.all(promises);
@@ -4364,6 +4338,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               <label className="field-label">Google Sheets URL</label>
               <input className="field mb8" placeholder="https://docs.google.com/spreadsheets/d/..." value={src.config?.url || ""} onChange={e => updateConfig("url", e.target.value)} />
+              <label className="field-label">List nomlari <span style={{ color: "var(--muted)", fontWeight: 400 }}>(vergul bilan ajrating, bo'sh qolsa avtomatik qidiradi)</span></label>
+              <input className="field mb8" placeholder="1-класс, 2-класс, 3-класс, 5-класс, 8-класс" value={src.config?.sheetNames || ""} onChange={e => updateConfig("sheetNames", e.target.value)} />
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleSheetsFetch} disabled={loading || !src.config?.url}>
                   {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
