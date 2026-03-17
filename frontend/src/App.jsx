@@ -5698,14 +5698,14 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
       } catch { }
     }
 
-    // 2. Umumiy kontekst — bazadan yoki local
+    // 2. Umumiy kontekst — HAR DOIM yuborish (qidirish bilan birga)
     let ctx = "";
-    if (!searchCtx && Token.get() && chosenSrcs.length > 0) {
+    if (Token.get() && chosenSrcs.length > 0) {
       const apiContexts = await Promise.all(chosenSrcs.map(s => getAiContextFromAPI(s.id)));
       const validCtx = apiContexts.filter(Boolean);
       if (validCtx.length > 0) ctx = validCtx.map(c => "\n" + c).join("");
     }
-    if (!ctx && !searchCtx) ctx = buildMergedContext(chosenSrcs);
+    if (!ctx) ctx = buildMergedContext(chosenSrcs);
 
     const allCtx = searchCtx + (ctx ? `\n\n━━━ UMUMIY MA'LUMOTLAR ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "");
     const fileCtx = attachedFile ? `\n\n━━━ YUKLANGAN FAYL ━━━\n${attachedFile.content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
