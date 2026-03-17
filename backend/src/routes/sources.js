@@ -302,40 +302,142 @@ router.post('/:id/search', async (req, res) => {
   }
 });
 
-// ── POST /api/sources/search-all ── (barcha manbalardan qidirish)
+// ── POST /api/sources/search-all ── (barcha manbalardan AQLLI qidirish)
 router.post('/search-all', async (req, res) => {
   try {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: 'query kerak' });
 
     const sources = await pool.query(
-      'SELECT s.name, sd.data FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id WHERE s.user_id=$1 AND s.connected=TRUE',
+      'SELECT s.name, s.type, sd.data FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id WHERE s.user_id=$1 AND s.connected=TRUE',
       [req.userId]
     );
 
+    const q = query.toLowerCase();
     const words = filterSearchWords(query);
-    if (words.length === 0) return res.json({ results: [], total: 0 });
     const techKeys = new Set(['_id','_type','_entity','source_id','webhook_url','__v']);
-    const allResults = [];
-
+    
+    // Savol turini aniqlash
+    const isCountQ = /nechta|qancha|soni|count|jami soni/i.test(q);
+    const isAvgQ = /o'rtacha|ortacha|average|avg|mean/i.test(q);
+    const isMaxQ = /eng (yaxshi|katta|yuqori|baland|ko'p)|best|top|max|birinchi/i.test(q);
+    const isMinQ = /eng (yomon|kichik|past|kam)|worst|min|oxirgi/i.test(q);
+    const isSumQ = /jami|umumiy|total|sum|hammasi/i.test(q);
+    const isListQ = /ro'yxat|royxat|list|barcha|hammasi.*kim/i.test(q);
+    
+    let allData = [];
     sources.rows.forEach(src => {
       const data = src.data || [];
       if (!Array.isArray(data)) return;
       data.forEach(row => {
-        const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
-        const score = words.filter(w => rowText.includes(w)).length;
-        if (score > 0) {
-          const clean = { _source: src.name, _score: score };
-          Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
-          allResults.push(clean);
-        }
+        const clean = { _source: src.name };
+        Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
+        allData.push(clean);
       });
     });
 
-    // Ko'proq mos kelganlar tepada
-    allResults.sort((a, b) => (b._score || 0) - (a._score || 0));
+    let results = [];
+    let summary = '';
 
-    res.json({ results: allResults.slice(0, 30), total: allResults.length, query, searchWords: words });
+    // 1. ISM bo'yicha qidirish
+    if (words.length > 0) {
+      const matched = allData.filter(row => {
+        const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
+        return words.some(w => rowText.includes(w));
+      }).sort((a, b) => {
+        const aText = Object.values(a).map(v => String(v || '').toLowerCase()).join(' ');
+        const bText = Object.values(b).map(v => String(v || '').toLowerCase()).join(' ');
+        return words.filter(w => bText.includes(w)).length - words.filter(w => aText.includes(w)).length;
+      });
+      if (matched.length > 0 && matched.length <= 20) {
+        results = matched;
+      }
+    }
+
+    // 2. Raqamli ustunlarni topish
+    const numCols = {};
+    if (allData.length > 0) {
+      Object.keys(allData[0]).forEach(k => {
+        if (k.startsWith('_')) return;
+        const vals = allData.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v));
+        if (vals.length > 10) numCols[k] = true;
+      });
+    }
+
+    // 3. ENG YAXSHI / ENG YOMON
+    if ((isMaxQ || isMinQ) && results.length === 0) {
+      // Qaysi ustun bo'yicha — savoldan topish
+      let targetCol = Object.keys(numCols)[0];
+      for (const col of Object.keys(numCols)) {
+        if (q.includes(col.toLowerCase().replace(/_/g, ' '))) { targetCol = col; break; }
+      }
+      if (targetCol) {
+        const sorted = [...allData].filter(r => {
+          const v = parseFloat(String(r[targetCol]).replace(/[^0-9.-]/g, ''));
+          return !isNaN(v) && v > 0;
+        }).sort((a, b) => {
+          const va = parseFloat(String(a[targetCol]).replace(/[^0-9.-]/g, '')) || 0;
+          const vb = parseFloat(String(b[targetCol]).replace(/[^0-9.-]/g, '')) || 0;
+          return isMinQ ? va - vb : vb - va;
+        });
+        results = sorted.slice(0, 10);
+        summary = `${isMaxQ ? 'Eng yuqori' : 'Eng past'} ${targetCol} bo'yicha top 10`;
+      }
+    }
+
+    // 4. NECHTA / SONI
+    if (isCountQ && results.length === 0) {
+      const sheets = {};
+      allData.forEach(r => { const s = r._sheet || r._source || 'default'; sheets[s] = (sheets[s] || 0) + 1; });
+      summary = `Jami: ${allData.length} ta qator. ` + Object.entries(sheets).map(([k, v]) => `${k}: ${v} ta`).join(', ');
+      results = [{ _summary: summary }];
+    }
+
+    // 5. O'RTACHA
+    if (isAvgQ && results.length === 0) {
+      const stats = {};
+      Object.keys(numCols).slice(0, 8).forEach(col => {
+        const vals = allData.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
+        if (vals.length > 0) stats[col] = { avg: (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2), count: vals.length };
+      });
+      summary = 'O\'rtacha ko\'rsatkichlar: ' + Object.entries(stats).map(([k, v]) => `${k}: ${v.avg}`).join(', ');
+      results = [{ _summary: summary, _stats: stats }];
+    }
+
+    // 6. JAMI / SUM
+    if (isSumQ && results.length === 0) {
+      const stats = {};
+      Object.keys(numCols).slice(0, 8).forEach(col => {
+        const vals = allData.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
+        if (vals.length > 0) stats[col] = { sum: vals.reduce((a, b) => a + b, 0).toFixed(0), count: vals.length };
+      });
+      summary = 'Jami: ' + Object.entries(stats).map(([k, v]) => `${k}: ${v.sum}`).join(', ');
+      results = [{ _summary: summary, _stats: stats }];
+    }
+
+    // 7. RO'YXAT
+    if (isListQ && results.length === 0) {
+      results = allData.slice(0, 30);
+      summary = `Barcha yozuvlardan namuna (${allData.length} tadan 30 tasi)`;
+    }
+
+    // Agar hech narsa topilmasa — umumiy statistika
+    if (results.length === 0) {
+      const sheets = {};
+      allData.forEach(r => { const s = r._sheet || r._source || 'default'; sheets[s] = (sheets[s] || 0) + 1; });
+      const stats = {};
+      Object.keys(numCols).slice(0, 6).forEach(col => {
+        const vals = allData.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
+        if (vals.length > 0) {
+          const sum = vals.reduce((a, b) => a + b, 0);
+          stats[col] = { avg: (sum / vals.length).toFixed(2), min: Math.min(...vals).toFixed(2), max: Math.max(...vals).toFixed(2), count: vals.length };
+        }
+      });
+      summary = `Jami ${allData.length} qator. Listlar: ${Object.entries(sheets).map(([k,v]) => k+': '+v).join(', ')}`;
+      results = [{ _summary: summary, _stats: stats, _sheets: sheets }];
+    }
+
+    res.json({ results: results.slice(0, 30), total: results.length, query, searchWords: words, summary });
   } catch (err) {
     console.error('[SOURCES] search-all error:', err.message);
     res.status(500).json({ error: 'Server xatosi' });
