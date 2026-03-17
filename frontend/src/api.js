@@ -107,6 +107,12 @@ export const SourcesAPI = {
 
   getAiContext: (id) =>
     apiFetch(`/sources/${id}/ai-context`, { method: 'POST' }),
+
+  search: (id, query) =>
+    apiFetch(`/sources/${id}/search`, { method: 'POST', body: JSON.stringify({ query }) }),
+
+  searchAll: (query) =>
+    apiFetch('/sources/search-all', { method: 'POST', body: JSON.stringify({ query }) }),
 };
 
 // ── ALERTS API ──

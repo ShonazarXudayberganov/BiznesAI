@@ -5793,18 +5793,29 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
       }
     }
     const chosenSrcs = sources.filter(s => activeSrcIds.includes(s.id) && s.connected && s.data?.length > 0);
-    // Avval backend bazadan context olish, keyin local fallback
+    // 1. BAZADAN QIDIRISH — foydalanuvchi aniq ism/nom so'ragan bo'lsa
+    let searchCtx = "";
+    if (Token.get() && text.length > 2) {
+      try {
+        const searchResult = await SourcesAPI.searchAll(text);
+        if (searchResult?.results?.length > 0) {
+          searchCtx = `\n━━━ BAZADAN TOPILGAN NATIJALAR (${searchResult.total} ta) ━━━\nSo'rov: "${text}"\n${JSON.stringify(searchResult.results.slice(0, 10), null, 2)}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nYUQORIDAGI NATIJALAR BAZADAN TOPILDI — shu ma'lumotlar ASOSIDA javob ber!`;
+        }
+      } catch { }
+    }
+
+    // 2. Umumiy kontekst — bazadan yoki local
     let ctx = "";
-    if (Token.get() && chosenSrcs.length > 0) {
+    if (!searchCtx && Token.get() && chosenSrcs.length > 0) {
       const apiContexts = await Promise.all(chosenSrcs.map(s => getAiContextFromAPI(s.id)));
       const validCtx = apiContexts.filter(Boolean);
-      if (validCtx.length > 0) {
-        ctx = validCtx.map(c => "\n" + c).join("");
-      }
+      if (validCtx.length > 0) ctx = validCtx.map(c => "\n" + c).join("");
     }
-    if (!ctx) ctx = buildMergedContext(chosenSrcs);
+    if (!ctx && !searchCtx) ctx = buildMergedContext(chosenSrcs);
+
+    const allCtx = searchCtx + (ctx ? `\n\n━━━ UMUMIY MA'LUMOTLAR ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "");
     const fileCtx = attachedFile ? `\n\n━━━ YUKLANGAN FAYL ━━━\n${attachedFile.content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
-    const fullMsg = text + (ctx ? `\n\n━━━ BIZNES MA'LUMOTLARI ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "") + fileCtx;
+    const fullMsg = text + (allCtx ? `\n\n${allCtx}` : "") + fileCtx;
     const disp = text + (attachedFile ? ` 📎 ${attachedFile.name}` : "");
     setInput(""); setAttachedFile(null);
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
@@ -5841,6 +5852,7 @@ MAZMUN QOIDALARI:
 - SOLISHTIRISH — o'rtacha bilan, maqsad bilan
 - Agar ma'lumot YO'Q — "Bu ma'lumot manbada mavjud emas" de, o'ylab chiqarma
 - Agar fayl yuklangan bo'lsa — fayl mazmunini TAHLIL QIL va savollarga shu asosda javob ber
+- Agar BAZADAN TOPILGAN NATIJALAR bo'lsa — bu ANIQ ma'lumot, shu asosda TO'LIQ va BATAFSIL javob ber. Raqamlarni jadval qilib ko'rsat.
 - O'ZBEK TILIDA, 200-400 so'z`
     };
 

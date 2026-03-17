@@ -245,6 +245,75 @@ router.post('/:id/ai-context', async (req, res) => {
   }
 });
 
+// ── POST /api/sources/:id/search ── (bazadan qidirish)
+router.post('/:id/search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'query kerak' });
+
+    const check = await pool.query(
+      'SELECT sd.data FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id WHERE s.id=$1 AND s.user_id=$2',
+      [req.params.id, req.userId]
+    );
+    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+
+    const data = check.rows[0].data || [];
+    if (!Array.isArray(data)) return res.json({ results: [], total: 0 });
+
+    const words = query.toLowerCase().trim().split(/\s+/);
+    const techKeys = new Set(['_id','_type','_entity','source_id','webhook_url','__v']);
+
+    const results = data.filter(row => {
+      const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
+      return words.every(w => rowText.includes(w));
+    }).slice(0, 20).map(row => {
+      const clean = {};
+      Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
+      return clean;
+    });
+
+    res.json({ results, total: results.length, query });
+  } catch (err) {
+    console.error('[SOURCES] search error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ── POST /api/sources/search-all ── (barcha manbalardan qidirish)
+router.post('/search-all', async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'query kerak' });
+
+    const sources = await pool.query(
+      'SELECT s.name, sd.data FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id WHERE s.user_id=$1 AND s.connected=TRUE',
+      [req.userId]
+    );
+
+    const words = query.toLowerCase().trim().split(/\s+/);
+    const techKeys = new Set(['_id','_type','_entity','source_id','webhook_url','__v']);
+    const allResults = [];
+
+    sources.rows.forEach(src => {
+      const data = src.data || [];
+      if (!Array.isArray(data)) return;
+      data.forEach(row => {
+        const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
+        if (words.every(w => rowText.includes(w))) {
+          const clean = { _source: src.name };
+          Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
+          allResults.push(clean);
+        }
+      });
+    });
+
+    res.json({ results: allResults.slice(0, 30), total: allResults.length, query });
+  } catch (err) {
+    console.error('[SOURCES] search-all error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
 // ── DELETE /api/sources/:id ── (manba o'chirish)
 router.delete('/:id', async (req, res) => {
   try {
