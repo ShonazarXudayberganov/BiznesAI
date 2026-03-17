@@ -701,7 +701,7 @@ function getEffectivePlanPrices() {
 // ─────────────────────────────────────────────────────────────
 // AI CALL FUNCTION (SSE streaming for all providers)
 // ─────────────────────────────────────────────────────────────
-async function callAI(messages, config, onChunk) {
+async function callAI(messages, config, onChunk, signal) {
   const prov = AI_PROVIDERS[config.provider];
   if (!prov) throw new Error("Noma'lum provayder: " + config.provider);
   if (!config.apiKey) throw new Error("AI ulangan emas. Admin global AI yoki shaxsiy API kalit kerak.");
@@ -721,7 +721,8 @@ async function callAI(messages, config, onChunk) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal,
     });
     if (!res.ok) {
       const err = await res.text();
@@ -753,7 +754,8 @@ async function callAI(messages, config, onChunk) {
         "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-access": "true",
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal,
     });
     if (!res.ok) {
       const err = await res.text();
@@ -801,7 +803,8 @@ async function callAI(messages, config, onChunk) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${config.apiKey}`,
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
@@ -5528,6 +5531,15 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [qCat, setQCat] = useState("all");
+  const abortRef = useRef(null);
+
+  const stopAI = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setLoading(false);
+    }
+  };
   const [showSessions, setShowSessions] = useState(false);
 
   // ── Chat sessiyalar tizimi ──
@@ -5751,15 +5763,22 @@ MAZMUN QOIDALARI:
     };
 
     try {
+      const controller = new AbortController();
+      abortRef.current = controller;
       await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
         setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
-      });
+      }, controller.signal);
       // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
       setMessages(m => m); // Sessions tizimi avtomatik saqlaydi
     } catch (e) {
-      setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
+      if (e.name === 'AbortError') {
+        setMessages(m => { const c = [...m]; if (c[c.length-1]?.content) c[c.length-1].content += "\n\n⏹ *To'xtatildi*"; return c; });
+      } else {
+        setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
+      }
     }
+    abortRef.current = null;
     setLoading(false);
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   }, [input, loading, aiConfig, sources, activeSrcIds, messages, hasPersonalKey, user]);
@@ -6076,9 +6095,14 @@ MAZMUN QOIDALARI:
             }
           }} />
         <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
-        <button className="chat-send-btn" onClick={() => sendMsg()} disabled={loading || (!input.trim() && !attachedFile)}>
-          {loading ? <span className="typing-ind" style={{ justifyContent: "center", gap: 3 }}><span /><span /><span /></span> : "➤"}
-        </button>
+        {loading ? (
+          <button className="chat-send-btn" onClick={stopAI} title="To'xtatish"
+            style={{ background: "linear-gradient(135deg,#F87171,#EF4444)", boxShadow: "0 4px 16px rgba(248,113,113,0.4)" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+        ) : (
+          <button className="chat-send-btn" onClick={() => sendMsg()} disabled={!input.trim() && !attachedFile}>➤</button>
+        )}
       </div>
     </div>
   );
