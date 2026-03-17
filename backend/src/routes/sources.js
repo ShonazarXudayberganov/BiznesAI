@@ -245,6 +245,20 @@ router.post('/:id/ai-context', async (req, res) => {
   }
 });
 
+// Stop-words — qidiruvda hisobga olinmaydigan so'zlar
+const STOP_WORDS = new Set([
+  'haqida','barcha','bilan','uchun','qanday','nima','kerak','ber','berish','ko\'rsat',
+  'ayting','ayt','qil','qilish','hisobot','tahlil','malumot','ma\'lumot','to\'liq',
+  'bo\'yicha','ning','dan','ga','da','ni','va','ham','esa','bu','shu','men',
+  'nechta','qancha','umumiy','asosiy','eng','bor','yoq','about','all','the',
+  'show','give','tell','report','analysis','data','information',
+  'про','все','дай','покажи','расскажи','о','об','по','в','на','из',
+]);
+
+function filterSearchWords(query) {
+  return query.toLowerCase().trim().split(/\s+/).filter(w => w.length > 1 && !STOP_WORDS.has(w));
+}
+
 // ── POST /api/sources/:id/search ── (bazadan qidirish)
 router.post('/:id/search', async (req, res) => {
   try {
@@ -260,19 +274,28 @@ router.post('/:id/search', async (req, res) => {
     const data = check.rows[0].data || [];
     if (!Array.isArray(data)) return res.json({ results: [], total: 0 });
 
-    const words = query.toLowerCase().trim().split(/\s+/);
+    const words = filterSearchWords(query);
+    if (words.length === 0) return res.json({ results: [], total: 0 });
     const techKeys = new Set(['_id','_type','_entity','source_id','webhook_url','__v']);
 
+    // Agar bitta so'z ham topilsa — natija (ANY, EVERY emas)
     const results = data.filter(row => {
       const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
-      return words.every(w => rowText.includes(w));
+      return words.some(w => rowText.includes(w));
+    }).sort((a, b) => {
+      // Ko'proq so'z topilgan qator tepada
+      const aText = Object.values(a).map(v => String(v || '').toLowerCase()).join(' ');
+      const bText = Object.values(b).map(v => String(v || '').toLowerCase()).join(' ');
+      const aScore = words.filter(w => aText.includes(w)).length;
+      const bScore = words.filter(w => bText.includes(w)).length;
+      return bScore - aScore;
     }).slice(0, 20).map(row => {
       const clean = {};
       Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
       return clean;
     });
 
-    res.json({ results, total: results.length, query });
+    res.json({ results, total: results.length, query, searchWords: words });
   } catch (err) {
     console.error('[SOURCES] search error:', err.message);
     res.status(500).json({ error: 'Server xatosi' });
@@ -290,7 +313,8 @@ router.post('/search-all', async (req, res) => {
       [req.userId]
     );
 
-    const words = query.toLowerCase().trim().split(/\s+/);
+    const words = filterSearchWords(query);
+    if (words.length === 0) return res.json({ results: [], total: 0 });
     const techKeys = new Set(['_id','_type','_entity','source_id','webhook_url','__v']);
     const allResults = [];
 
@@ -299,15 +323,19 @@ router.post('/search-all', async (req, res) => {
       if (!Array.isArray(data)) return;
       data.forEach(row => {
         const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
-        if (words.every(w => rowText.includes(w))) {
-          const clean = { _source: src.name };
+        const score = words.filter(w => rowText.includes(w)).length;
+        if (score > 0) {
+          const clean = { _source: src.name, _score: score };
           Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k)) clean[k] = v; });
           allResults.push(clean);
         }
       });
     });
 
-    res.json({ results: allResults.slice(0, 30), total: allResults.length, query });
+    // Ko'proq mos kelganlar tepada
+    allResults.sort((a, b) => (b._score || 0) - (a._score || 0));
+
+    res.json({ results: allResults.slice(0, 30), total: allResults.length, query, searchWords: words });
   } catch (err) {
     console.error('[SOURCES] search-all error:', err.message);
     res.status(500).json({ error: 'Server xatosi' });
