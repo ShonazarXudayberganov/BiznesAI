@@ -3374,34 +3374,12 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     }
   };
 
-  // ── Google Sheets — barcha listlarni yuklash ──
-  const parseGvizResponse = (text) => {
-    const jsonText = text.replace(/^[^(]*\(/, "").replace(/\);?\s*$/, "");
-    return JSON.parse(jsonText);
-  };
-
-  const gvizToRows = (table) => {
-    if (!table || !table.rows?.length) return { cols: [], rows: [] };
-    const cols = table.cols.map(c => c.label || c.id || "col");
-    const rows = table.rows.map(row => {
-      const obj = {};
-      row.c.forEach((cell, i) => {
-        const colName = cols[i] || `col${i}`;
-        if (!cell || cell.v === null || cell.v === undefined) obj[colName] = "";
-        else if (cell.f) obj[colName] = cell.f;
-        else obj[colName] = cell.v;
-      });
-      return obj;
-    }).filter(obj => Object.values(obj).some(v => v !== "" && v !== null && v !== undefined));
-    return { cols, rows };
-  };
-
+  // ── Google Sheets — XLSX export orqali barcha listlarni yuklash ──
   const handleSheetsFetch = async () => {
     const url = (src.config?.url || "").trim();
     if (!url) { push("Google Sheets URL kiriting", "warn"); return; }
     setLoading(true);
 
-    // Spreadsheet ID ni ajratish
     const extractId = (u) => {
       const m = u.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
       if (m) return m[1];
@@ -3411,141 +3389,59 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
 
     const spreadsheetId = extractId(url);
     if (!spreadsheetId) {
-      push("Google Sheets URL noto'g'ri. Sheets ni ochib, brauzer URL ni nusxalang.", "error");
+      push("Google Sheets URL noto'g'ri.", "error");
       setLoading(false); return;
     }
 
     try {
-      // ── 1-BOSQICH: Birinchi listni yuklash va spreadsheet haqida ma'lumot olish ──
-      const firstUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=0`;
-      const firstRes = await fetch(firstUrl);
-      if (!firstRes.ok) throw new Error("Sheet ochiq (public) emas yoki URL noto'g'ri");
-      const firstText = await firstRes.text();
-      const firstData = parseGvizResponse(firstText);
+      // ── XLSX sifatida yuklab olish — BARCHA listlar avtomatik ──
+      push("Google Sheets yuklanmoqda...", "info");
+      const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
+      const res = await fetch(exportUrl);
+      if (!res.ok) throw new Error("Sheet ochiq (public) emas yoki URL noto'g'ri. Share → Anyone with link → Viewer qiling.");
+      
+      const buf = await res.arrayBuffer();
+      const workbook = XLSX.read(buf, { type: "array" });
+      
+      if (!workbook.SheetNames?.length) throw new Error("Sheets bo'sh — hech qanday list topilmadi");
 
-      if (firstData.status === "error") {
-        throw new Error(firstData.errors?.[0]?.detailed_message || "Google Sheets xato. Sheet public (ochiq) qilinganmi?");
-      }
-
-      // ── 2-BOSQICH: Barcha listlarni topish (gid=0,1,2,...,9 gacha tekshirish) ──
-      // Google Visualization API da list nomlari sig (signature) ga yoziladi
-      const sheetsFound = []; // [{gid, name, rows, cols}]
-
-      // Birinchi listni qo'shish
-      const first = gvizToRows(firstData.table);
-      if (first.rows.length > 0) {
-        sheetsFound.push({ gid: 0, name: firstData.table?.cols?.[0]?.label ? "List 1" : "List 1", rows: first.rows, cols: first.cols });
-      }
-
-      // ── Barcha listlarni topish — SHEET NOMI bo'yicha ──
-
-      // Birinchi list ma'lumotidan sheet nomlarini topish
-      // Google gviz birinchi list da boshqa listlarni ko'rsatmaydi, shuning uchun
-      // foydalanuvchi kiritgan yoki keng qidirish kerak
-      const sheetNames = (src.config?.sheetNames || "").trim();
-      let sheetList = []; // Sheet nomlari
-
-      if (sheetNames) {
-        // Foydalanuvchi kiritgan sheet nomlarini ishlatish
-        sheetList = sheetNames.split(",").map(s => s.trim()).filter(Boolean);
-      } else {
-        // Bo'sh — foydalanuvchiga yozishni so'rash, faqat gid 0-15 tekshirish
-
-        // gid bo'yicha tez tekshirish
-        for (let g = 1; g <= 15; g++) {
-          try {
-            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&gid=${g}`;
-            const testRes = await fetch(testUrl);
-            if (!testRes.ok) continue;
-            const testText = await testRes.text();
-            const testData = parseGvizResponse(testText);
-            if (testData.status === "error") continue;
-            const parsed = gvizToRows(testData.table);
-            if (parsed.rows.length === 0) continue;
-            if (parsed.rows.length === first.rows.length && JSON.stringify(parsed.rows[0]) === JSON.stringify(first.rows[0])) continue;
-            if (sheetsFound.some(s => s.rows.length === parsed.rows.length && JSON.stringify(s.rows[0]) === JSON.stringify(parsed.rows[0]))) continue;
-            sheetsFound.push({ gid: g, name: `List ${g + 1}`, rows: parsed.rows, cols: parsed.cols });
-          } catch { }
+      // Barcha listlarni parse qilish
+      const allRows = [];
+      const sheetInfo = [];
+      
+      workbook.SheetNames.forEach(sheetName => {
+        const ws = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        // Bo'sh qatorlarni filtrlash
+        const cleanRows = rows.filter(row => Object.values(row).some(v => v !== "" && v !== null && v !== undefined));
+        if (cleanRows.length > 0) {
+          cleanRows.forEach(row => {
+            row._sheet = sheetName;
+            allRows.push(row);
+          });
+          sheetInfo.push({ name: sheetName, rows: cleanRows.length });
         }
-        sheetList = []; // sheet nom bo'yicha qidirmaslik
-      }
+      });
 
+      if (allRows.length === 0) throw new Error("Barcha listlar bo'sh");
 
+      const totalSheets = sheetInfo.length;
+      const totalRows = allRows.length;
 
-      // Sheet nomini URL encode qilib, parallel fetch (10 tadan)
-      for (let bi = 0; bi < sheetList.length; bi += 10) {
-        const batch = sheetList.slice(bi, bi + 10);
-        const promises = batch.map(async (name) => {
-          try {
-            const testUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`;
-            const testRes = await fetch(testUrl);
-            if (!testRes.ok) return null;
-            const testText = await testRes.text();
-            const testData = parseGvizResponse(testText);
-            if (testData.status === "error") return null;
-            const parsed = gvizToRows(testData.table);
-            if (parsed.rows.length === 0) return null;
-            return { gid: bi, name, rows: parsed.rows, cols: parsed.cols };
-          } catch { return null; }
-        });
-        const results = await Promise.all(promises);
-        results.forEach(r => { if (r) sheetsFound.push(r); });
-      }
-      push(`${sheetsFound.length} ta list topildi (${sheetsFound.reduce((a,s) => a + s.rows.length, 0)} qator)`, sheetsFound.length > 1 ? "ok" : "info");
-
-      if (sheetsFound.length === 0) throw new Error("Barcha listlar bo'sh — hech qanday ma'lumot yo'q");
-
-      // ── 3-BOSQICH: Ma'lumotlarni birlashtirish va saqlash ──
-      // Agar bitta list bo'lsa — oddiy saqlash
-      // Agar ko'p list bo'lsa — files/sheetData formatida saqlash (Excel kabi)
-      if (sheetsFound.length === 1) {
-        const sheet = sheetsFound[0];
-        onUpdate({
-          ...src,
-          connected: true, active: true,
-          data: sheet.rows,
-          updatedAt: new Date().toLocaleString("uz-UZ"),
-          spreadsheetName: "Google Sheet",
-          config: { ...src.config, url, spreadsheetId, lastFetch: Date.now(), sheetCount: 1 },
-        });
-        push(`✓ Google Sheets — ${sheet.rows.length} ta qator, ${sheet.cols.length} ta ustun yuklandi`, "ok");
-      } else {
-        // Ko'p listli — Excel kabi sheetData formatida saqlash
-        const sheetData = {};
-        const sheetNames = [];
-        let totalRows = 0;
-        sheetsFound.forEach(s => {
-          sheetData[s.name] = s.rows;
-          sheetNames.push(s.name);
-          totalRows += s.rows.length;
-        });
-
-        // Barcha listlar birlashtirilgan data (AI kontekst uchun)
-        const allRows = sheetsFound.flatMap(s => s.rows.map(r => ({ ...r, _sheet: s.name })));
-
-        // files formatida saqlash (Excel bilan bir xil)
-        const fileEntry = {
-          fileName: "Google Sheet",
-          sheets: sheetNames,
-          data: sheetsFound[0].rows, // Default birinchi list
-          sheetData,
-        };
-
-        onUpdate({
-          ...src,
-          connected: true, active: true,
-          data: allRows, // BARCHA listlar birlashtirilgan
-          files: [fileEntry],
-          activeSheet: sheetNames[0],
-          updatedAt: new Date().toLocaleString("uz-UZ"),
-          spreadsheetName: "Google Sheet",
-          config: { ...src.config, url, spreadsheetId, lastFetch: Date.now(), sheetCount: sheetsFound.length },
-        });
-        push(`✓ Google Sheets — ${sheetsFound.length} ta list, jami ${totalRows.toLocaleString()} ta qator yuklandi`, "ok");
-      }
+      onUpdate({
+        ...src,
+        connected: true, active: true,
+        data: allRows,
+        updatedAt: new Date().toLocaleString("uz-UZ"),
+        spreadsheetName: "Google Sheet",
+        config: { ...src.config, url, spreadsheetId, lastFetch: Date.now(), sheetCount: totalSheets, sheetInfo },
+      });
+      // Avtomatik yangilash default 15 daqiqa
+      if (!src.config?.autoRefresh) updateConfig("autoRefresh", 15);
+      push(`✓ Google Sheets — ${totalSheets} ta list, ${totalRows} ta qator yuklandi. Har 15 daqiqada yangilanadi.`, "ok");
 
     } catch (e) {
-      push("Ulanib bo'lmadi: " + e.message + ". Sheet ochiq (public) qilinganmi?", "error");
+      push("Sheets xato: " + e.message, "error");
     }
     setLoading(false);
   };
@@ -4429,8 +4325,6 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               <label className="field-label">Google Sheets URL</label>
               <input className="field mb8" placeholder="https://docs.google.com/spreadsheets/d/..." value={src.config?.url || ""} onChange={e => updateConfig("url", e.target.value)} />
-              <label className="field-label">List nomlari <span style={{ color: "var(--muted)", fontWeight: 400 }}>(vergul bilan ajrating, bo'sh qolsa avtomatik qidiradi)</span></label>
-              <input className="field mb8" placeholder="1-класс, 2-класс, 3-класс, 5-класс, 8-класс" value={src.config?.sheetNames || ""} onChange={e => updateConfig("sheetNames", e.target.value)} />
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleSheetsFetch} disabled={loading || !src.config?.url}>
                   {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
