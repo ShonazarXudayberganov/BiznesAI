@@ -3414,9 +3414,40 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       
       workbook.SheetNames.forEach(sheetName => {
         const ws = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        // Sarlavha qatorini aqlli aniqlash — bo'sh qatorlarni o'tkazib yuborish
+        let rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        
+        // Agar birinchi qator bo'sh yoki __EMPTY ustunlari bor — sarlavhani qayta aniqlash
+        if (rows.length > 0) {
+          const firstKeys = Object.keys(rows[0]);
+          const hasEmpty = firstKeys.some(k => k.startsWith("__EMPTY") || k.trim() === "");
+          if (hasEmpty) {
+            // Bo'sh ustunli qatorlar — ehtimol sarlavha pastda. Range dan boshqa usul
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            // Har bir qatorni tekshirish — birinchi to'liq qator = sarlavha
+            for (let r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
+              const headerRow = [];
+              let filled = 0;
+              for (let c = range.s.c; c <= range.e.c; c++) {
+                const cell = ws[XLSX.utils.encode_cell({ r, c })];
+                const val = cell ? String(cell.v || "").trim() : "";
+                headerRow.push(val);
+                if (val) filled++;
+              }
+              if (filled >= 3) { // Kamida 3 ta to'liq ustun — bu sarlavha
+                rows = XLSX.utils.sheet_to_json(ws, { defval: "", range: r });
+                break;
+              }
+            }
+          }
+        }
+        
         // Bo'sh qatorlarni filtrlash
-        const cleanRows = rows.filter(row => Object.values(row).some(v => v !== "" && v !== null && v !== undefined));
+        const cleanRows = rows.filter(row => {
+          const vals = Object.values(row);
+          const filled = vals.filter(v => v !== "" && v !== null && v !== undefined);
+          return filled.length >= 2; // Kamida 2 ta to'liq ustun
+        });
         if (cleanRows.length > 0) {
           cleanRows.forEach(row => {
             row._sheet = sheetName;
