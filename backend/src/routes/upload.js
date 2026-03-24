@@ -27,6 +27,54 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
+// ── POST /api/upload/parse-only ── (source siz — faqat matn ajratish, DB ga saqlamasdan)
+router.post('/parse-only', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Fayl kerak' });
+
+    const filePath = req.file.path;
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const fileName = req.file.originalname;
+    let textContent = '';
+
+    console.log(`[PARSE-ONLY] Parsing ${fileName} (${ext}, ${(req.file.size/1024).toFixed(1)}KB)`);
+
+    if (ext === '.pdf') {
+      try {
+        const pdfParse = require('pdf-parse');
+        const dataBuffer = fs.readFileSync(filePath);
+        const pdfData = await pdfParse(dataBuffer);
+        textContent = pdfData.text || '';
+        console.log(`[PARSE-ONLY] PDF: ${pdfData.numpages} pages, ${textContent.length} chars`);
+      } catch (e) {
+        console.error('[PARSE-ONLY] PDF parse error:', e.message);
+        textContent = '';
+      }
+    } else if (ext === '.docx' || ext === '.doc') {
+      try {
+        const mammoth = require('mammoth');
+        const result = await mammoth.extractRawText({ path: filePath });
+        textContent = result.value || '';
+      } catch (e) { textContent = ''; }
+    } else if (['.txt', '.csv', '.md', '.log'].includes(ext)) {
+      textContent = fs.readFileSync(filePath, 'utf-8');
+    }
+
+    // Temp faylni o'chirish
+    try { fs.unlinkSync(filePath); } catch {}
+
+    res.json({
+      ok: true,
+      fileName,
+      textLength: textContent.length,
+      text: textContent.substring(0, 50000),
+    });
+  } catch (err) {
+    console.error('[PARSE-ONLY] Error:', err.message);
+    res.status(500).json({ error: err.message || 'Server xatosi' });
+  }
+});
+
 // ── POST /api/upload/:sourceId/parse ── (fayl yuklash + parse + bazaga saqlash)
 router.post('/:sourceId/parse', upload.single('file'), async (req, res) => {
   try {

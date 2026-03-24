@@ -182,7 +182,121 @@ router.get('/:id/stats', async (req, res) => {
   }
 });
 
-// ── POST /api/ai/context ── (AI uchun bazadan kontekst tayyorlash)
+// ════════════════════════════════════════════════════════════════════
+// SMART AI CONTEXT — RAG yondashuvi (ChatGPT/Claude kabi)
+// Prinsip: BARCHA ma'lumotni emas, faqat KERAKLI qismni AI ga yuborish
+// ════════════════════════════════════════════════════════════════════
+
+// Token limitlar (xavfsiz zona — prompt + javob uchun joy qoldirish)
+const MAX_CONTEXT_CHARS = 80000; // ~20K token — xavfsiz barcha modellar uchun
+const MAX_SEARCH_RESULTS = 200;  // Qidiruv natijasi max
+const SAMPLE_PER_SHEET = 5;     // Har listdan namuna
+
+// Texnik kalitlar — AI ga kerak emas
+const TECH_KEYS = new Set(['id','_id','_type','_entity','source_id','webhook_url','created_at','updated_at','__v','_v']);
+
+// Qatorni tozalash — texnik kalitlarni olib tashlash
+function cleanRow(row) {
+  const clean = {};
+  Object.entries(row).forEach(([k, v]) => {
+    if (!TECH_KEYS.has(k) && !k.startsWith('_')) clean[k] = v;
+  });
+  return clean;
+}
+
+// Raqamli ustunlarni aniqlash
+function findNumericColumns(data, allKeys) {
+  return allKeys.filter(k => {
+    const vals = data.slice(0, 100).map(r => parseFloat(String(r[k] || '').replace(/[^0-9.-]/g, '')));
+    return vals.filter(v => !isNaN(v) && v !== 0).length > Math.min(data.length, 100) * 0.3;
+  });
+}
+
+// Har bir raqamli ustun uchun to'liq statistika hisoblash
+function computeFullStats(data, numCols, allKeys) {
+  const stats = {};
+  numCols.forEach(col => {
+    const vals = data.map(r => parseFloat(String(r[col] || '').replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v));
+    if (vals.length === 0) return;
+    const sum = vals.reduce((a, b) => a + b, 0);
+    const avg = sum / vals.length;
+    const sorted = [...vals].sort((a, b) => a - b);
+    const median = sorted.length % 2 === 0
+      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+      : sorted[Math.floor(sorted.length / 2)];
+    stats[col] = {
+      count: vals.length,
+      sum: Math.round(sum * 100) / 100,
+      avg: Math.round(avg * 100) / 100,
+      min: Math.round(Math.min(...vals) * 100) / 100,
+      max: Math.round(Math.max(...vals) * 100) / 100,
+      median: Math.round(median * 100) / 100,
+    };
+  });
+
+  // Kategorik ustunlar uchun taqsimot (top 15)
+  const catKeys = allKeys.filter(k => !numCols.includes(k));
+  catKeys.forEach(col => {
+    const freq = {};
+    data.forEach(r => {
+      const v = String(r[col] || '').trim();
+      if (v && v !== 'undefined' && v !== 'null') freq[v] = (freq[v] || 0) + 1;
+    });
+    const entries = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    if (entries.length > 0 && entries.length <= 100) {
+      stats[col] = { type: 'category', uniqueCount: entries.length, top: entries.slice(0, 15).map(([v, c]) => ({ value: v, count: c })) };
+    } else if (entries.length > 100) {
+      stats[col] = { type: 'category', uniqueCount: entries.length, top: entries.slice(0, 10).map(([v, c]) => ({ value: v, count: c })), note: `Juda ko'p unikal qiymatlar (${entries.length} ta)` };
+    }
+  });
+
+  return stats;
+}
+
+// Savoldan kalit so'zlarni ajratish
+function extractSearchWords(query) {
+  const stopWords = new Set([
+    'haqida','barcha','bilan','uchun','qanday','nima','kerak','ber','berish','ko\'rsat',
+    'ayting','ayt','qil','qilish','hisobot','tahlil','malumot','ma\'lumot','to\'liq',
+    'bo\'yicha','ning','dan','ga','da','ni','va','ham','esa','bu','shu','men',
+    'nechta','qancha','umumiy','asosiy','eng','bor','yoq','about','all','the',
+    'show','give','tell','report','analysis','data','information','chiqar','chiqarish',
+    'qanday','qilib','analiz','qilish','solishtir','ber','ko\'rsat','jadval','grafik',
+    'pro','vse','dai','pokazhi','rasskazhi','o','ob','po','v','na','iz',
+  ]);
+  return query.toLowerCase().trim().split(/[\s,;.!?]+/).filter(w => w.length > 1 && !stopWords.has(w));
+}
+
+// AQLLI QIDIRUV — savolga mos qatorlarni topish
+function smartSearch(data, query, maxResults = MAX_SEARCH_RESULTS) {
+  const words = extractSearchWords(query);
+  if (words.length === 0) return { results: [], words: [] };
+
+  const scored = data.map((row, idx) => {
+    const rowText = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ');
+    let score = 0;
+    const matched = [];
+    words.forEach(w => {
+      if (rowText.includes(w)) { score += 2; matched.push(w); }
+      // Partial match (3+ harf mos kelsa)
+      else if (w.length >= 3) {
+        const partial = Object.values(row).some(v => String(v || '').toLowerCase().includes(w.slice(0, 3)));
+        if (partial) { score += 1; matched.push(w + '~'); }
+      }
+    });
+    return { row, idx, score, matched };
+  }).filter(r => r.score > 0).sort((a, b) => b.score - a.score).slice(0, maxResults);
+
+  return { results: scored.map(r => r.row), words, matchCount: scored.length };
+}
+
+// Kontekst hajmini tekshirish
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4); // O'rtacha 1 token = 4 belgi
+}
+
+// ── POST /api/sources/:id/ai-context ── (SMART AI CONTEXT)
+// Body: { query?: string } — savol bo'lsa qidiruv qiladi, bo'lmasa umumiy kontekst
 router.post('/:id/ai-context', async (req, res) => {
   try {
     const check = await pool.query(
@@ -194,12 +308,40 @@ router.post('/:id/ai-context', async (req, res) => {
     const source = check.rows[0];
     const data = source.data || [];
     const total = data.length;
-    if (total === 0) return res.json({ context: 'Ma\'lumot yo\'q' });
+    const query = req.body?.query || '';
 
-    const techKeys = new Set(['id','_id','_type','_entity','source_id','webhook_url','created_at','updated_at','__v','_v']);
-    const allKeys = Object.keys(data[0] || {}).filter(k => !techKeys.has(k) && !k.startsWith('_'));
+    if (total === 0) return res.json({ context: `MANBA: "${source.name}" — ma'lumot hali yuklanmagan (0 ta yozuv).`, rowCount: 0 });
 
-    // Sheet lar bo'yicha guruhlash
+    console.log(`[AI-CTX] Source: "${source.name}" (${total} rows), Query: "${query.slice(0, 80)}"`);
+
+    // ════════════════════════════════════════════════════
+    // 1. HUJJAT MANBASI (PDF, DOCX, TXT)
+    // ════════════════════════════════════════════════════
+    const isDocument = source.type === 'document' || data.some(d => d._type === 'document');
+    if (isDocument) {
+      let context = `HUJJAT MANBA: "${source.name}" (${total} ta fayl):\n`;
+      let totalChars = 0;
+      data.forEach((d, i) => {
+        const text = d.toliq_matn || d.content || '';
+        const fileName = d.fayl_nomi || d.fileName || `Fayl ${i + 1}`;
+        const pages = d.sahifalar || d.pages || '';
+        // Hajm nazorati — hujjat juda katta bo'lsa qisqartirish
+        const maxPerDoc = Math.floor(MAX_CONTEXT_CHARS / Math.max(total, 1));
+        const trimmed = text.length > maxPerDoc ? text.substring(0, maxPerDoc) + `\n... (${text.length - maxPerDoc} belgi qisqartirildi)` : text;
+        context += `\n--- ${fileName}${pages ? ` (${pages} sahifa)` : ''} ---\n${trimmed}\n`;
+        totalChars += trimmed.length;
+      });
+      console.log(`[AI-CTX] Document context: ${totalChars} chars`);
+      return res.json({ context, rowCount: total, sheetCount: 1 });
+    }
+
+    // ════════════════════════════════════════════════════
+    // 2. JADVAL MANBASI (Sheets, Excel, CRM, API, Manual)
+    // ════════════════════════════════════════════════════
+    const allKeys = Object.keys(data[0] || {}).filter(k => !TECH_KEYS.has(k) && !k.startsWith('_'));
+    const numCols = findNumericColumns(data, allKeys);
+
+    // Sheet bo'yicha guruhlash
     const sheets = {};
     data.forEach(row => {
       const sh = row._sheet || 'default';
@@ -208,39 +350,175 @@ router.post('/:id/ai-context', async (req, res) => {
     });
     const sheetNames = Object.keys(sheets);
 
-    // Raqamli ustunlar
-    const numCols = allKeys.filter(k => {
-      const vals = data.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
-      return vals.filter(v => !isNaN(v)).length > 10;
+    // ── A. STRUKTURA VA STATISTIKA (har doim yuboriladi) ──
+    const fullStats = computeFullStats(data, numCols, allKeys);
+
+    let context = '';
+    context += `MANBA: "${source.name}" (${source.type})\n`;
+    context += `JAMI: ${total} ta yozuv`;
+    if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.map(s => `${s}(${sheets[s].length})`).join(', ')}`;
+    context += `\n`;
+    context += `USTUNLAR: ${allKeys.join(', ')}\n`;
+    context += `RAQAMLI USTUNLAR: ${numCols.length > 0 ? numCols.join(', ') : 'yo\'q'}\n`;
+
+    // Statistika
+    context += `\nTO'LIQ STATISTIKA:\n`;
+    Object.entries(fullStats).forEach(([col, st]) => {
+      if (st.type === 'category') {
+        context += `  ${col}: ${st.uniqueCount} ta unikal qiymat`;
+        if (st.top) context += ` — top: ${st.top.map(t => `"${t.value}"(${t.count})`).join(', ')}`;
+        context += `\n`;
+      } else {
+        context += `  ${col}: jami=${st.sum}, o'rtacha=${st.avg}, min=${st.min}, max=${st.max}, median=${st.median}, soni=${st.count}\n`;
+      }
     });
 
-    let context = `MANBA: "${source.name}" (${source.type}, ${total} ta yozuv`;
-    if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(', ')}`;
-    context += `)\nUSTUNLAR: ${allKeys.join(', ')}\n`;
+    // ── B. SAVOL BO'LSA → AQLLI QIDIRUV ──
+    if (query && query.trim().length > 1) {
+      const { results, words, matchCount } = smartSearch(data, query);
 
-    // Har bir list uchun statistika
+      if (results.length > 0) {
+        // Qidiruv natijalari hajmini nazorat qilish
+        let searchRows = results.map(cleanRow);
+        let searchJSON = JSON.stringify(searchRows, null, 1);
+
+        // Agar hajm katta bo'lsa — qisqartirish
+        while (estimateTokens(context + searchJSON) > MAX_CONTEXT_CHARS / 4 * 3 && searchRows.length > 10) {
+          searchRows = searchRows.slice(0, Math.floor(searchRows.length * 0.7));
+          searchJSON = JSON.stringify(searchRows, null, 1);
+        }
+
+        context += `\nQIDIRUV NATIJALARI (so'rov: "${query}", kalit so'zlar: [${words.join(', ')}]):\n`;
+        context += `Topildi: ${matchCount} ta mos qator (${searchRows.length} tasi ko'rsatilmoqda)\n`;
+        context += searchJSON + '\n';
+
+        console.log(`[AI-CTX] Search: ${words.join(',')} → ${matchCount} matches, sending ${searchRows.length}`);
+      } else {
+        context += `\nQIDIRUV: "${query}" bo'yicha aniq mos qator topilmadi. Statistika asosida javob ber.\n`;
+      }
+    }
+
+    // ── C. NAMUNA QATORLAR (har doim — AI strukturani tushunishi uchun) ──
+    context += `\nNAMUNA QATORLAR:\n`;
     sheetNames.forEach(sh => {
       const rows = sheets[sh];
-      context += `\n--- ${sh} (${rows.length} qator) ---\n`;
-      numCols.slice(0, 10).forEach(col => {
-        const vals = rows.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v) && v >= 0);
-        if (vals.length > 0) {
-          const sum = vals.reduce((a, b) => a + b, 0);
-          context += `  ${col}: o'rtacha=${(sum/vals.length).toFixed(2)}, min=${Math.min(...vals).toFixed(2)}, max=${Math.max(...vals).toFixed(2)}, soni=${vals.length}\n`;
-        }
-      });
-      // 3 ta namuna
-      const sample = rows.slice(0, 3).map(row => {
-        const clean = {};
-        Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith('_')) clean[k] = v; });
-        return clean;
-      });
-      context += `  Namuna: ${JSON.stringify(sample)}\n`;
+      if (sheetNames.length > 1) context += `--- ${sh} ---\n`;
+      const sampleRows = rows.slice(0, SAMPLE_PER_SHEET).map(cleanRow);
+      context += JSON.stringify(sampleRows, null, 1) + '\n';
     });
 
+    // ── D. AGAR MA'LUMOT KAM BO'LSA (< 500 qator) — hammasini yuborish ──
+    if (total <= 500) {
+      const allClean = data.map(cleanRow);
+      const allJSON = JSON.stringify(allClean, null, 1);
+      if (estimateTokens(context + allJSON) < MAX_CONTEXT_CHARS / 4) {
+        context += `\nTO'LIQ MA'LUMOT (${total} ta qator — barchasi sig'adi):\n`;
+        context += allJSON + '\n';
+        console.log(`[AI-CTX] Small dataset — sending all ${total} rows`);
+      }
+    }
+
+    // ── E. MUHIM ESLATMA ──
+    context += `\nMUHIM: Yuqoridagi statistika BARCHA ${total} ta qator asosida hisoblangan. Agar aniq ma'lumot so'ralsa va qidiruv natijasida topilmasa, statistikadan foydalanib javob ber. "Ma'lumot yo'q" DEMA — chunki statistika BARCHANI o'z ichiga oladi!\n`;
+
+    console.log(`[AI-CTX] Final context: ${context.length} chars (~${estimateTokens(context)} tokens)`);
     res.json({ context, rowCount: total, sheetCount: sheetNames.length });
   } catch (err) {
     console.error('[SOURCES] ai-context error:', err.message);
+    res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ── POST /api/sources/smart-context ── (BARCHA manbalardan aqlli kontekst)
+// Chat sahifasida ishlatiladi — bir nechta manbadan birgalikda
+router.post('/smart-context', async (req, res) => {
+  try {
+    const { sourceIds, query } = req.body;
+    if (!Array.isArray(sourceIds) || sourceIds.length === 0) {
+      return res.status(400).json({ error: 'sourceIds kerak' });
+    }
+
+    const sources = await pool.query(
+      `SELECT s.*, sd.data, sd.row_count
+       FROM sources s LEFT JOIN source_data sd ON sd.source_id=s.id
+       WHERE s.id = ANY($1) AND s.user_id=$2 AND s.connected=TRUE`,
+      [sourceIds, req.userId]
+    );
+
+    if (sources.rows.length === 0) return res.json({ context: 'Ulangan manbalar topilmadi.' });
+
+    let fullContext = '';
+    let totalRows = 0;
+
+    for (const source of sources.rows) {
+      const data = source.data || [];
+      if (data.length === 0) continue;
+      totalRows += data.length;
+
+      const isDocument = source.type === 'document' || data.some(d => d._type === 'document');
+
+      if (isDocument) {
+        fullContext += `\n═══ HUJJAT: "${source.name}" ═══\n`;
+        data.forEach((d, i) => {
+          const text = d.toliq_matn || d.content || '';
+          const fileName = d.fayl_nomi || d.fileName || `Fayl ${i + 1}`;
+          const maxLen = Math.floor(MAX_CONTEXT_CHARS / Math.max(sources.rows.length, 1) / Math.max(data.length, 1));
+          fullContext += `${fileName}: ${text.substring(0, maxLen)}\n`;
+        });
+        continue;
+      }
+
+      // Jadval manba
+      const allKeys = Object.keys(data[0] || {}).filter(k => !TECH_KEYS.has(k) && !k.startsWith('_'));
+      const numCols = findNumericColumns(data, allKeys);
+      const stats = computeFullStats(data, numCols, allKeys);
+
+      fullContext += `\n═══ MANBA: "${source.name}" (${source.type}, ${data.length} ta qator) ═══\n`;
+      fullContext += `Ustunlar: ${allKeys.join(', ')}\n`;
+
+      // Statistika
+      Object.entries(stats).forEach(([col, st]) => {
+        if (st.type === 'category') {
+          fullContext += `  ${col}: ${st.uniqueCount} xil — ${(st.top || []).slice(0, 8).map(t => `"${t.value}"(${t.count})`).join(', ')}\n`;
+        } else {
+          fullContext += `  ${col}: jami=${st.sum}, o'rtacha=${st.avg}, min=${st.min}, max=${st.max}\n`;
+        }
+      });
+
+      // Qidiruv
+      if (query && query.trim().length > 1) {
+        const { results, words, matchCount } = smartSearch(data, query, 50);
+        if (results.length > 0) {
+          let searchRows = results.map(cleanRow);
+          // Hajm nazorati
+          let searchJSON = JSON.stringify(searchRows, null, 1);
+          while (searchJSON.length > MAX_CONTEXT_CHARS / sources.rows.length && searchRows.length > 5) {
+            searchRows = searchRows.slice(0, Math.floor(searchRows.length * 0.6));
+            searchJSON = JSON.stringify(searchRows, null, 1);
+          }
+          fullContext += `Qidiruv (${words.join(',')}): ${matchCount} ta topildi\n${searchJSON}\n`;
+        }
+      }
+
+      // Namuna
+      const samples = data.slice(0, 3).map(cleanRow);
+      fullContext += `Namuna: ${JSON.stringify(samples, null, 1)}\n`;
+
+      // Kichik dataset — hammasini
+      if (data.length <= 300) {
+        const allJSON = JSON.stringify(data.map(cleanRow), null, 1);
+        if (fullContext.length + allJSON.length < MAX_CONTEXT_CHARS) {
+          fullContext += `To'liq ma'lumot (${data.length} qator):\n${allJSON}\n`;
+        }
+      }
+    }
+
+    fullContext += `\nJAMI: ${sources.rows.length} ta manba, ${totalRows} ta qator. Statistika BARCHA qatorlar asosida. "Ma'lumot yo'q" DEMA!\n`;
+
+    console.log(`[SMART-CTX] ${sources.rows.length} sources, ${totalRows} rows, query: "${(query || '').slice(0, 50)}", context: ${fullContext.length} chars`);
+    res.json({ context: fullContext, totalRows, sourceCount: sources.rows.length });
+  } catch (err) {
+    console.error('[SOURCES] smart-context error:', err.message);
     res.status(500).json({ error: 'Server xatosi' });
   }
 });

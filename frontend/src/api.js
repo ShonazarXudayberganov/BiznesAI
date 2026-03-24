@@ -105,8 +105,13 @@ export const SourcesAPI = {
 
   getStats: (id) => apiFetch(`/sources/${id}/stats`),
 
-  getAiContext: (id) =>
-    apiFetch(`/sources/${id}/ai-context`, { method: 'POST' }),
+  // SMART AI CONTEXT — savol bilan qidiruv (RAG)
+  getAiContext: (id, query) =>
+    apiFetch(`/sources/${id}/ai-context`, { method: 'POST', body: JSON.stringify({ query: query || '' }) }),
+
+  // Bir nechta manbadan birgalikda aqlli kontekst (Chat uchun)
+  getSmartContext: (sourceIds, query) =>
+    apiFetch('/sources/smart-context', { method: 'POST', body: JSON.stringify({ sourceIds, query: query || '' }) }),
 
   search: (id, query) =>
     apiFetch(`/sources/${id}/search`, { method: 'POST', body: JSON.stringify({ query }) }),
@@ -263,4 +268,18 @@ export const UploadAPI = {
   },
 
   getFiles: (sourceId) => apiFetch(`/upload/${sourceId}`),
+
+  // Source siz — faqat matn ajratish (chat attachment uchun)
+  parseOnly: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const headers = {};
+    if (_token) headers['Authorization'] = `Bearer ${_token}`;
+    const res = await fetch(`${API_BASE}/upload/parse-only`, {
+      method: 'POST', headers, body: formData,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Parse xatosi');
+    return data;
+  },
 };

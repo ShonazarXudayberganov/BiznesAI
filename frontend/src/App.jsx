@@ -6,10 +6,14 @@ import {
   AreaChart, Area, Legend, ScatterChart, Scatter, ZAxis
 } from "recharts";
 import { createPortal } from "react-dom";
+import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI
 } from "./api.js";
+
+// XSS himoya — barcha dangerouslySetInnerHTML uchun
+const sanitize = (html) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b','i','code','span','br','div','table','tr','td','th','thead','tbody','a','strong','em','ul','ol','li','p','h1','h2','h3','hr'], ALLOWED_ATTR: ['style','class','href','target','title'] });
 
 // ─────────────────────────────────────────────────────────────
 // SAAS PLANS — Tarif rejalari
@@ -385,13 +389,57 @@ function parseExcelFile(file) {
       try {
         const wb = XLSX.read(e.target.result, { type: "binary" });
         const sheets = {};
-        wb.SheetNames.forEach(name => { sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name]); });
+        wb.SheetNames.forEach(name => {
+          sheets[name] = smartSheetToJson(wb.Sheets[name]);
+        });
         resolve(sheets);
       } catch (err) { reject(err); }
     };
     reader.onerror = reject;
     reader.readAsBinaryString(file);
   });
+}
+
+// Aqlli Excel parser — merged header, bo'sh ustunlar, bo'sh qatorlarni to'g'ri ishlaydi
+function smartSheetToJson(ws) {
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+  if (!raw.length) return [];
+
+  // Header qatorini topish — birinchi bo'sh bo'lmagan qator
+  // (faqat butunlay bo'sh qatorlarni o'tkazib ketadi, boshqasini o'zgartirmaydi)
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(5, raw.length); i++) {
+    const filled = raw[i].filter(v => v !== "" && v !== null && v !== undefined).length;
+    if (filled > 0) { headerRowIdx = i; break; }
+  }
+
+  // Header qatoridan ustun nomlarini olish
+  // Bo'sh hujayralarni faqat merged cell bo'lsa to'ldirish:
+  // merged cell Excel da keyingi hujayralar bo'sh bo'ladi
+  const headerRow = raw[headerRowIdx];
+  const headers = [];
+  let lastHeader = "";
+  for (let i = 0; i < headerRow.length; i++) {
+    const h = String(headerRow[i] || "").trim();
+    if (h) { lastHeader = h; headers.push(h); }
+    else if (i === 0) { headers.push("N"); } // birinchi bo'sh ustun odatda tartib raqami
+    else { headers.push(`${lastHeader}_qo'shimcha` || `Ustun_${i}`); }
+  }
+
+  // Ma'lumot qatorlarini object ga aylantirish
+  const dataRows = raw.slice(headerRowIdx + 1);
+  const result = [];
+  for (const row of dataRows) {
+    const obj = {};
+    let hasData = false;
+    for (let i = 0; i < headers.length; i++) {
+      const val = row[i] !== undefined ? row[i] : "";
+      obj[headers[i]] = val;
+      if (val !== "" && val !== null && val !== undefined) hasData = true;
+    }
+    if (hasData) result.push(obj);
+  }
+  return result;
 }
 
 function buildMergedContext(sources) {
@@ -444,66 +492,71 @@ O'QITUVCHILAR (${teachers.length} ta namuna / jami ${s.data.filter(d => d._entit
 ${JSON.stringify(teachers, null, 2)}`;
     }
 
-    // Boshqa manbalar uchun (Excel, Sheets, API, Manual)
+    // Document manbasi (PDF, DOCX, TXT) — to'liq matnni AI ga berish
+    if (s.type === "document" && s.data?.length > 0) {
+      const docs = s.data.filter(d => d._type === "document" || d.toliq_matn || d.content);
+      if (docs.length > 0) {
+        let docCtx = `\n HUJJAT MANBA: "${s.name}" (${docs.length} ta fayl):\n`;
+        docs.forEach((d, i) => {
+          const text = d.toliq_matn || d.content || "";
+          const fileName = d.fayl_nomi || d.fileName || `Fayl ${i + 1}`;
+          const pages = d.sahifalar || d.pages || "";
+          docCtx += `\n--- ${fileName}${pages ? ` (${pages} sahifa)` : ""} ---\n${text}\n`;
+        });
+        return docCtx;
+      }
+    }
+
+    // Boshqa manbalar uchun (Excel, Sheets, API, Manual) — AQLLI FALLBACK
     const techKeys = new Set(["id","_id","_type","_entity","source_id","webhook_url","created_at","updated_at","__v","_v"]);
     const allData = s.data || [];
+    const cleanRow = (row) => { const c = {}; Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) c[k] = v; }); return c; };
     
-    // Agar _sheet marker bor (multi-sheet) — har bir listdan namuna
+    // Sheet guruhlash
     const sheets = {};
-    allData.forEach(row => {
-      const sh = row._sheet || "default";
-      if (!sheets[sh]) sheets[sh] = [];
-      sheets[sh].push(row);
-    });
+    allData.forEach(row => { const sh = row._sheet || "default"; if (!sheets[sh]) sheets[sh] = []; sheets[sh].push(row); });
     const sheetNames = Object.keys(sheets);
     
     let context = `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv`;
     if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(", ")}`;
     context += `):\n`;
     
-    // Ustunlarni aniqlash
+    // Ustunlar va statistika
     const sampleRow = allData[0] || {};
     const allKeys = Object.keys(sampleRow).filter(k => !techKeys.has(k) && !k.startsWith("_"));
     const numCols = allKeys.filter(k => {
       const vals = allData.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")));
       return vals.filter(v => !isNaN(v)).length > 10;
     });
+    context += `Ustunlar: ${allKeys.join(", ")}\n`;
 
-    if (total > 200 || sheetNames.length > 1) {
-      // KATTA DATA yoki MULTI-SHEET — statistika + namuna
-      context += `\nUSTUNLAR: ${allKeys.join(", ")}\nRAQAMLI USTUNLAR: ${numCols.join(", ")}\n`;
-      
-      // Har bir list uchun statistika
+    // Raqamli statistika
+    numCols.forEach(col => {
+      const vals = allData.map(r => parseFloat(String(r[col] || "").replace(/[^0-9.-]/g, ""))).filter(v => !isNaN(v));
+      if (vals.length > 0) {
+        const sum = vals.reduce((a, b) => a + b, 0);
+        context += `  ${col}: jami=${Math.round(sum*100)/100}, o'rtacha=${Math.round(sum/vals.length*100)/100}, min=${Math.min(...vals)}, max=${Math.max(...vals)}, soni=${vals.length}\n`;
+      }
+    });
+
+    // AQLLI STRATEGIYA: kichik → hammasi, katta → namuna + statistika
+    if (total <= 500) {
+      // Kichik dataset — hammasini yuborish
       sheetNames.forEach(sh => {
         const rows = sheets[sh];
-        context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
-        // Raqamli ustunlar statistikasi
-        numCols.slice(0, 8).forEach(col => {
-          const vals = rows.map(r => parseFloat(String(r[col]).replace(/[^0-9.-]/g, ""))).filter(v => !isNaN(v) && v >= 0);
-          if (vals.length > 0) {
-            const sum = vals.reduce((a, b) => a + b, 0);
-            const avg = sum / vals.length;
-            const max = Math.max(...vals);
-            const min = Math.min(...vals);
-            context += `  ${col}: o'rtacha=${avg.toFixed(2)}, min=${min}, max=${max}, jami=${sum.toFixed(0)}, soni=${vals.length}\n`;
-          }
-        });
-        // 3 ta namuna qator
-        const sample = rows.slice(0, 3).map(row => {
-          const clean = {};
-          Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
-          return clean;
-        });
-        context += `  Namuna: ${JSON.stringify(sample)}\n`;
+        if (sheetNames.length > 1) context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
+        context += JSON.stringify(rows.map(cleanRow), null, 1);
       });
     } else {
-      // KICHIK DATA — to'liq yuborish (60 qator)
-      const rows = allData.slice(0, 60).map(row => {
-        const clean = {};
-        Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) clean[k] = v; });
-        return clean;
+      // Katta dataset — har listdan 10 ta namuna
+      context += `\n(Katta dataset — har listdan namuna ko'rsatilmoqda, statistika BARCHA ${total} qator asosida)\n`;
+      sheetNames.forEach(sh => {
+        const rows = sheets[sh];
+        if (sheetNames.length > 1) context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
+        const sample = rows.slice(0, 10).map(cleanRow);
+        context += JSON.stringify(sample, null, 1);
+        if (rows.length > 10) context += `\n... va yana ${rows.length - 10} ta qator\n`;
       });
-      context += JSON.stringify(rows, null, 2);
     }
     return context;
   }).join("\n\n");
@@ -1406,6 +1459,14 @@ select.field{cursor:pointer;-webkit-appearance:none}
   .card{padding:12px}
   .bubble{max-width:95%}
 }
+/* ═══ SKELETON LOADING ═══ */
+@keyframes skPulse{0%,100%{opacity:.06}50%{opacity:.12}}
+.sk{background:var(--s3);border-radius:8px;animation:skPulse 1.5s ease-in-out infinite}
+.sk-card{height:80px;border-radius:var(--radius-lg);margin-bottom:10px}
+.sk-line{height:12px;border-radius:4px;margin-bottom:8px}
+.sk-line.w60{width:60%}.sk-line.w80{width:80%}.sk-line.w40{width:40%}
+.sk-circle{width:40px;height:40px;border-radius:50%}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 `;
 // ─────────────────────────────────────────────────────────────
 // NOTIFICATION HOOK
@@ -3414,9 +3475,8 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       
       workbook.SheetNames.forEach(sheetName => {
         const ws = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
-        // Bo'sh qatorlarni filtrlash
-        const cleanRows = rows.filter(row => Object.values(row).some(v => v !== "" && v !== null && v !== undefined));
+        // Aqlli parser — merged header, bo'sh ustunlar, bo'sh qatorlarni to'g'ri ishlaydi
+        const cleanRows = smartSheetToJson(ws);
         if (cleanRows.length > 0) {
           cleanRows.forEach(row => {
             row._sheet = sheetName;
@@ -3482,70 +3542,56 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     } catch (e) { push("JSON xato: " + e.message, "error"); }
   };
 
-  // ── DOCUMENT (PDF/Word/TXT) — faylni o'qib data ga saqlash ──
+  // ── DOCUMENT (PDF/Word/TXT) — faylni backend orqali parse qilib bazaga saqlash ──
   const docFileRef = useRef(null);
   const handleDocumentFiles = async (files) => {
     setLoading(true);
-    const results = [];
+    let successCount = 0;
     for (const file of files) {
       const ext = file.name.split('.').pop().toLowerCase();
+      push(`"${file.name}" yuklanmoqda...`, "info");
       try {
-        if (ext === 'txt' || ext === 'csv' || ext === 'log' || ext === 'md') {
-          const text = await file.text();
-          results.push({ fileName: file.name, type: ext, content: text, size: file.size, lines: text.split('\n').length });
-        } else if (ext === 'pdf') {
-          // PDF — base64 saqlaymiz, AI tahlil qiladi
-          const buf = await file.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          let binary = ''; for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-          const b64 = btoa(binary);
-          // PDF dan matn ajratish (oddiy regex — PDF text extraction)
-          const textChunks = [];
-          const decoder = new TextDecoder('utf-8', { fatal: false });
-          const raw = decoder.decode(buf);
-          // BT...ET orasidagi Tj/TJ operatorlardan matn olish
-          const tjMatches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
-          tjMatches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) textChunks.push(t[1]); });
-          const extractedText = textChunks.join(' ').substring(0, 50000) || `[PDF fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB — matn ajratib bo'lmadi]`;
-          results.push({ fileName: file.name, type: 'pdf', content: extractedText, size: file.size, pages: (raw.match(/\/Type\s*\/Page[^s]/g) || []).length || 1 });
-        } else if (ext === 'docx') {
-          // DOCX — ZIP ichidagi word/document.xml dan matn olish
-          const buf = await file.arrayBuffer();
-          const bytes = new Uint8Array(buf);
-          // PK zip signature tekshirish
-          if (bytes[0] === 0x50 && bytes[1] === 0x4B) {
-            // Oddiy XML extraction — word/document.xml topish
-            const decoder = new TextDecoder('utf-8', { fatal: false });
-            const raw = decoder.decode(buf);
-            // XML taglardan matn ajratish
-            const xmlContent = raw.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
-            const text = xmlContent.map(t => t.replace(/<[^>]+>/g, '')).join(' ');
-            results.push({ fileName: file.name, type: 'docx', content: text.substring(0, 50000) || `[Word fayl: ${file.name}]`, size: file.size });
-          } else {
-            results.push({ fileName: file.name, type: 'docx', content: `[Word fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB]`, size: file.size });
-          }
-        } else if (ext === 'doc') {
-          results.push({ fileName: file.name, type: 'doc', content: `[DOC fayl: ${file.name}, ${(file.size/1024).toFixed(1)}KB — eski format, DOCX ga aylantiring]`, size: file.size });
-        } else {
-          const text = await file.text().catch(() => `[Fayl: ${file.name}]`);
-          results.push({ fileName: file.name, type: ext, content: text.substring(0, 50000), size: file.size });
+        // Backend API orqali parse — PDF, DOCX, TXT, CSV, Excel barchasi
+        const result = await UploadAPI.uploadAndParse(src.id, file);
+        // Backend bazaga saqladi — barcha manbalarni qayta yuklab, shu manba data sini olamiz
+        const allSources = await SourcesAPI.getAll();
+        const updated = allSources.find(s => s.id === src.id);
+        if (updated) {
+          onUpdate({
+            ...src,
+            connected: true,
+            active: true,
+            data: updated.data || [],
+            files: [...(src.files || []), { fileName: file.name, type: ext, size: file.size }],
+            updatedAt: new Date().toLocaleString("uz-UZ"),
+          });
         }
-      } catch (e) { push(`Fayl o'qishda xato (${file.name}): ${e.message}`, "error"); }
+        push(`✓ "${file.name}" — ${result.textLength || 0} belgi (${result.rowCount || 1} yozuv) bazaga saqlandi`, "ok");
+        successCount++;
+      } catch (e) {
+        // Backend xato — frontend fallback (faqat txt/csv uchun)
+        if (ext === 'txt' || ext === 'csv' || ext === 'log' || ext === 'md') {
+          try {
+            const text = await file.text();
+            const fallbackData = [{
+              id: 1,
+              fayl_nomi: file.name,
+              tur: ext,
+              hajm_kb: Math.round(file.size / 1024),
+              qatorlar: text.split('\n').length,
+              matn: text.substring(0, 500) + (text.length > 500 ? '...' : ''),
+              toliq_matn: text.substring(0, 100000),
+            }];
+            onUpdate({ ...src, connected: true, active: true, data: fallbackData, files: [...(src.files || []), { fileName: file.name, type: ext, size: file.size }], updatedAt: new Date().toLocaleString("uz-UZ") });
+            push(`✓ "${file.name}" (matn sifatida yuklandi)`, "ok");
+            successCount++;
+          } catch (e2) { push(`Fayl o'qishda xato (${file.name}): ${e2.message}`, "error"); }
+        } else {
+          push(`"${file.name}" yuklashda xato: ${e.message}`, "error");
+        }
+      }
     }
-    if (results.length) {
-      const data = results.map((r, i) => ({
-        id: i + 1,
-        fayl_nomi: r.fileName,
-        tur: r.type,
-        hajm_kb: Math.round(r.size / 1024),
-        sahifalar: r.pages || null,
-        qatorlar: r.lines || null,
-        matn: r.content?.substring(0, 500) + (r.content?.length > 500 ? '...' : ''),
-        toliq_matn: r.content,
-      }));
-      onUpdate({ ...src, connected: true, active: true, data, files: results.map(r => ({ fileName: r.fileName, type: r.type, size: r.size })), updatedAt: new Date().toLocaleString("uz-UZ") });
-      push(`✓ ${results.length} ta hujjat yuklandi`, "ok");
-    }
+    if (successCount === 0) push("Hech bir fayl yuklanmadi", "warn");
     setLoading(false);
   };
 
@@ -4225,6 +4271,21 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
 
   const updateConfig = (key, val) => onUpdate({ ...src, config: { ...src.config, [key]: val } });
 
+  // ── Manba sog'ligi hisoblash ──
+  const healthScore = (() => {
+    if (!src.connected) return { score: 0, color: "#64748B", label: "Ulanmagan", icon: "○" };
+    const rows = src.data?.length || 0;
+    const lastUpd = src.updatedAt || src.config?.lastFetch;
+    // Oxirgi yangilanishdan qancha vaqt o'tgan
+    const lastFetchMs = src.config?.lastFetch ? Date.now() - src.config.lastFetch : null;
+    const stale = lastFetchMs ? lastFetchMs > 24 * 60 * 60 * 1000 : false; // 24 soatdan eski
+    if (rows === 0) return { score: 1, color: "#F87171", label: "Ma'lumot yo'q", icon: "!" };
+    if (stale) return { score: 2, color: "#E8B84B", label: "Eskirgan (24s+)", icon: "~" };
+    if (rows < 3) return { score: 3, color: "#E8B84B", label: "Kam ma'lumot", icon: "~" };
+    if (!src.active) return { score: 2, color: "#64748B", label: "Nofaol", icon: "—" };
+    return { score: 4, color: "#4ADE80", label: "Sog'lom", icon: "✓" };
+  })();
+
   return (
     <div className={`source-item ${src.active && src.connected ? "active-src" : "inactive-src"}`}>
       {/* Header */}
@@ -4236,6 +4297,12 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             <span style={{ color: st.color }}>{st.icon} {st.label}</span>
             {src.connected && <span style={{ marginLeft: 8, color: "var(--green)" }}>· {src.data?.length || 0} qator</span>}
             {src.updatedAt && <span style={{ marginLeft: 8, color: "var(--muted)" }}>· {src.updatedAt}</span>}
+            {/* Health indicator */}
+            {src.connected && (
+              <span title={healthScore.label} style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 6px", borderRadius: 10, fontSize: 9, fontWeight: 700, fontFamily: "var(--fh)", background: healthScore.color + "18", color: healthScore.color, border: `1px solid ${healthScore.color}30` }}>
+                <span style={{ fontSize: 8 }}>{healthScore.icon}</span> {healthScore.label}
+              </span>
+            )}
           </div>
         </div>
         <div className="src-actions">
@@ -5104,13 +5171,23 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
     setAiLoading(true); setAiError(""); setLastQuery(query);
 
     try {
-      const ctx = buildMergedContext([workingSource]);
+      // SMART CONTEXT — Backend dan aqlli qidiruv
+      let ctx = "";
+      if (Token.get()) {
+        try {
+          const smartResult = await SourcesAPI.getAiContext(workingSource.id, query);
+          if (smartResult?.context) ctx = smartResult.context;
+        } catch (e) {
+          console.warn("[CHART-CTX] Backend xato, fallback:", e.message);
+        }
+      }
+      if (!ctx) ctx = buildMergedContext([workingSource]);
       const srcType = SOURCE_TYPES[workingSource.type];
 
       const prompt = `Biznes tahlilchi. So'rov: "${query}"
 
 MANBA: "${workingSource.name}" (${workingSource.data.length} ta yozuv)
-DATA:${ctx}
+DATA:\n${ctx}
 
 SO'ROV TURINI ANIQLA:
 - Agar RAQAM so'ralsa (masalan: "nechta", "jami", "o'rtacha", "foiz") → FAQAT "stats" karta qaytar. Chart KERAK EMAS.
@@ -5613,13 +5690,20 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
         content = await file.text();
         content = `[FAYL: ${file.name}]\n${content.substring(0, 15000)}`;
       } else if (ext === 'pdf') {
-        const buf = await file.arrayBuffer();
-        const decoder = new TextDecoder('utf-8', { fatal: false });
-        const raw = decoder.decode(buf);
-        const chunks = [];
-        const matches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
-        matches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) chunks.push(t[1]); });
-        content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${chunks.join(' ').substring(0, 15000) || "[PDF dan matn ajratib bo'lmadi]"}`;
+        // Backend orqali PDF matnini ajratish
+        try {
+          const parsed = await UploadAPI.parseOnly(file);
+          content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${parsed.text || "[PDF dan matn ajratib bo'lmadi]"}`;
+        } catch {
+          // Fallback: frontend regex
+          const buf = await file.arrayBuffer();
+          const decoder = new TextDecoder('utf-8', { fatal: false });
+          const raw = decoder.decode(buf);
+          const chunks = [];
+          const matches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
+          matches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) chunks.push(t[1]); });
+          content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${chunks.join(' ').substring(0, 15000) || "[PDF dan matn ajratib bo'lmadi]"}`;
+        }
       } else if (ext === 'docx') {
         const buf = await file.arrayBuffer();
         const decoder = new TextDecoder('utf-8', { fatal: false });
@@ -5699,29 +5783,31 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
       }
     }
     const chosenSrcs = sources.filter(s => activeSrcIds.includes(s.id) && s.connected && s.data?.length > 0);
-    // 1. BAZADAN QIDIRISH — foydalanuvchi aniq ism/nom so'ragan bo'lsa
-    let searchCtx = "";
-    if (Token.get() && text.length > 2) {
-      try {
-        const searchResult = await SourcesAPI.searchAll(text);
-        if (searchResult?.results?.length > 0) {
-          searchCtx = `\n━━━ BAZADAN TOPILGAN NATIJALAR (${searchResult.total} ta) ━━━\nSo'rov: "${text}"\n${JSON.stringify(searchResult.results.slice(0, 10), null, 2)}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\nYUQORIDAGI NATIJALAR BAZADAN TOPILDI — shu ma'lumotlar ASOSIDA javob ber!`;
-        }
-      } catch { }
-    }
 
-    // 2. Umumiy kontekst — HAR DOIM yuborish (qidirish bilan birga)
+    // ══ SMART CONTEXT — Backend da aqlli qidiruv (RAG) ══
     let ctx = "";
     if (Token.get() && chosenSrcs.length > 0) {
-      const apiContexts = await Promise.all(chosenSrcs.map(s => getAiContextFromAPI(s.id)));
-      const validCtx = apiContexts.filter(Boolean);
-      if (validCtx.length > 0) ctx = validCtx.map(c => "\n" + c).join("");
+      try {
+        // Backend ga savol yuboramiz — u bazadan aqlli qidiruv qiladi
+        const smartResult = await SourcesAPI.getSmartContext(
+          chosenSrcs.map(s => s.id),
+          text // foydalanuvchi savoli — backend shu asosda qidiradi
+        );
+        if (smartResult?.context) {
+          ctx = smartResult.context;
+          console.log(`[SMART-CTX] ${smartResult.sourceCount || 0} manba, ${smartResult.totalRows || 0} qator, context: ${ctx.length} chars`);
+        }
+      } catch (e) {
+        console.warn("[SMART-CTX] Backend xato, fallback ishlatiladi:", e.message);
+        // Fallback — agar backend ishlamasa, local buildMergedContext
+        ctx = buildMergedContext(chosenSrcs);
+      }
     }
-    if (!ctx) ctx = buildMergedContext(chosenSrcs);
+    if (!ctx && chosenSrcs.length > 0) ctx = buildMergedContext(chosenSrcs);
 
-    const allCtx = searchCtx + (ctx ? `\n\n━━━ UMUMIY MA'LUMOTLAR ━━━${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "");
+    const allCtx = ctx ? `\n\n━━━ MANBA MA'LUMOTLARI ━━━\n${ctx}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
     const fileCtx = attachedFile ? `\n\n━━━ YUKLANGAN FAYL ━━━\n${attachedFile.content}\n━━━━━━━━━━━━━━━━━━━━━━━━━━` : "";
-    const fullMsg = text + (allCtx ? `\n\n${allCtx}` : "") + fileCtx;
+    const fullMsg = text + allCtx + fileCtx;
     const disp = text + (attachedFile ? ` 📎 ${attachedFile.name}` : "");
     setInput(""); setAttachedFile(null);
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
@@ -6139,9 +6225,17 @@ function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
       return;
     }
     setLoading(true); setResult(""); setActiveLabel(mod.l); setActiveMod(mod);
-    const ctx = buildMergedContext(connectedSources);
+    // SMART CONTEXT — Backend dan aqlli qidiruv
+    let ctx = "";
+    if (Token.get() && connectedSources.length > 0) {
+      try {
+        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), mod.p);
+        if (smartResult?.context) ctx = smartResult.context;
+      } catch (e) { console.warn("[TAHLIL-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
+    }
+    if (!ctx) ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
-    const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
+    const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
 
 JAVOB QOIDALARI:
 1. O'ZBEK TILIDA, professional va chuqur
@@ -6315,9 +6409,15 @@ JAVOB QOIDALARI:
           <div>
             {/* AI natijasi */}
             <div className="card" style={{ borderColor: `${activeMod?.color || prov.color}20`, marginBottom: 14 }}>
-              <div className="flex aic jb mb12">
-                <div className="card-title" style={{ marginBottom: 0 }}>{prov.icon} {activeLabel}</div>
-                <div className="flex gap4">
+              <div className="flex aic jb mb12" style={{ flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 20 }}>{activeMod?.icon || ""}</span>
+                  <div>
+                    <div className="card-title" style={{ marginBottom: 0 }}>{activeLabel}</div>
+                    <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{new Date().toLocaleDateString("uz-UZ")} | {prov.name}</div>
+                  </div>
+                </div>
+                <div className="flex gap4 flex-wrap">
                   <button className="chat-export-btn" title="Nusxalash" onClick={async () => {
                     try { await navigator.clipboard.writeText(result); alert("Nusxalandi!"); } catch { alert("Nusxalab bo'lmadi"); }
                   }}> Nusxa</button>
@@ -6326,7 +6426,30 @@ JAVOB QOIDALARI:
                     const url = URL.createObjectURL(blob); const a = document.createElement("a");
                     a.href = url; a.download = `BiznesAI_${activeLabel.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
                     a.click(); URL.revokeObjectURL(url);
-                  }}> Yukla</button>
+                  }}> TXT</button>
+                  <button className="chat-export-btn" title="PDF chop etish" onClick={() => {
+                    // Tahlil uchun PDF — ReportsPage dagi pdf funksiyani qayta ishlatish
+                    const mdToH = (text) => String(text).split("\n").map(line => {
+                      const t = line.trim();
+                      if (!t) return '<div style="height:8px"></div>';
+                      if (t === "---" || t === "***") return '<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">';
+                      if (t.startsWith("### ")) return `<h3 style="font-size:13px;font-weight:700;color:#4A5568;margin:14px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`;
+                      if (t.startsWith("## ")) return `<h2 style="font-size:15px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`;
+                      if (t.startsWith("# ")) return `<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1">${t.slice(2)}</h1>`;
+                      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:10px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 8px 8px 0;color:#2D3748">${t.slice(2).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
+                      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0"><span style="color:#0D9488;font-weight:bold;margin-right:6px">●</span>${t.slice(2).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
+                      const nm = t.match(/^(\d+)\.\s(.+)/);
+                      if (nm) return `<div style="padding-left:22px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800">${nm[1]}.</span>${nm[2].replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
+                      if (t.startsWith("|") && t.endsWith("|")) { if (t.replace(/[|\-\s:]/g,"").length===0) return ""; const cells = t.split("|").filter(c=>c.trim()).map(c=>c.trim()); return `<tr>${cells.map(c=>`<td style="padding:8px 14px;border-bottom:1px solid #EDF2F7;font-size:12px">${c.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</td>`).join("")}</tr>`; }
+                      return `<div style="margin:3px 0;line-height:1.75">${t.replace(/\*\*(.+?)\*\*/g,'<b style="color:#1A202C">$1</b>')}</div>`;
+                    }).join("\n");
+                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border:1px solid #E2E8F0;border-radius:8px}table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;background:#F0FDFA;text-transform:uppercase;font-size:10px;letter-spacing:1px}table tr:nth-child(even){background:#F7FAFC}@media print{body{padding:24px 32px}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1"><div><div style="font-size:24px;font-weight:800;color:#1A202C">BIZ<span style="color:#B8860B">NES</span>AI</div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">BiznesAI · shonazar.uz</div></body></html>`;
+                    const iframe = document.createElement("iframe");
+                    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:820px;height:1100px";
+                    document.body.appendChild(iframe);
+                    iframe.contentDocument.write(html); iframe.contentDocument.close();
+                    setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 800);
+                  }} style={{ borderColor: "rgba(251,113,133,0.3)", color: "var(--red)" }}> PDF</button>
                 </div>
               </div>
               <RenderMD text={result} />
@@ -6440,9 +6563,17 @@ function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
     }
     setLoading(true); setReport(""); setLabel(mod.l); setActiveMod(mod);
     const today = new Date().toLocaleDateString("uz-UZ");
-    const ctx = buildMergedContext(connectedSources);
+    // SMART CONTEXT — Backend dan aqlli qidiruv
+    let ctx = "";
+    if (Token.get() && connectedSources.length > 0) {
+      try {
+        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), mod.l);
+        if (smartResult?.context) ctx = smartResult.context;
+      } catch (e) { console.warn("[HISOBOT-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
+    }
+    if (!ctx) ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
-    const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:${ctx}` : "") + `
+    const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "") + `
 
 HISOBOT QOIDALARI:
 1. O'ZBEK TILIDA, professional biznes hisobot formati
@@ -6536,34 +6667,55 @@ HISOBOT QOIDALARI:
     if (!checkExportLimit()) return;
     const t = text || report; const l = lbl || label;
     const contentHtml = mdToHtml(t);
+    const today = new Date();
+    const dateStr = today.toLocaleDateString("uz-UZ", { year:"numeric", month:"long", day:"numeric" });
+    const timeStr = today.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit" });
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
       *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:Inter,sans-serif;font-size:13px;line-height:1.7;color:#2D3748;padding:40px 50px;max-width:800px;margin:0 auto}
-      table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
-      table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;text-transform:uppercase;font-size:10px;letter-spacing:1px}
+      body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:0;max-width:100%}
+      .page{padding:48px 56px;max-width:820px;margin:0 auto}
+      table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border-radius:8px;overflow:hidden;border:1px solid #E2E8F0}
+      table tr:first-child td,table thead th{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;text-transform:uppercase;font-size:10px;letter-spacing:1px;padding:10px 14px;background:#F0FDFA}
+      table td{padding:8px 14px;border-bottom:1px solid #EDF2F7}
       table tr:nth-child(even){background:#F7FAFC}
-      @media print{body{padding:20px 30px}}
+      table tr:hover{background:#EDF2F7}
+      h1{font-size:18px;font-weight:800;color:#1A202C;margin:24px 0 10px;padding-bottom:8px;border-bottom:2px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1}
+      h2{font-size:15px;font-weight:800;color:#0D9488;margin:20px 0 8px;padding-left:12px;border-left:4px solid #0D9488}
+      h3{font-size:13px;font-weight:700;color:#4A5568;margin:16px 0 6px;padding-left:10px;border-left:3px solid #805AD5}
+      @media print{body{padding:0}.page{padding:24px 32px}.header{break-after:avoid}.footer{break-before:avoid;margin-top:20px}}
     </style></head>
     <body>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:3px solid #0D9488">
-        <div>
-          <div style="font-size:22px;font-weight:800;color:#1A202C">BIZ<span style="color:#B8860B">NES</span>AI</div>
-          <div style="font-size:10px;color:#A0AEC0;text-transform:uppercase;letter-spacing:2px">Strategik Agent</div>
+      <div class="page">
+        <!-- Header -->
+        <div class="header" style="margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #0D9488;position:relative">
+          <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#0D9488,#B8860B,transparent)"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between">
+            <div>
+              <div style="font-size:24px;font-weight:800;color:#1A202C;letter-spacing:-0.5px">BIZ<span style="color:#B8860B">NES</span>AI</div>
+              <div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px;margin-top:2px">AI Biznes Tahlil Platformasi</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:17px;font-weight:700;color:#2D3748;margin-bottom:4px">${l}</div>
+              <div style="font-size:10px;color:#718096">${dateStr} · ${timeStr}</div>
+              <div style="font-size:9px;color:#A0AEC0;margin-top:2px">${prov.name} orqali yaratilgan</div>
+            </div>
+          </div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:16px;font-weight:700;color:#2D3748">${l}</div>
-          <div style="font-size:10px;color:#A0AEC0">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div>
+        <!-- Content -->
+        <div style="min-height:600px">${contentHtml}</div>
+        <!-- Footer -->
+        <div class="footer" style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:9px;color:#A0AEC0">BiznesAI · shonazar.uz · AI-powered biznes tahlil</div>
+            <div style="font-size:9px;color:#A0AEC0">${dateStr}</div>
+          </div>
         </div>
-      </div>
-      <div>${contentHtml}</div>
-      <div style="margin-top:30px;padding-top:16px;border-top:1px solid #E2E8F0;font-size:9px;color:#A0AEC0;text-align:center">
-        BiznesAI — AI-powered biznes tahlil platformasi · shonazar.uz
       </div>
     </body></html>`;
     const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:800px;height:1100px";
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:820px;height:1100px";
     document.body.appendChild(iframe);
     iframe.contentDocument.write(html); iframe.contentDocument.close();
     setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 2000); }, 800);
@@ -6954,7 +7106,16 @@ function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAl
       }
     }
     setLoading(true); setCheckResult(""); setCheckType(checkMod || null);
-    const ctx = buildMergedContext(connectedSources);
+    // SMART CONTEXT — Backend dan aqlli qidiruv
+    let ctx = "";
+    if (Token.get() && connectedSources.length > 0) {
+      try {
+        const baseQ = checkMod ? checkMod.prompt : "biznes anomaliya muammo ogohlantirish";
+        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), baseQ);
+        if (smartResult?.context) ctx = smartResult.context;
+      } catch (e) { console.warn("[ALERT-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
+    }
+    if (!ctx) ctx = buildMergedContext(connectedSources);
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} yozuv)`).join(", ");
 
     // Agar maxsus tekshirish turi bo'lsa, uning promptini ishlatish
@@ -6962,7 +7123,7 @@ function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAl
     const prompt = `${basePrompt}
 
 Ulangan manbalar: ${srcInfo}
-MA'LUMOTLAR:${ctx}
+MA'LUMOTLAR:\n${ctx}
 
 Quyidagi formatda JSON qaytarish SHART (boshqa hech narsa yozma):
 {
@@ -7167,41 +7328,54 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         )}
 
         {/* ── Ogohlantirish ro'yxati ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map(al => {
             const at = ALERT_TYPES[al.type] || ALERT_TYPES.info;
             return (
               <div key={al.id} style={{
-                background: al.read ? "var(--s2)" : at.bg,
+                background: al.read ? "var(--s1)" : at.bg,
                 border: `1px solid ${al.read ? "var(--border)" : at.border}`,
-                borderRadius: 14, padding: "16px 18px", transition: "all .25s", position: "relative", overflow: "hidden",
-                boxShadow: al.read ? "none" : `0 0 20px ${at.glow}`,
+                borderRadius: 16, padding: "20px 22px", transition: "all .25s", position: "relative", overflow: "hidden",
+                boxShadow: al.read ? "none" : `0 2px 16px ${at.glow}`,
               }}
-                onMouseEnter={e => { e.currentTarget.style.transform = "translateX(3px)"; e.currentTarget.style.boxShadow = `0 4px 16px ${at.glow}`; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = al.read ? "none" : `0 0 20px ${at.glow}`; }}
+                onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 6px 24px ${at.glow}`; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = al.read ? "none" : `0 2px 16px ${at.glow}`; }}
               >
                 {/* Chap rang chizig'i */}
-                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: at.color, borderRadius: "3px 0 0 3px" }} />
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: `linear-gradient(180deg, ${at.color}, ${at.color}60)`, borderRadius: "4px 0 0 4px" }} />
+                {/* Yuqori gradient chiziq */}
+                <div style={{ position: "absolute", top: 0, left: 4, right: 0, height: 1, background: `linear-gradient(90deg, ${at.color}30, transparent)` }} />
                 {/* O'qilmagan nuqta */}
-                {!al.read && <div style={{ position: "absolute", top: 8, right: 8, width: 8, height: 8, borderRadius: "50%", background: at.color, boxShadow: `0 0 8px ${at.color}` }} />}
-                <div className="flex aic gap10 mb6">
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{at.icon}</span>
-                  <div className="f1" style={{ minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 13.5, fontWeight: 700, color: al.read ? "var(--text)" : at.color, lineHeight: 1.3 }}>{al.title}</div>
-                    <div className="flex gap8 mt4 aic" style={{ flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 9.5, color: "var(--muted)", fontFamily: "var(--fm)" }}>{al.createdAt}</span>
-                      {al.metric && <span style={{ fontSize: 9.5, padding: "2px 8px", borderRadius: 6, background: at.bg, color: at.color, border: `1px solid ${at.border}`, fontFamily: "var(--fm)", fontWeight: 500 }}>{al.metric}</span>}
-                      <span className="badge" style={{ fontSize: 8, background: at.bg, color: at.color, border: `1px solid ${at.border}` }}>{at.label}</span>
+                {!al.read && <div style={{ position: "absolute", top: 10, right: 10, width: 8, height: 8, borderRadius: "50%", background: at.color, boxShadow: `0 0 10px ${at.color}` }} />}
+
+                {/* Sarlavha qatori */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, background: at.bg, border: `1px solid ${at.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{at.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, color: al.read ? "var(--text)" : at.color, lineHeight: 1.3, marginBottom: 4 }}>{al.title}</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{al.createdAt}</span>
+                      <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 8, background: at.bg, color: at.color, border: `1px solid ${at.border}`, fontFamily: "var(--fh)", fontWeight: 700, letterSpacing: 0.5 }}>{at.label}</span>
                     </div>
                   </div>
                   <button onClick={() => handleDelete(al.id)} title="O'chirish"
-                    style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--muted)", padding: "4px 7px", borderRadius: 7, cursor: "pointer", fontSize: 11, transition: "all .2s", flexShrink: 0 }}
+                    style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--muted)", padding: "6px 8px", borderRadius: 8, cursor: "pointer", fontSize: 11, transition: "all .2s", flexShrink: 0 }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(251,113,133,0.4)"; e.currentTarget.style.color = "var(--red)"; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
                     ✕
                   </button>
                 </div>
-                <div style={{ fontSize: 12.5, lineHeight: 1.75, color: "var(--text2)", marginLeft: 30 }}>{al.message}</div>
+
+                {/* Xabar matni */}
+                <div style={{ fontSize: 13, lineHeight: 1.8, color: "var(--text2)", marginLeft: 50, marginBottom: al.metric ? 10 : 0 }}>{al.message}</div>
+
+                {/* Metrika badge — kattaroq va ko'rinarliroq */}
+                {al.metric && (
+                  <div style={{ marginLeft: 50, display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: `linear-gradient(135deg, ${at.color}08, ${at.color}15)`, border: `1px solid ${at.color}25` }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={at.color} strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <span style={{ fontSize: 12, fontFamily: "var(--fm)", fontWeight: 700, color: at.color }}>{al.metric}</span>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -8161,12 +8335,12 @@ function AiProgressBar({ loading }) {
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const steps = [
-    { label: "Ma'lumotlar tayyorlanmoqda", pct: 15 },
-    { label: "AI ga yuborilmoqda", pct: 30 },
-    { label: "AI tahlil qilmoqda", pct: 55 },
-    { label: "Raqamlar hisoblanmoqda", pct: 75 },
-    { label: "Grafiklar yaratilmoqda", pct: 90 },
-    { label: "Yakunlanmoqda", pct: 97 },
+    { label: "Tayyorlanmoqda", icon: "⚙", pct: 15 },
+    { label: "Yuborilmoqda",   icon: "↑", pct: 30 },
+    { label: "Tahlil",         icon: "◈", pct: 55 },
+    { label: "Hisoblash",      icon: "#", pct: 75 },
+    { label: "Grafik",         icon: "▨", pct: 90 },
+    { label: "Yakunlash",      icon: "✓", pct: 97 },
   ];
 
   useEffect(() => {
@@ -8182,29 +8356,52 @@ function AiProgressBar({ loading }) {
   const cur = steps[step] || steps[0];
 
   return (
-    <div className="card mb14" style={{ padding: "24px 28px", borderColor: "rgba(0,201,190,0.2)", background: "linear-gradient(135deg,var(--s1),rgba(0,201,190,0.02))" }}>
-      {/* Progress bar */}
-      <div style={{ background: "var(--s3)", borderRadius: 8, height: 6, overflow: "hidden", marginBottom: 16 }}>
-        <div style={{ height: "100%", borderRadius: 8, background: "linear-gradient(90deg, #00C9BE, #4ADE80)", width: progress + "%", transition: "width 1.5s cubic-bezier(0.4,0,0.2,1)", position: "relative" }}>
-          <div style={{ position: "absolute", right: 0, top: -2, width: 10, height: 10, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 12px rgba(74,222,128,0.5)", animation: "pulse-voice 1.5s ease infinite" }} />
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      padding: "8px 14px", marginBottom: 12,
+      background: "rgba(0,201,190,0.06)",
+      border: "1px solid rgba(0,201,190,0.15)",
+      borderRadius: 10,
+    }}>
+      {/* Spinner */}
+      <div style={{
+        width: 18, height: 18, flexShrink: 0,
+        border: "2px solid rgba(0,201,190,0.2)",
+        borderTop: "2px solid #00C9BE",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+      }} />
+
+      {/* Label + bar */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 11, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--teal)", letterSpacing: 0.3 }}>
+            {cur.icon} {cur.label}...
+          </span>
+          <span style={{ fontSize: 10, fontFamily: "var(--fm)", color: "var(--muted)", flexShrink: 0, marginLeft: 8 }}>
+            {progress}%
+          </span>
+        </div>
+        {/* Thin progress bar */}
+        <div style={{ height: 3, background: "var(--s3)", borderRadius: 4, overflow: "hidden" }}>
+          <div style={{
+            height: "100%", borderRadius: 4,
+            background: "linear-gradient(90deg,#00C9BE,#4ADE80)",
+            width: progress + "%",
+            transition: "width 1.5s cubic-bezier(0.4,0,0.2,1)",
+          }} />
         </div>
       </div>
-      {/* Bosqichlar */}
-      <div className="flex aic jb mb12">
-        <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--teal)" }}>{cur.label}...</div>
-        <span style={{ fontFamily: "var(--fm)", fontSize: 12, color: "var(--muted)" }}>{progress}%</span>
-      </div>
-      {/* Bosqich indikatorlari */}
-      <div className="flex gap4">
+
+      {/* Step dots */}
+      <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
         {steps.map((s, i) => (
-          <div key={i} style={{
-            flex: 1, height: 3, borderRadius: 2, transition: "all .5s",
-            background: i <= step ? "linear-gradient(90deg, #00C9BE, #4ADE80)" : "var(--s3)",
-          }} title={s.label} />
+          <div key={i} title={s.label} style={{
+            width: i <= step ? 14 : 5, height: 5, borderRadius: 3,
+            background: i <= step ? "linear-gradient(90deg,#00C9BE,#4ADE80)" : "var(--s3)",
+            transition: "all .4s ease",
+          }} />
         ))}
-      </div>
-      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, textAlign: "center" }}>
-        {step < 3 ? "AI sizning ma'lumotlaringizni chuqur tahlil qilmoqda" : "Natijalar tayyorlanmoqda — biroz kuting"}
       </div>
     </div>
   );
@@ -8335,69 +8532,72 @@ function RenderMD({ text }) {
   let inTable = false;
 
   const fmt = (s) => {
-    let r = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-    r = r.replace(/\*(.+?)\*/g, '<i>$1</i>');
-    r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:2px 6px;border-radius:5px;font-family:var(--fm);font-size:11px;color:var(--teal)">$1</code>');
-    return r;
+    let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--text);font-weight:700">$1</b>');
+    r = r.replace(/\*(.+?)\*/g, '<i style="color:var(--text2)">$1</i>');
+    r = r.replace(/`(.+?)`/g, '<code style="background:var(--s3);padding:2px 7px;border-radius:5px;font-family:var(--fm);font-size:11px;color:var(--teal);border:1px solid var(--border)">$1</code>');
+    // Raqamlarni rangla: +23%, -15%, 1,234, $500
+    r = r.replace(/([\+\-]?\d[\d,.]*\s*%)/g, (m) => {
+      const isNeg = m.startsWith("-");
+      return `<span style="color:${isNeg ? "var(--red)" : "var(--green)"};font-weight:700;font-family:var(--fm);font-size:12px">${m}</span>`;
+    });
+    return sanitize(r);
+  };
+
+  const renderTable = (rows, key) => {
+    if (rows.length === 0) return null;
+    const hdr = rows[0]; const body = rows.slice(1);
+    return (
+      <div key={key} style={{ overflowX:"auto", margin:"12px 0", borderRadius:10, border:"1px solid var(--border)", background:"var(--s1)" }}>
+        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+          <thead><tr style={{ background:"linear-gradient(135deg, rgba(0,212,200,0.06), rgba(212,168,83,0.04))" }}>{hdr.map((h,j) => <th key={j} style={{ padding:"10px 14px", textAlign:"left", borderBottom:"2px solid var(--teal)30", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1.5, fontWeight:700 }}>{h}</th>)}</tr></thead>
+          <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "rgba(255,255,255,0.015)", transition:"background .15s" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(0,212,200,0.03)"}
+            onMouseLeave={e => e.currentTarget.style.background = ri%2===0 ? "transparent" : "rgba(255,255,255,0.015)"}
+          >{row.map((c,ci) => <td key={ci} style={{ padding:"8px 14px", borderBottom:"1px solid var(--border)", fontSize:12, lineHeight:1.5 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
+        </table>
+      </div>
+    );
   };
 
   lines.forEach((line, i) => {
     const trimmed = line.trim();
     // Table
     if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-      if (trimmed.replace(/[|\-\s:]/g, "").length === 0) { inTable = true; return; } // separator
+      if (trimmed.replace(/[|\-\s:]/g, "").length === 0) { inTable = true; return; }
       tableRows.push(trimmed.split("|").filter(c => c.trim()).map(c => c.trim()));
       inTable = true;
       return;
     }
     if (inTable && tableRows.length > 0) {
-      const hdr = tableRows[0];
-      const body = tableRows.slice(1);
-      elements.push(
-        <div key={`t${i}`} style={{ overflowX:"auto", margin:"8px 0" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-            <thead><tr>{hdr.map((h,j) => <th key={j} style={{ padding:"6px 10px", textAlign:"left", borderBottom:"2px solid var(--border-hi)", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
-            <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "var(--s2)" }}>{row.map((c,ci) => <td key={ci} style={{ padding:"5px 10px", borderBottom:"1px solid var(--border)", fontSize:12 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
-          </table>
-        </div>
-      );
-      tableRows = [];
-      inTable = false;
+      elements.push(renderTable(tableRows, `t${i}`));
+      tableRows = []; inTable = false;
     }
     // Divider
-    if (trimmed === "---" || trimmed === "***") { elements.push(<div key={i} style={{ height:1, background:"linear-gradient(90deg,transparent,var(--border-hi),transparent)", margin:"12px 0" }}/>); return; }
-    // Headers
-    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13, fontWeight:700, marginTop:14, marginBottom:4, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:14, borderRadius:2, background:"var(--purple)" }}/>{trimmed.slice(4)}</div>); return; }
-    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:14, fontWeight:800, marginTop:16, marginBottom:6, color:"var(--teal)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:16, borderRadius:2, background:"var(--teal)" }}/>{trimmed.slice(3)}</div>); return; }
-    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:16, fontWeight:800, marginTop:18, marginBottom:8, color:"var(--gold)", paddingBottom:6, borderBottom:"1px solid var(--border)" }}>{trimmed.slice(2)}</div>); return; }
-    // Blockquote
-    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", paddingLeft:12, margin:"8px 0", padding:"8px 12px", color:"var(--text2)", fontSize:12.5, background:"rgba(0,212,200,0.04)", borderRadius:"0 8px 8px 0", lineHeight:1.7 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
-    // Bullet
+    if (trimmed === "---" || trimmed === "***") { elements.push(<div key={i} style={{ height:1, background:"linear-gradient(90deg,transparent 5%,var(--teal)30 50%,transparent 95%)", margin:"16px 0" }}/>); return; }
+    // H1 — katta sarlavha, gradient pastki chiziq
+    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:17, fontWeight:800, marginTop:20, marginBottom:10, color:"var(--gold)", paddingBottom:8, borderBottom:"2px solid", borderImage:"linear-gradient(90deg,var(--gold)80,var(--teal)40,transparent) 1" }}>{trimmed.slice(2)}</div>); return; }
+    // H2 — teal rangda, chap chiziq
+    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:15, fontWeight:800, marginTop:18, marginBottom:6, color:"var(--teal)", display:"flex", alignItems:"center", gap:8 }}><div style={{ width:4, height:18, borderRadius:2, background:"linear-gradient(180deg,var(--teal),var(--teal)40)", flexShrink:0 }}/><span>{trimmed.slice(3)}</span></div>); return; }
+    // H3 — purple rangda
+    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13.5, fontWeight:700, marginTop:14, marginBottom:4, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:14, borderRadius:2, background:"var(--purple)" }}/><span>{trimmed.slice(4)}</span></div>); return; }
+    // Blockquote — chiroyli fon bilan
+    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", margin:"10px 0", padding:"10px 16px", color:"var(--text)", fontSize:13, background:"linear-gradient(135deg,rgba(0,212,200,0.05),rgba(0,212,200,0.02))", borderRadius:"0 10px 10px 0", lineHeight:1.7, border:"1px solid rgba(0,212,200,0.08)", borderLeftWidth:3 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
+    // Bullet — teal nuqta
     if (trimmed.startsWith("- ") || trimmed.startsWith("• ") || trimmed.startsWith("* ")) {
-      elements.push(<div key={i} style={{ paddingLeft:16, position:"relative", margin:"3px 0", fontSize:13, lineHeight:1.6 }}><span style={{ position:"absolute", left:2, color:"var(--teal)", fontSize:8, top:6 }}>●</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
+      elements.push(<div key={i} style={{ paddingLeft:18, position:"relative", margin:"4px 0", fontSize:13, lineHeight:1.7 }}><span style={{ position:"absolute", left:3, color:"var(--teal)", fontSize:7, top:8 }}>●</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
       return;
     }
-    // Numbered list
+    // Numbered list — raqam badge
     const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
-    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:20, position:"relative", margin:"3px 0", fontSize:13, lineHeight:1.6 }}><span style={{ position:"absolute", left:0, color:"var(--gold)", fontWeight:800, fontFamily:"var(--fm)", fontSize:11, background:"var(--gold)12", width:18, height:18, borderRadius:5, display:"inline-flex", alignItems:"center", justifyContent:"center", top:2 }}>{numMatch[1]}</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
+    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:26, position:"relative", margin:"4px 0", fontSize:13, lineHeight:1.7 }}><span style={{ position:"absolute", left:0, top:2, color:"var(--gold)", fontWeight:800, fontFamily:"var(--fm)", fontSize:10, background:"rgba(212,168,83,0.12)", width:20, height:20, borderRadius:6, display:"inline-flex", alignItems:"center", justifyContent:"center", border:"1px solid rgba(212,168,83,0.15)" }}>{numMatch[1]}</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
     // Empty line
     if (!trimmed) { elements.push(<div key={i} style={{ height:8 }}/>); return; }
     // Normal text
-    elements.push(<div key={i} style={{ margin:"2px 0", fontSize:13, lineHeight:1.7 }} dangerouslySetInnerHTML={{__html:fmt(trimmed)}}/>);
+    elements.push(<div key={i} style={{ margin:"3px 0", fontSize:13, lineHeight:1.7, color:"var(--text)" }} dangerouslySetInnerHTML={{__html:fmt(trimmed)}}/>);
   });
   // Flush remaining table
-  if (tableRows.length > 0) {
-    const hdr = tableRows[0]; const body = tableRows.slice(1);
-    elements.push(
-      <div key="tlast" style={{ overflowX:"auto", margin:"8px 0" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-          <thead><tr>{hdr.map((h,j) => <th key={j} style={{ padding:"6px 10px", textAlign:"left", borderBottom:"2px solid var(--border-hi)", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>)}</tr></thead>
-          <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "var(--s2)" }}>{row.map((c,ci) => <td key={ci} style={{ padding:"5px 10px", borderBottom:"1px solid var(--border)", fontSize:12 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
-        </table>
-      </div>
-    );
-  }
-  return <div>{elements}</div>;
+  if (tableRows.length > 0) elements.push(renderTable(tableRows, "tlast"));
+  return <div style={{ fontSize:13, lineHeight:1.7 }}>{elements}</div>;
 }
 
 const AngledXTick = ({ x, y, payload }) => (
@@ -8560,7 +8760,8 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
 
 function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }) {
   const cType = chartOverrides[card.id] || card.chartType;
-  const CARD_H = 440; // Barcha kartalar uchun YAGONA balandlik
+  const CARD_H = 440;
+  const [tableView, setTableView] = useState(false); // Jadval ko'rinishi toggle
 
   // Yaxshilangan Tooltip
   const CustomTip = ({ active, payload, label }) => {
@@ -8606,24 +8807,64 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
       });
       if (otherVal > 0) mainSlices.push({ name: "Boshqa", value: otherVal });
       const dominant = mainSlices.find(s => total > 0 && (s.value / total) > 0.9);
-      const renderLabel = ({ name, percent, cx, cy, midAngle, outerRadius }) => {
-        if (percent < 0.03) return null;
+      const sliceCount = mainSlices.length;
+      // Ko'p slice bo'lsa (>5) label ko'rsatmaslik — faqat legend
+      const showLabels = sliceCount <= 5;
+      const outerR = Math.min(h / 3.2, 80);
+      const innerR = dominant ? 0 : Math.min(h / 6.5, 28);
+
+      const renderLabel = ({ name, percent, cx, cy, midAngle, outerRadius, x, y }) => {
+        if (!showLabels || percent < 0.06) return null;
+        // labelni doira markazidan uzoqroq joylashtirish
         const RADIAN = Math.PI / 180;
-        const radius = outerRadius + 22;
-        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-        return <text x={x} y={y} fill="#CBD5E1" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={10} fontFamily="Space Grotesk,sans-serif" fontWeight={600}>
-          {name.substring(0, 12)} {(percent * 100).toFixed(0)}%
-        </text>;
+        const radius = outerRadius + 18;
+        const lx = cx + radius * Math.cos(-midAngle * RADIAN);
+        const ly = cy + radius * Math.sin(-midAngle * RADIAN);
+        const anchor = lx > cx ? "start" : "end";
+        const shortName = name.length > 10 ? name.substring(0, 9) + "…" : name;
+        return (
+          <text x={lx} y={ly} fill="#CBD5E1" textAnchor={anchor} dominantBaseline="central"
+            fontSize={9} fontFamily="Space Grotesk,sans-serif" fontWeight={600}>
+            {shortName} {(percent * 100).toFixed(0)}%
+          </text>
+        );
       };
+
+      // Legend ni qisqartirish — uzun nomlar
+      const renderLegend = (props) => {
+        const { payload } = props;
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "4px 10px", paddingTop: 6, paddingBottom: 2 }}>
+            {payload.map((entry, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontFamily: "var(--fm)", color: "var(--muted)", maxWidth: 120 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: entry.color, flexShrink: 0 }} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={entry.value}>
+                  {entry.value.length > 14 ? entry.value.substring(0, 13) + "…" : entry.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      };
+
       return <ResponsiveContainer width="100%" height={h}>
-        <PieChart>
-          <Pie data={mainSlices} cx="50%" cy="45%" outerRadius={Math.min(h / 3, 90)} innerRadius={dominant ? 0 : Math.min(h / 6, 30)} dataKey="value"
-            label={renderLabel} labelLine={{ stroke: "rgba(148,163,184,0.3)", strokeWidth: 1 }} paddingAngle={mainSlices.length > 1 ? 2 : 0}>
-            {mainSlices.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} stroke="rgba(0,0,0,0.2)" strokeWidth={1} />)}
+        <PieChart margin={{ top: 10, right: 20, bottom: 0, left: 20 }}>
+          <Pie
+            data={mainSlices} cx="50%" cy="44%"
+            outerRadius={outerR} innerRadius={innerR}
+            dataKey="value"
+            label={showLabels ? renderLabel : false}
+            labelLine={showLabels ? { stroke: "rgba(148,163,184,0.25)", strokeWidth: 1 } : false}
+            paddingAngle={mainSlices.length > 1 ? 2 : 0}
+          >
+            {mainSlices.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} stroke="rgba(0,0,0,0.15)" strokeWidth={1} />)}
           </Pie>
-          <Tooltip formatter={(v) => v.toLocaleString()} contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(0,201,190,0.2)", borderRadius: 10, fontSize: 11, fontFamily: "var(--fm)" }} itemStyle={{ color: "#CBD5E1" }} labelStyle={{ color: "#94A3B8" }} />
-          <Legend wrapperStyle={{ fontSize: 10, fontFamily: "var(--fm)", paddingTop: 4 }} iconType="circle" iconSize={8} />
+          <Tooltip
+            formatter={(v, name) => [v.toLocaleString(), name]}
+            contentStyle={{ background: "rgba(15,23,42,0.95)", border: "1px solid rgba(0,201,190,0.2)", borderRadius: 10, fontSize: 11, fontFamily: "var(--fm)" }}
+            itemStyle={{ color: "#CBD5E1" }} labelStyle={{ color: "#94A3B8" }}
+          />
+          <Legend content={renderLegend} />
         </PieChart>
       </ResponsiveContainer>;
     }
@@ -8759,41 +9000,88 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
 
   const filteredOptions = CHART_TYPE_OPTIONS.filter(o => compatibleTypes.includes(o.id));
 
+  // Jadval ko'rinishi uchun ustunlar
+  const tableData = card.data || [];
+  const tableCols = tableData.length > 0
+    ? Object.keys(tableData[0]).filter(k => !k.startsWith("_"))
+    : [];
+
   return (
     <CardWrap>
-      {/* Tepada: sarlavha + yashirish/o'chirish */}
+      {/* Tepada: sarlavha + jadval toggle + yashirish/o'chirish */}
       <div className="flex aic jb mb6">
-        <div className="card-title" style={{ marginBottom: 0, fontSize: 12 }}>{card.icon} {card.title}</div>
-        {(onRemove || onDelete) && (
-          <div style={{ display: "flex", gap: 4 }}>
-            {onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish"
-              style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", fontSize: 12 }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-            </button>}
-            {onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish"
-              style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)"; }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>}
-          </div>
-        )}
-      </div>
-      {/* O'rtada: grafik */}
-      <div style={{ flex: 1, minHeight: 0 }}>
-        {renderChart()}
-      </div>
-      {/* Pastda: chart turi tugmalari */}
-      {filteredOptions.length > 1 && (
-        <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
-          {filteredOptions.map(o => (
-            <button key={o.id} onClick={() => setChartOverride(card.id, o.id)} title={o.l}
-              style={{ padding: "3px 10px", fontSize: 9, borderRadius: 6, border: "1px solid var(--border)", background: cType === o.id ? "var(--teal)" : "transparent", color: cType === o.id ? "#000" : "var(--muted)", cursor: "pointer", transition: "all .15s", fontFamily: "var(--fh)", fontWeight: 600 }}>
-              {o.l.split(" ")[0]}
+        <div className="card-title" style={{ marginBottom: 0, fontSize: 12, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.icon} {card.title}</div>
+        <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 6 }}>
+          {/* Jadval toggle */}
+          {tableData.length > 0 && (
+            <button onClick={() => setTableView(v => !v)} title={tableView ? "Grafik ko'rinishi" : "Jadval ko'rinishi"}
+              style={{ width: 28, height: 28, borderRadius: 8, border: tableView ? "1px solid rgba(0,201,190,0.5)" : "1px solid var(--border)", background: tableView ? "rgba(0,201,190,0.12)" : "var(--s2)", color: tableView ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}>
+              {tableView
+                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+              }
             </button>
-          ))}
+          )}
+          {onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish"
+            style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>}
+          {onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish"
+            style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)"; }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>}
+        </div>
+      </div>
+
+      {/* O'rtada: grafik yoki jadval */}
+      <div style={{ flex: 1, minHeight: 0, overflow: tableView ? "auto" : "hidden" }}>
+        {tableView ? (
+          <div style={{ overflowX: "auto", overflowY: "auto", height: "100%" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, fontFamily: "var(--fm)" }}>
+              <thead>
+                <tr>
+                  {tableCols.map(col => (
+                    <th key={col} style={{ padding: "6px 10px", textAlign: "left", borderBottom: "1px solid var(--border)", color: "var(--muted)", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", background: "var(--s2)", position: "sticky", top: 0 }}>
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableData.map((row, i) => (
+                  <tr key={i} style={{ borderBottom: "1px solid var(--border)", transition: "background .15s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    {tableCols.map(col => (
+                      <td key={col} style={{ padding: "5px 10px", color: "var(--text)", fontSize: 11, whiteSpace: "nowrap", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}
+                        title={String(row[col] ?? "")}>
+                        {typeof row[col] === "number" ? row[col].toLocaleString() : String(row[col] ?? "—")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : renderChart()}
+      </div>
+
+      {/* Pastda: chart turi toggle (faqat grafik ko'rinishida) */}
+      {!tableView && filteredOptions.length > 1 && (
+        <div style={{ display: "flex", gap: 3, justifyContent: "flex-end", marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+          {filteredOptions.map(o => {
+            const active = cType === o.id;
+            return (
+              <button key={o.id} onClick={() => setChartOverride(card.id, o.id)} title={o.l}
+                style={{ padding: "3px 8px", fontSize: 10, borderRadius: 6, cursor: "pointer", border: active ? "1px solid rgba(0,201,190,0.5)" : "1px solid var(--border)", background: active ? "rgba(0,201,190,0.15)" : "transparent", color: active ? "var(--teal)" : "var(--muted)", fontFamily: "var(--fh)", fontWeight: 700, transition: "all .15s" }}>
+                {o.l.split(" ")[0]}
+              </button>
+            );
+          })}
         </div>
       )}
     </CardWrap>
@@ -8844,12 +9132,16 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
     const updated = [...widgets, w];
     setWidgets(updated); LS.set(widgetsKey, updated);
     setShowAddWidget(false);
-    // AI dan raqam olish
+    // AI dan raqam olish — SMART CONTEXT
     setWidgetLoading(w.id);
     try {
-      const ctx = buildMergedContext([src]);
+      let ctx = "";
+      if (Token.get()) {
+        try { const r = await SourcesAPI.getAiContext(src.id, newWidget.label); if (r?.context) ctx = r.context; } catch {}
+      }
+      if (!ctx) ctx = buildMergedContext([src]);
       const prompt = `Foydalanuvchi "${newWidget.label}" ko'rsatkichini bilmoqchi. Manba: "${src.name}" (${src.data.length} qator).
-MA'LUMOTLAR:${ctx}
+MA'LUMOTLAR:\n${ctx}
 
 FAQAT bitta qisqa javob ber — JSON formatda:
 {"value":"123","sub":"tushuntirish"}
@@ -8880,8 +9172,12 @@ FAQAT JSON, boshqa narsa yozma.`;
     if (!src?.data?.length) return;
     setWidgetLoading(w.id);
     try {
-      const ctx = buildMergedContext([src]);
-      const prompt = `"${w.label}" ko'rsatkichini hisobla. Manba: "${src.name}" (${src.data.length} qator). DATA:${ctx}
+      let ctx = "";
+      if (Token.get()) {
+        try { const r = await SourcesAPI.getAiContext(src.id, w.label); if (r?.context) ctx = r.context; } catch {}
+      }
+      if (!ctx) ctx = buildMergedContext([src]);
+      const prompt = `"${w.label}" ko'rsatkichini hisobla. Manba: "${src.name}" (${src.data.length} qator). DATA:\n${ctx}
 FAQAT JSON: {"value":"123","sub":"izoh"}`;
       let result = "";
       await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
@@ -8915,10 +9211,14 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
     if (!q.trim() || !workingSrc?.data?.length || !aiConfig?.apiKey) return;
     setDashLoading(true);
     try {
-      const ctx = buildMergedContext([workingSrc]);
+      let ctx = "";
+      if (Token.get()) {
+        try { const r = await SourcesAPI.getAiContext(workingSrc.id, q); if (r?.context) ctx = r.context; } catch {}
+      }
+      if (!ctx) ctx = buildMergedContext([workingSrc]);
       const prompt = `Biznes tahlilchi. So'rov: "${q}"
 MANBA: "${workingSrc.name}" (${workingSrc.data.length} qator)
-DATA:${ctx}
+DATA:\n${ctx}
 
 SO'ROVGA QARAB KARTA TURINI TANLA:
 - "statistika/raqam/nechta/jami" → stats karta
@@ -9193,15 +9493,8 @@ FAQAT JSON.`;
                 style={{ flexShrink: 0, fontSize: 10 }}>{q}</button>
             ))}
           </div>
-          {/* Mini progress bar */}
-          {dashLoading && (
-            <div style={{ marginBottom: 12, borderRadius: 6, overflow: "hidden" }}>
-              <div style={{ height: 3, background: "var(--s3)", borderRadius: 6 }}>
-                <div style={{ height: "100%", borderRadius: 6, background: "linear-gradient(90deg,var(--teal),var(--green))", width: "70%", animation: "dashProg 2s ease infinite" }} />
-              </div>
-              <div style={{ fontSize: 10, color: "var(--teal)", marginTop: 4, fontFamily: "var(--fh)" }}>AI tahlil qilmoqda...</div>
-            </div>
-          )}
+          {/* Mini progress bar — AiProgressBar bilan bir xil stil */}
+          <AiProgressBar loading={dashLoading} />
         </div>
       )}
 
@@ -9245,7 +9538,57 @@ const NAV = [
   { id: "settings", ico: "", lbl: "Sozlamalar", group: "boshqaruv" },
 ];
 
-export default function App() {
+// ── SKELETON LOADER — yuklash animatsiyasi ──
+function SkeletonCards({ count = 3, height = 80 }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="sk" style={{ height, borderRadius: 14 }} />
+      ))}
+    </div>
+  );
+}
+function SkeletonList({ count = 4 }) {
+  return Array.from({ length: count }).map((_, i) => (
+    <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "16px 0" }}>
+      <div className="sk sk-circle" />
+      <div style={{ flex: 1 }}>
+        <div className="sk sk-line w60" />
+        <div className="sk sk-line w40" style={{ marginBottom: 0 }} />
+      </div>
+    </div>
+  ));
+}
+
+// ── ERROR BOUNDARY — xato bo'lganda oq ekran o'rniga xabar ──
+import { Component } from "react";
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(err, info) { console.error("[ErrorBoundary]", err, info); }
+  render() {
+    if (this.state.hasError) return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#05060C", color: "#E8ECF4", fontFamily: "Inter, sans-serif", padding: 32 }}>
+        <div style={{ textAlign: "center", maxWidth: 440 }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.5 }}>⚠</div>
+          <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Kutilmagan xato yuz berdi</div>
+          <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 24, lineHeight: 1.7 }}>
+            Tizimda kutilmagan xato bo'ldi. Sahifani qayta yuklashni sinab ko'ring.
+          </div>
+          <div style={{ fontSize: 11, color: "#475569", background: "#0A0C15", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 16px", marginBottom: 20, textAlign: "left", maxHeight: 100, overflow: "auto", fontFamily: "monospace" }}>
+            {this.state.error?.message || "Noma'lum xato"}
+          </div>
+          <button onClick={() => window.location.reload()} style={{ background: "linear-gradient(135deg, #00D4C8, #00B8AE)", color: "#05060C", border: "none", borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+            Sahifani qayta yuklash
+          </button>
+        </div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+function AppContent() {
   // ── Auth state ──
   const [authPage, setAuthPage] = useState("landing"); // landing|login|register
   const [user, setUser] = useState(() => Auth.getSession());
@@ -9272,6 +9615,45 @@ export default function App() {
   const [sources, setSources] = useState(() => loadSources());
   const { notifs, push } = useNotifs();
   const { theme, setTheme, toggle: toggleTheme } = useTheme();
+
+  // ── Global Search (Ctrl+K) ──
+  const [globalSearch, setGlobalSearch] = useState(false);
+  const [globalQ, setGlobalQ] = useState("");
+  const globalSearchResults = useMemo(() => {
+    if (!globalQ.trim() || globalQ.length < 2) return [];
+    const q = globalQ.toLowerCase();
+    const results = [];
+    sources.forEach(src => {
+      if (!src.data?.length) return;
+      src.data.forEach((row, idx) => {
+        const rowText = Object.values(row).map(v => String(v || "")).join(" ").toLowerCase();
+        if (rowText.includes(q)) {
+          const preview = Object.entries(row)
+            .filter(([k]) => !k.startsWith("_"))
+            .slice(0, 3)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(" · ");
+          results.push({ srcName: src.name, srcColor: src.color, preview, idx });
+          if (results.length >= 30) return;
+        }
+      });
+      if (results.length >= 30) return;
+    });
+    return results.slice(0, 20);
+  }, [globalQ, sources]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setGlobalSearch(v => !v);
+        setGlobalQ("");
+      }
+      if (e.key === "Escape") { setGlobalSearch(false); setGlobalQ(""); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   // ── Global AI Task Manager ──
   // Sahifa o'zgarganda ham AI jarayoni davom etadi
@@ -9706,6 +10088,17 @@ export default function App() {
               <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
               <div className="page-title">{PAGE_TITLES[page] || page}</div>
             </div>
+            {/* Global Search trigger */}
+            <button onClick={() => { setGlobalSearch(true); setGlobalQ(""); }}
+              title="Global qidiruv (Ctrl+K)"
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", fontSize: 11, fontFamily: "var(--fm)", transition: "all .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(0,201,190,0.4)"; e.currentTarget.style.color = "var(--teal)"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>Qidirish</span>
+              <span style={{ marginLeft: 2, fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--s3)", color: "var(--muted)", fontFamily: "var(--fh)" }}>Ctrl K</span>
+            </button>
+
             <div className="topbar-right">
               {bgTaskCount > 0 && (
                 <div className="tb-item" onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
@@ -9752,6 +10145,81 @@ export default function App() {
           <div className="content">{pages[page]}</div>
         </div>
       </div>
+
+      {/* ── GLOBAL SEARCH MODAL (Ctrl+K) ── */}
+      {globalSearch && (
+        <div onClick={() => { setGlobalSearch(false); setGlobalQ(""); }}
+          style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10vh" }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: "min(600px, 92vw)", background: "var(--s1)", border: "1px solid rgba(0,201,190,0.25)", borderRadius: 16, overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}>
+            {/* Qidiruv input */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input
+                autoFocus
+                value={globalQ}
+                onChange={e => setGlobalQ(e.target.value)}
+                placeholder="Barcha manbalar bo'yicha qidirish..."
+                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, fontFamily: "var(--fm)", color: "var(--text)" }}
+              />
+              {globalQ && (
+                <button onClick={() => setGlobalQ("")} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
+              )}
+              <kbd style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "var(--s3)", color: "var(--muted)", fontFamily: "var(--fh)", border: "1px solid var(--border)" }}>ESC</kbd>
+            </div>
+
+            {/* Natijalar */}
+            <div style={{ maxHeight: 380, overflowY: "auto" }}>
+              {globalQ.length < 2 ? (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
+                  Barcha manbalaringiz bo'yicha qidirish uchun yozing...
+                  <div style={{ marginTop: 8, fontSize: 10, color: "var(--s4)" }}>
+                    {sources.filter(s => s.connected).length} ta manba · {sources.reduce((a, s) => a + (s.data?.length || 0), 0).toLocaleString()} qator
+                  </div>
+                </div>
+              ) : globalSearchResults.length === 0 ? (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
+                  "{globalQ}" bo'yicha natija topilmadi
+                </div>
+              ) : (
+                <>
+                  <div style={{ padding: "8px 16px 4px", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", borderBottom: "1px solid var(--border)" }}>
+                    {globalSearchResults.length} ta natija
+                  </div>
+                  {globalSearchResults.map((r, i) => (
+                    <div key={i}
+                      style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background .15s" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
+                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      onClick={() => { setPage("sources"); setGlobalSearch(false); setGlobalQ(""); }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: r.srcColor || "var(--teal)", flexShrink: 0 }} />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: r.srcColor || "var(--teal)", fontFamily: "var(--fh)" }}>{r.srcName}</span>
+                        <span style={{ fontSize: 9, color: "var(--muted)", marginLeft: "auto" }}>#{r.idx + 1}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {r.preview}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: "8px 16px", borderTop: "1px solid var(--border)", display: "flex", gap: 12, fontSize: 10, color: "var(--muted)" }}>
+              <span>↑↓ Ko'chirish</span>
+              <span>Enter — Manbaga o'tish</span>
+              <span style={{ marginLeft: "auto" }}>Esc — Yopish</span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
+}
+
+// ── App — ErrorBoundary bilan o'ralgan ──
+export default function App() {
+  return <ErrorBoundary><AppContent /></ErrorBoundary>;
 }
