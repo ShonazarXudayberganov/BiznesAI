@@ -447,13 +447,15 @@ function buildMergedContext(sources) {
     const st = SOURCE_TYPES[s.type];
     const total = s.data?.length || 0;
 
-    // Instagram uchun — profil statistika + top postlar
+    // Instagram uchun — profil statistika + stories + top postlar
     if (s.type === "instagram" && s.data?.length > 0) {
       const summary = s.data.find(d => d._type === "PROFIL_STATISTIKA");
-      const posts = s.data.filter(d => !d._type).slice(0, 20);
+      const stories = s.data.filter(d => d._type === "STORY");
+      const posts = s.data.filter(d => !d._type).slice(0, 25);
       return `\n INSTAGRAM MANBA: "${s.name}" (@${s.profileName || "noma'lum"})
-${summary ? `PROFIL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}\n
-TOP POSTLAR (${posts.length} ta / ${total - 1} tadan):
+${summary ? `PROFIL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
+${stories.length > 0 ? `\nSTORIES (${stories.length} ta):\n${JSON.stringify(stories, null, 2)}` : ""}
+\nTOP POSTLAR (${posts.length} ta / ${total - 1 - stories.length} tadan):
 ${JSON.stringify(posts, null, 2)}`;
     }
 
@@ -3722,6 +3724,47 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     return json;
   };
 
+  // ── Instagram Token uzaytirish (1 soat → 60 kun → muddatsiz) ──
+  const handleTokenExtend = async () => {
+    const token = (src.config?.token || "").trim();
+    const appId = (src.config?.appId || "").trim();
+    const appSecret = (src.config?.appSecret || "").trim();
+    if (!token) { push("Avval Access Token kiriting", "warn"); return; }
+    if (!appId || !appSecret) { push("App ID va App Secret kiriting", "warn"); return; }
+    setLoading(true);
+    try {
+      // 1-bosqich: Short-lived → Long-lived User Token (60 kun)
+      push("Token uzaytirilmoqda (60 kunlik)...", "info");
+      const llRes = await fbFetch(`v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${token}`);
+      const longToken = llRes.access_token;
+      if (!longToken) throw new Error("Long-lived token olib bo'lmadi");
+      push("60 kunlik token olindi. Page token olinmoqda...", "ok");
+
+      // 2-bosqich: Long-lived User Token → Page Token (muddatsiz)
+      const pagesRes = await fbFetch(`v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${longToken}`);
+      const pages = pagesRes.data || [];
+      // Instagram ulangan page ni topish
+      const igPage = pages.find(p => p.instagram_business_account);
+      if (igPage?.access_token) {
+        // Page token — muddatsiz
+        const pageToken = igPage.access_token;
+        const igId = igPage.instagram_business_account?.id || "";
+        onUpdate({
+          ...src,
+          config: { ...src.config, token: pageToken, igBusinessId: igId || src.config?.igBusinessId, tokenType: "page", tokenExtendedAt: Date.now() }
+        });
+        push(`Muddatsiz Page Token olindi (${igPage.name}). Endi token eskirmaydi!`, "ok");
+      } else {
+        // Page token topilmadi — 60 kunlik token ni saqlash
+        onUpdate({ ...src, config: { ...src.config, token: longToken, tokenType: "long-lived", tokenExtendedAt: Date.now() } });
+        push("60 kunlik token saqlandi. Instagram ulangan Facebook Page topilmadi — Page token uchun Instagram ni Facebook Page ga ulang.", "warn");
+      }
+    } catch (e) {
+      push("Token uzaytirish xato: " + e.message, "error");
+    }
+    setLoading(false);
+  };
+
   // ── Instagram Business Account ma'lumotlarini tortish ──
   const handleInstagramFetch = async () => {
     const token = (src.config?.token || "").trim();
@@ -3743,20 +3786,30 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       // 2. Profil ma'lumotlari (followers, bio, va h.k.)
       const profile = await fbFetch(`v21.0/${igId}?fields=id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${token}`);
 
-      // 3. Postlar — like, comments + INSIGHTS (reach, impressions, saved, shares)
+      // 3. Postlar — like, comments + INSIGHTS (reach, impressions, saved, shares, plays)
       let posts = [];
       try {
-        const mediaJson = await fbFetch(`v21.0/${igId}/media?fields=id,caption,media_type,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
-        const rawPosts = mediaJson.data || [];
-        // Har bir post uchun insights olish
-        push(`${rawPosts.length} ta post insights yuklanmoqda...`, "info");
+        // Avval media_product_type bilan, xato bo'lsa oddiy fields bilan
+        let rawPosts = [];
+        try {
+          const mediaJson = await fbFetch(`v21.0/${igId}/media?fields=id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
+          rawPosts = mediaJson.data || [];
+        } catch {
+          const mediaJson2 = await fbFetch(`v21.0/${igId}/media?fields=id,caption,media_type,permalink,timestamp,like_count,comments_count&limit=50&access_token=${token}`);
+          rawPosts = mediaJson2.data || [];
+        }
+        if (rawPosts.length === 0) push("Postlar topilmadi — akkauntda post yo'q yoki token ruxsati yetarli emas", "warn");
+        else push(`${rawPosts.length} ta post insights yuklanmoqda...`, "info");
         let insightErrors = 0;
         for (let pi = 0; pi < rawPosts.length; pi++) {
           const p = rawPosts[pi];
           let reach = 0, impressions = 0, saved = 0, shares = 0, plays = 0;
           try {
             const isVideo = p.media_type === "VIDEO";
-            const metrics = isVideo ? "reach,saved,shares,comments,likes" : "reach,saved,comments,likes";
+            const isReel = p.media_product_type === "REELS";
+            const metrics = isVideo || isReel
+              ? "reach,saved,shares,plays"
+              : "reach,saved,shares";
             const ins = await fbFetch(`v21.0/${p.id}/insights?metric=${metrics}&access_token=${token}`);
             (ins.data || []).forEach(m => {
               const val = m.values?.[0]?.value || m.total_value?.value || 0;
@@ -3764,40 +3817,47 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               if (m.name === "impressions") impressions = val;
               if (m.name === "saved" || m.name === "saves") saved = val;
               if (m.name === "shares") shares = val;
+              if (m.name === "plays" || m.name === "video_views") plays = val;
             });
           } catch (insErr) { insightErrors++; if (insightErrors === 1) push("Post insights xato: " + insErr.message, "warn"); }
+          const postType = p.media_product_type === "REELS" ? "REEL" : p.media_type;
           posts.push({
             id: p.id,
-            caption: (p.caption || "").substring(0, 120),
-            type: p.media_type,
+            caption: (p.caption || "").substring(0, 200),
+            type: postType,
             date: p.timestamp?.slice(0, 10) || "",
             time: p.timestamp?.slice(11, 16) || "",
             likes: p.like_count || 0,
             comments: p.comments_count || 0,
             reach, impressions, saved, shares, plays,
             engagement: (p.like_count || 0) + (p.comments_count || 0) + saved + shares,
+            engRate: profile.followers_count > 0 ? +(((p.like_count || 0) + (p.comments_count || 0) + saved + shares) / profile.followers_count * 100).toFixed(1) : 0,
             url: p.permalink || "",
           });
-          // Rate limit uchun pauza
-          await new Promise(r => setTimeout(r, 250));
+          await new Promise(r => setTimeout(r, 200));
         }
       } catch (e2) { push("Postlarni yuklab bo'lmadi: " + e2.message, "warn"); }
 
-      // 4. PROFIL INSIGHTS — reach, impressions, follower o'sishi (kunlik)
+      // 4. PROFIL INSIGHTS — reach, impressions, follower o'sishi (kunlik, 30 kun)
       let profileInsights = {};
+      let dailyReach = [], dailyImpressions = [];
       push("Profil insights yuklanmoqda (30 kunlik)...", "info");
       try {
         const d30 = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
         const today = new Date().toISOString().slice(0, 10);
-        // reach va impressions alohida so'rash (ba'zi akkountlarda follower_count ishlamaydi)
-        // v22+ yangi metriclar
-        for (const metric of ["reach", "accounts_engaged", "total_interactions", "likes", "comments", "shares", "saves", "replies"]) {
+        for (const metric of ["reach", "impressions", "accounts_engaged", "total_interactions", "likes", "comments", "shares", "saves", "replies", "follower_count"]) {
           try {
             const pIns = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=day&metric_type=total_value&since=${d30}&until=${today}&access_token=${token}`);
             (pIns.data || []).forEach(m => {
-              const vals = (m.values || []).map(v => v.value || (typeof v.value === "object" ? Object.values(v.value).reduce((a,b)=>a+b,0) : 0));
+              const entries = (m.values || []).map(v => ({
+                date: (v.end_time || "").slice(0, 10),
+                value: v.value || (typeof v.value === "object" ? Object.values(v.value).reduce((a,b)=>a+b,0) : 0)
+              }));
+              const vals = entries.map(e => e.value);
               const total = vals.reduce((a, b) => a + b, 0);
-              profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: vals.slice(-7) };
+              profileInsights[m.name] = { total, avg: vals.length ? Math.round(total / vals.length) : 0, daily: entries };
+              if (m.name === "reach") dailyReach = entries;
+              if (m.name === "impressions") dailyImpressions = entries;
             });
           } catch { }
         }
@@ -3805,11 +3865,32 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         push(`Profil insights: ${pKeys.length > 0 ? pKeys.join(", ") : "ruxsat kerak"}`, pKeys.length > 0 ? "ok" : "warn");
       } catch { }
 
+      // 4b. ONLINE FOLLOWERS — eng faol soatlar
+      let onlineFollowers = {};
+      try {
+        const onl = await fbFetch(`v21.0/${igId}/insights?metric=online_followers&period=lifetime&access_token=${token}`);
+        (onl.data || []).forEach(m => {
+          const val = m.values?.[0]?.value || {};
+          if (typeof val === "object") onlineFollowers = val;
+        });
+      } catch { }
+
       // 5. AUDIENCE — shahar, mamlakat, yosh-jins (100+ follower kerak)
       let audience = {};
       try {
-        // v22+ yangi audience metriclar
         for (const metric of ["follower_demographics", "reached_audience_demographics", "engaged_audience_demographics"]) {
+          // Country breakdown
+          try {
+            const audCountry = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=country&access_token=${token}`);
+            (audCountry.data || []).forEach(m => {
+              const val = m.total_value?.breakdowns?.[0]?.results || [];
+              if (Array.isArray(val)) {
+                const obj = {}; val.forEach(r => { obj[r.dimension_values?.join(", ") || "unknown"] = r.value || 0; });
+                audience[metric + "_country"] = obj;
+              }
+            });
+          } catch { }
+          // City breakdown
           try {
             const aud = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=city&access_token=${token}`);
             (aud.data || []).forEach(m => {
@@ -3820,7 +3901,29 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               } else { audience[metric] = val; }
             });
           } catch { }
-          // Age/gender breakdown
+          // Age breakdown (faqat yosh)
+          try {
+            const audAge = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=age&access_token=${token}`);
+            (audAge.data || []).forEach(m => {
+              const val = m.total_value?.breakdowns?.[0]?.results || [];
+              if (Array.isArray(val)) {
+                const obj = {}; val.forEach(r => { obj[r.dimension_values?.join(", ") || "unknown"] = r.value || 0; });
+                audience[metric + "_age"] = obj;
+              }
+            });
+          } catch { }
+          // Gender breakdown
+          try {
+            const audGender = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=gender&access_token=${token}`);
+            (audGender.data || []).forEach(m => {
+              const val = m.total_value?.breakdowns?.[0]?.results || [];
+              if (Array.isArray(val)) {
+                const obj = {}; val.forEach(r => { obj[r.dimension_values?.join(", ") || "unknown"] = r.value || 0; });
+                audience[metric + "_gender"] = obj;
+              }
+            });
+          } catch { }
+          // Age+gender breakdown
           try {
             const aud2 = await fbFetch(`v21.0/${igId}/insights?metric=${metric}&period=lifetime&metric_type=total_value&breakdown=age,gender&access_token=${token}`);
             (aud2.data || []).forEach(m => {
@@ -3836,6 +3939,39 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         push(`Audience: ${aKeys.length > 0 ? aKeys.length + " ta metrik" : "ruxsat kerak (100+ follower)"}`, aKeys.length > 0 ? "ok" : "warn");
       } catch { }
 
+      // 5b. STORIES — oxirgi stories va ularning insightlari
+      let stories = [];
+      try {
+        push("Stories yuklanmoqda...", "info");
+        const storiesJson = await fbFetch(`v21.0/${igId}/stories?fields=id,media_type,timestamp,permalink&access_token=${token}`);
+        const rawStories = storiesJson.data || [];
+        for (let si = 0; si < rawStories.length; si++) {
+          const s = rawStories[si];
+          let sReach = 0, sImpressions = 0, sReplies = 0, sExits = 0, sTaps = 0;
+          try {
+            const sIns = await fbFetch(`v21.0/${s.id}/insights?metric=reach,impressions,replies,exits,taps_forward,taps_back&access_token=${token}`);
+            (sIns.data || []).forEach(m => {
+              const val = m.values?.[0]?.value || 0;
+              if (m.name === "reach") sReach = val;
+              if (m.name === "impressions") sImpressions = val;
+              if (m.name === "replies") sReplies = val;
+              if (m.name === "exits") sExits = val;
+              if (m.name === "taps_forward" || m.name === "taps_back") sTaps += val;
+            });
+          } catch { }
+          stories.push({
+            _type: "STORY",
+            id: s.id,
+            type: s.media_type,
+            date: s.timestamp?.slice(0, 10) || "",
+            reach: sReach, impressions: sImpressions,
+            replies: sReplies, exits: sExits, taps: sTaps,
+          });
+          await new Promise(r => setTimeout(r, 200));
+        }
+        if (stories.length > 0) push(`${stories.length} ta story yuklandi`, "ok");
+      } catch { }
+
       // 6. Statistika hisoblash
       const totalLikes = posts.reduce((a, p) => a + (p.likes || 0), 0);
       const totalComments = posts.reduce((a, p) => a + (p.comments || 0), 0);
@@ -3843,14 +3979,36 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       const totalImpressions = posts.reduce((a, p) => a + (p.impressions || 0), 0);
       const totalSaved = posts.reduce((a, p) => a + (p.saved || 0), 0);
       const totalShares = posts.reduce((a, p) => a + (p.shares || 0), 0);
-      const totalPlays = 0; // v22 da plays olib tashlangan
+      const totalPlays = posts.reduce((a, p) => a + (p.plays || 0), 0);
       const totalEngagement = totalLikes + totalComments + totalSaved + totalShares;
       const avgLikes = posts.length ? Math.round(totalLikes / posts.length) : 0;
       const avgComments = posts.length ? Math.round(totalComments / posts.length) : 0;
       const avgReach = posts.length ? Math.round(totalReach / posts.length) : 0;
-      const sortedPosts = [...posts].sort((a, b) => (b.engagement || 0) - (a.engagement || 0));
+      const avgImpressions = posts.length ? Math.round(totalImpressions / posts.length) : 0;
+      const sortedPosts = [...posts].sort((a, b) => (b.reach || 0) - (a.reach || 0));
       const topPost = sortedPosts[0];
       const typeCount = posts.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + 1; return acc; }, {});
+
+      // Profil insights dan 30 kunlik reach/impressions hisoblash (trend uchun)
+      const piReachTotal = profileInsights.reach?.total || totalReach;
+      const piImpTotal = profileInsights.impressions?.total || totalImpressions;
+      // O'tgan oydagi reach/impressions (taqqoslash uchun)
+      const piReachDaily = profileInsights.reach?.daily || [];
+      const piImpDaily = profileInsights.impressions?.daily || [];
+      const halfLen = Math.floor(piReachDaily.length / 2);
+      const reachFirstHalf = piReachDaily.slice(0, halfLen).reduce((a, d) => a + (d.value || 0), 0);
+      const reachSecondHalf = piReachDaily.slice(halfLen).reduce((a, d) => a + (d.value || 0), 0);
+      const reachChange = reachFirstHalf > 0 ? +((reachSecondHalf - reachFirstHalf) / reachFirstHalf * 100).toFixed(1) : 0;
+      const impFirstHalf = piImpDaily.slice(0, halfLen).reduce((a, d) => a + (d.value || 0), 0);
+      const impSecondHalf = piImpDaily.slice(halfLen).reduce((a, d) => a + (d.value || 0), 0);
+      const impChange = impFirstHalf > 0 ? +((impSecondHalf - impFirstHalf) / impFirstHalf * 100).toFixed(1) : 0;
+
+      // Follower o'sish hisoblash
+      const followerDaily = profileInsights.follower_count?.daily || [];
+      const followerFirst = followerDaily[0]?.value || 0;
+      const followerLast = followerDaily[followerDaily.length - 1]?.value || profile.followers_count || 0;
+      const followerGrowth = followerFirst > 0 ? followerLast - followerFirst : 0;
+      const followerGrowthPct = followerFirst > 0 ? +((followerGrowth / followerFirst) * 100).toFixed(1) : 0;
 
       // 7. Profil summary (KENGAYTIRILGAN)
       const summary = {
@@ -3858,6 +4016,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         username: profile.username,
         name: profile.name || "",
         biography: (profile.biography || "").substring(0, 200),
+        profile_picture_url: profile.profile_picture_url || "",
         followers_count: profile.followers_count || 0,
         follows_count: profile.follows_count || 0,
         total_posts: profile.media_count || 0,
@@ -3869,23 +4028,46 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         total_impressions: totalImpressions,
         total_saved: totalSaved,
         total_shares: totalShares,
+        total_plays: totalPlays,
         total_engagement: totalEngagement,
         avg_likes_per_post: avgLikes,
         avg_comments_per_post: avgComments,
         avg_reach_per_post: avgReach,
-        total_plays: totalPlays,
-        engagement_rate: profile.followers_count > 0 ? ((totalEngagement / posts.length / profile.followers_count) * 100).toFixed(2) + "%" : "0%",
+        avg_impressions_per_post: avgImpressions,
+        engagement_rate: profile.followers_count > 0 ? +((totalEngagement / posts.length / profile.followers_count) * 100).toFixed(2) : 0,
+        engagement_rate_str: profile.followers_count > 0 ? ((totalEngagement / posts.length / profile.followers_count) * 100).toFixed(1) + "%" : "0%",
+        // Profil insights (30 kunlik kunlik ma'lumotlar)
         profile_insights: profileInsights,
+        daily_reach: dailyReach,
+        daily_impressions: dailyImpressions,
+        // Reach/Impressions 30 kunlik jami
+        reach_30d: piReachTotal,
+        impressions_30d: piImpTotal,
+        reach_change_pct: reachChange,
+        impressions_change_pct: impChange,
+        // Follower o'sishi
+        follower_growth: followerGrowth,
+        follower_growth_pct: followerGrowthPct,
+        follower_daily: followerDaily,
+        // Online followers (faol soatlar)
+        online_followers: onlineFollowers,
+        // Audience
         audience: audience,
-        // Top shaharlar va mamlakatlar
-        top_cities: audience.audience_city ? Object.entries(audience.audience_city).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => `${k}: ${v}`).join(", ") : "",
-        top_countries: audience.audience_country ? Object.entries(audience.audience_country).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => `${k}: ${v}`).join(", ") : "",
+        top_cities: audience.follower_demographics_city
+          ? Object.entries(audience.follower_demographics_city).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([k,v]) => ({ name: k, value: v }))
+          : [],
+        top_countries: audience.follower_demographics_country
+          ? Object.entries(audience.follower_demographics_country).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => ({ name: k, value: v }))
+          : [],
+        // Stories
+        stories_count: stories.length,
+        stories_data: stories,
         top_post_caption: topPost?.caption || "—",
         top_post_engagement: topPost?.engagement || 0,
         last_updated: new Date().toLocaleString("uz-UZ"),
       };
 
-      const data = [summary, ...posts];
+      const data = [summary, ...stories, ...posts];
       onUpdate({
         ...src,
         connected: true, active: true, data,
@@ -3894,7 +4076,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         config: { ...src.config, token, igId, lastFetch: Date.now() },
       });
       const hasInsights = totalReach > 0 || totalSaved > 0;
-      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post${hasInsights ? `, reach: ${totalReach.toLocaleString()}, saved: ${totalSaved.toLocaleString()}` : ""}`, "ok");
+      push(`✓ @${profile.username} — ${profile.followers_count?.toLocaleString()} followers, ${posts.length} post, ${stories.length} story${hasInsights ? `, reach: ${piReachTotal.toLocaleString()}, impressions: ${piImpTotal.toLocaleString()}` : ""}`, "ok");
     } catch (e) {
       push("Instagram xato: " + e.message, "error");
     }
@@ -4462,31 +4644,57 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
                 <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Kerakli ruxsatlar: pages_show_list, instagram_basic, instagram_manage_insights, business_management</div>
               </div>
 
-              {/* Asosiy sozlamalar */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                <div>
-                  <label className="field-label">Meta App ID</label>
-                  <input className="field" placeholder="1479057357119695" value={src.config?.appId || ""} onChange={e => updateConfig("appId", e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">App Secret</label>
-                  <input className="field" type="password" placeholder="65ff04950..." value={src.config?.appSecret || ""} onChange={e => updateConfig("appSecret", e.target.value)} />
-                </div>
-              </div>
-
+              {/* Access Token */}
               <label className="field-label">Access Token</label>
-              <input className="field mb8" type="password" placeholder="EAAVBMeBfo..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
+              <input className="field mb6" type="password" placeholder="EAAVBMeBfo..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                <div>
-                  <label className="field-label">Instagram Business ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy)</span></label>
-                  <input className="field" placeholder="17841422858670678" value={src.config?.igBusinessId || ""} onChange={e => updateConfig("igBusinessId", e.target.value)} />
+              {/* Token holati */}
+              {src.config?.tokenType === "page" ? (
+                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(74,222,128,0.06)", borderRadius: 6, border: "1px solid rgba(74,222,128,0.15)" }}>
+                  <span style={{ color: "#4ADE80" }}>&#10003;</span> <strong style={{ color: "#4ADE80" }}>Muddatsiz Page Token</strong> — eskirmaydi
+                  {src.config?.tokenExtendedAt && <span style={{ color: "var(--muted)" }}> · {new Date(src.config.tokenExtendedAt).toLocaleDateString("uz-UZ")} da uzaytirilgan</span>}
                 </div>
-                <div>
-                  <label className="field-label">Facebook Page ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy)</span></label>
-                  <input className="field" placeholder="107982644962355" value={src.config?.fbPageId || ""} onChange={e => updateConfig("fbPageId", e.target.value)} />
+              ) : src.config?.tokenType === "long-lived" ? (
+                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(251,191,36,0.06)", borderRadius: 6, border: "1px solid rgba(251,191,36,0.12)" }}>
+                  <span style={{ color: "#FBBF24" }}>⏱</span> <strong style={{ color: "#FBBF24" }}>60 kunlik token</strong>
+                  {src.config?.tokenExtendedAt && <span> · tugaydi: ~{new Date(src.config.tokenExtendedAt + 60*86400000).toLocaleDateString("uz-UZ")}</span>}
                 </div>
-              </div>
+              ) : (
+                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(248,113,113,0.06)", borderRadius: 6, border: "1px solid rgba(248,113,113,0.12)" }}>
+                  <span style={{ color: "#F87171" }}>&#9888;</span> Graph API Explorer dan olingan token <strong style={{ color: "#F87171" }}>1 soat</strong> amal qiladi. Pastdagi "Token uzaytirish" orqali <strong style={{ color: "#4ADE80" }}>muddatsiz</strong> ga aylantiring.
+                </div>
+              )}
+
+              {/* Token uzaytirish bo'limi */}
+              {src.config?.tokenType !== "page" && (
+                <div style={{ marginBottom: 12, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid rgba(232,121,249,0.1)" }}>
+                  <div style={{ color: "#E879F9", fontWeight: 700, fontSize: 11, fontFamily: "var(--fh)", marginBottom: 8 }}>Token uzaytirish (muddatsiz qilish)</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.6 }}>
+                    App ID va App Secret ni <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>developers.facebook.com</a> → <strong style={{ color: "var(--text2)" }}>My Apps</strong> → ilovangiz → <strong style={{ color: "var(--text2)" }}>Settings → Basic</strong> dan oling.
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label className="field-label">App ID</label>
+                      <input className="field" placeholder="1479057357119695" value={src.config?.appId || ""} onChange={e => updateConfig("appId", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="field-label">App Secret</label>
+                      <input className="field" type="password" placeholder="65ff04950..." value={src.config?.appSecret || ""} onChange={e => updateConfig("appSecret", e.target.value)} />
+                    </div>
+                  </div>
+                  <button className="btn btn-sm" onClick={handleTokenExtend} disabled={loading || !src.config?.token || !src.config?.appId || !src.config?.appSecret}
+                    style={{ background: "linear-gradient(135deg, #E879F9, #A78BFA)", color: "#fff", border: "none", fontWeight: 700, opacity: (!src.config?.token || !src.config?.appId || !src.config?.appSecret) ? 0.4 : 1 }}>
+                    {loading ? "Uzaytirilmoqda..." : "Token uzaytirish (muddatsiz)"}
+                  </button>
+                  <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
+                    1 soatlik token → 60 kunlik → muddatsiz Page Token ga avtomatik aylantiriladi
+                  </div>
+                </div>
+              )}
+
+              {/* Instagram Business ID — ixtiyoriy */}
+              <label className="field-label">Instagram Business ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy — avtomatik aniqlanadi)</span></label>
+              <input className="field mb10" placeholder="17841422858670678" value={src.config?.igBusinessId || ""} onChange={e => updateConfig("igBusinessId", e.target.value)} />
 
               <div className="flex gap8 mb10">
                 <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading || !src.config?.token}>
@@ -7792,118 +8000,312 @@ function generateDashboards(source, colSelection) {
   const cards = [];
   const C = CHART_COLORS;
 
-  // ── INSTAGRAM manba uchun maxsus dashboardlar ──
+  // ── INSTAGRAM manba uchun maxsus dashboardlar (to'liq analytics) ──
   if (type === "instagram") {
     const summary = data.find(d => d._type === "PROFIL_STATISTIKA");
     const posts = data.filter(d => !d._type);
+    const storiesData = data.filter(d => d._type === "STORY");
     const fmtN = (n) => { if (n >= 1000000) return (n/1000000).toFixed(1) + "M"; if (n >= 1000) return (n/1000).toFixed(1) + "K"; return String(n); };
+    const pctStr = (v) => v > 0 ? `+${v}%` : `${v}%`;
+    const typeLabel = (t) => t === "VIDEO" ? "Video" : t === "IMAGE" ? "Rasm" : t === "REEL" ? "Reel" : t === "CAROUSEL_ALBUM" ? "Carousel" : t || "Boshqa";
+
+    // Insights mavjudligini aniqlash (reach/impressions bor yoki yo'q)
+    const hasInsights = posts.some(p => (p.reach || 0) > 0) || (summary?.total_reach || 0) > 0;
+    const hasProfileInsights = (summary?.reach_30d || 0) > 0 || (summary?.daily_reach?.length || 0) > 0;
 
     if (summary) {
       const followers = summary.followers_count || 0;
       const totalLikes = summary.total_likes || 0;
       const totalComments = summary.total_comments || 0;
-      const totalEng = summary.total_engagement || 0;
       const fetched = summary.fetched_posts || 1;
-      const avgLike = Math.round(totalLikes / fetched);
-      const avgComment = Math.round(totalComments / fetched);
-      const engRate = followers > 0 ? (totalEng / fetched / followers * 100).toFixed(2) : "0";
+      const engRate = summary.engagement_rate || 0;
+      const engRateStr = summary.engagement_rate_str || (typeof engRate === "number" ? engRate.toFixed(1) + "%" : engRate + "%");
 
-      // 1. Asosiy raqamlar (kengaytirilgan — reach, saves bilan)
-      const statsItems = [
-        { l: "Obunachilar", v: fmtN(followers), c: "#E879F9", i: "👥" },
-        { l: "Jami postlar", v: fmtN(summary.total_posts || 0), c: "#4ADE80", i: "📸" },
-        { l: "O'rtacha like", v: fmtN(avgLike), c: "#F87171", i: "❤️" },
-        { l: "O'rtacha izoh", v: fmtN(avgComment), c: "#FBBF24", i: "💬" },
-        { l: "Engagement rate", v: summary.engagement_rate || engRate + "%", c: "#00C9BE", i: "📈" },
+      // ═══ 1. ASOSIY KO'RSATKICHLAR ═══
+      const mainStats = [
+        { l: "Followers", v: fmtN(followers), c: "#E879F9", i: "👥" },
       ];
-      if (summary.total_reach) statsItems.push({ l: "Jami reach", v: fmtN(summary.total_reach), c: "#60A5FA", i: "👁" });
-      if (summary.total_impressions) statsItems.push({ l: "Impressions", v: fmtN(summary.total_impressions), c: "#38BDF8", i: "📊" });
-      if (summary.total_saved) statsItems.push({ l: "Saqlangan", v: fmtN(summary.total_saved), c: "#A78BFA", i: "🔖" });
-      if (summary.total_shares) statsItems.push({ l: "Ulashilgan", v: fmtN(summary.total_shares), c: "#FB923C", i: "↗" });
-      if (summary.avg_reach_per_post) statsItems.push({ l: "O'rt reach/post", v: fmtN(summary.avg_reach_per_post), c: "#EC4899", i: "📡" });
-      cards.push({ id: "ig_main", title: "Instagram Statistika", icon: "📊", type: "stats", stats: statsItems });
+      if (hasInsights || hasProfileInsights) {
+        mainStats.push(
+          { l: "Reach", v: fmtN(summary.reach_30d || summary.total_reach || 0), c: "#60A5FA", i: "👁" },
+          { l: "Engagement Rate", v: engRateStr, c: "#4ADE80", i: "📈" },
+          { l: "Impressions", v: fmtN(summary.impressions_30d || summary.total_impressions || 0), c: "#A78BFA", i: "📊" },
+        );
+      } else {
+        // Insights yo'q — likes/comments ko'rsatish
+        mainStats.push(
+          { l: "Jami postlar", v: fmtN(summary.total_posts || 0), c: "#4ADE80", i: "📸" },
+          { l: "O'rtacha like", v: fmtN(Math.round(totalLikes / fetched)), c: "#F87171", i: "❤️" },
+          { l: "O'rtacha izoh", v: fmtN(Math.round(totalComments / fetched)), c: "#FBBF24", i: "💬" },
+          { l: "Engagement Rate", v: engRateStr, c: "#00C9BE", i: "📈" },
+        );
+      }
+      cards.push({ id: "ig_main", title: "Asosiy ko'rsatkichlar", icon: "📊", type: "stats", stats: mainStats });
 
-      // 2. Engagement rate gauge
-      cards.push({
-        id: "ig_gauge", title: "Engagement Rate", icon: "📈", type: "gauge",
-        value: parseFloat(engRate), max: 10, label: engRate + "%",
-        color: parseFloat(engRate) > 3 ? "#4ADE80" : parseFloat(engRate) > 1 ? "#FBBF24" : "#F87171"
-      });
+      // Insights yo'q — ogohlantirish
+      if (!hasInsights && !hasProfileInsights) {
+        cards.push({ id: "ig_warn", title: "Insights ma'lumotlari", icon: "⚠️", type: "highlight", items: [
+          { l: "Holat", v: "Reach, Impressions, Saves, Shares ma'lumotlari olinmadi", c: "#FBBF24" },
+          { l: "Sabab", v: "Token da instagram_manage_insights ruxsati yo'q", c: "#F87171" },
+          { l: "Yechim", v: "Graph API Explorer da yangi token oling va instagram_manage_insights ni tanlang", c: "#4ADE80" },
+          { l: "Hozir ko'rinadi", v: "Faqat likes, comments, followers — asosiy ma'lumotlar", c: "#60A5FA" },
+        ]});
+      }
+
+      // ═══ 2. REACH & IMPRESSIONS — kunlik (faqat insights bo'lsagina) ═══
+      if (hasProfileInsights) {
+        const dReach = summary.daily_reach || [];
+        const dImp = summary.daily_impressions || [];
+        if (dReach.length >= 3 || dImp.length >= 3) {
+          const maxLen = Math.max(dReach.length, dImp.length);
+          const trendData = [];
+          for (let i = 0; i < maxLen; i++) {
+            const dateStr = (dReach[i]?.date || dImp[i]?.date || "").slice(5, 10);
+            trendData.push({ name: dateStr, Reach: dReach[i]?.value || 0, Impressions: dImp[i]?.value || 0 });
+          }
+          cards.push({
+            id: "ig_reach_imp", title: "Reach & Impressions — kunlik", icon: "📈", type: "chart", chartType: "line",
+            data: trendData, keys: ["Reach", "Impressions"], xKey: "name", colors: ["#EC4899", "#60A5FA"]
+          });
+        }
+      }
+
+      // ═══ 3. AUDITORIYA JINSI (doughnut/pie) ═══
+      const genderData = summary.audience?.follower_demographics_gender || summary.audience?.reached_audience_demographics_gender || {};
+      if (Object.keys(genderData).length > 0) {
+        const genderMap = { male: "Erkak", female: "Ayol", m: "Erkak", f: "Ayol", u: "Noma'lum", unknown: "Noma'lum" };
+        const genderColors = { "Erkak": "#60A5FA", "Ayol": "#EC4899", "Noma'lum": "#94A3B8" };
+        const genderItems = Object.entries(genderData)
+          .map(([k, v]) => ({ name: genderMap[k.toLowerCase()] || k, value: v }))
+          .filter(d => d.value > 0);
+        const gColors = genderItems.map(d => genderColors[d.name] || "#A78BFA");
+        cards.push({
+          id: "ig_gender", title: "Auditoriya jinsi", icon: "👥", type: "chart", chartType: "pie",
+          data: genderItems, colors: gColors
+        });
+      }
     }
 
     if (posts.length > 0) {
-      // 3. Like va Izoh trendi (oxirgi 20 post, sana bo'yicha)
-      const sorted = [...posts].filter(p => p.date).sort((a, b) => a.date?.localeCompare(b.date)).slice(-20);
-      if (sorted.length >= 3) {
+      // ═══ 4. POST SAMARADORLIGI (oxirgi 8 post) ═══
+      const recent8 = [...posts].filter(p => p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8).reverse();
+      if (recent8.length >= 3) {
+        const perfKeys = hasInsights ? ["Likes", "Saves", "Shares"] : ["Likes", "Comments"];
+        const perfColors = hasInsights ? ["#EC4899", "#4ADE80", "#FB923C"] : ["#EC4899", "#FBBF24"];
         cards.push({
-          id: "ig_trend", title: "Like va Izoh trendi (oxirgi postlar)", icon: "📈", type: "chart", chartType: "area",
-          data: sorted.map(p => ({ name: (p.date || "").slice(5, 10), like: p.likes || 0, izoh: p.comments || 0 })),
-          keys: ["like", "izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+          id: "ig_post_perf", title: `Post samaradorligi (oxirgi ${recent8.length} post)`, icon: "📊", type: "chart", chartType: "bar",
+          data: recent8.map(p => {
+            const row = { name: (p.date || "").slice(5, 10), Likes: p.likes || 0 };
+            if (hasInsights) { row.Saves = p.saved || 0; row.Shares = p.shares || 0; }
+            else { row.Comments = p.comments || 0; }
+            return row;
+          }),
+          keys: perfKeys, xKey: "name", colors: perfColors
         });
       }
 
-      // 4. Post turlari taqsimoti (pie)
-      const typeCounts = {};
+      // ═══ 5. AUDITORIYA YOSHI (horizontal bar) ═══
+      const ageData = summary?.audience?.follower_demographics_age || summary?.audience?.reached_audience_demographics_age || {};
+      if (Object.keys(ageData).length > 0) {
+        const ageOrder = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
+        const sortedAge = Object.entries(ageData)
+          .map(([k, v]) => ({ name: k, Obunachilar: v }))
+          .sort((a, b) => {
+            const ai = ageOrder.indexOf(a.name);
+            const bi = ageOrder.indexOf(b.name);
+            return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+          });
+        cards.push({
+          id: "ig_age", title: "Auditoriya yoshi", icon: "👤", type: "chart", chartType: "hbar",
+          data: sortedAge, keys: ["Obunachilar"], xKey: "name", colors: ["#A78BFA"]
+        });
+      }
+
+      // ═══ 6. ENG FAOL SOATLAR ═══
+      const onlineData = summary?.online_followers || {};
+      if (Object.keys(onlineData).length > 0) {
+        const hourData = [];
+        for (let h = 0; h < 24; h += 2) {
+          const val = (onlineData[String(h)] || 0) + (onlineData[String(h + 1)] || 0);
+          hourData.push({ name: String(h).padStart(2, "0"), Faollar: val });
+        }
+        if (hourData.some(d => d.Faollar > 0)) {
+          cards.push({
+            id: "ig_hours", title: "Eng faol soatlar", icon: "🕐", type: "chart", chartType: "bar",
+            data: hourData, keys: ["Faollar"], xKey: "name",
+            colors: hourData.map(d => d.Faollar > hourData.reduce((a,b)=>a+b.Faollar,0)/hourData.length*1.3 ? "#FB923C" : "#A78BFA")
+          });
+        }
+      }
+
+      // ═══ 7. KONTENT TURI SAMARADORLIGI ═══
+      const typeStats = {};
       posts.forEach(p => {
-        const t = p.type === "VIDEO" ? "Video" : p.type === "IMAGE" ? "Rasm" : p.type === "CAROUSEL_ALBUM" ? "Karusel" : p.type || "Boshqa";
-        typeCounts[t] = (typeCounts[t] || 0) + 1;
+        const t = typeLabel(p.type);
+        if (!typeStats[t]) typeStats[t] = { reach: 0, likes: 0, comments: 0, saved: 0, shares: 0, count: 0 };
+        typeStats[t].reach += p.reach || 0;
+        typeStats[t].likes += p.likes || 0;
+        typeStats[t].comments += p.comments || 0;
+        typeStats[t].saved += p.saved || 0;
+        typeStats[t].shares += p.shares || 0;
+        typeStats[t].count++;
       });
+      if (Object.keys(typeStats).length > 1) {
+        // Insights bor — reach bo'yicha, yo'q — likes bo'yicha
+        const hasReachData = Object.values(typeStats).some(s => s.reach > 0);
+        cards.push({
+          id: "ig_type_reach", title: hasReachData ? "Kontent turi samaradorligi" : "Kontent turi — o'rtacha like", icon: "📊", type: "chart", chartType: "bar",
+          data: Object.entries(typeStats).map(([name, s]) => hasReachData
+            ? { name, "O'rt reach": Math.round(s.reach / s.count) }
+            : { name, "O'rt like": Math.round(s.likes / s.count), "O'rt izoh": Math.round(s.comments / s.count) }
+          ),
+          keys: hasReachData ? ["O'rt reach"] : ["O'rt like", "O'rt izoh"], xKey: "name",
+          colors: hasReachData ? ["#60A5FA"] : ["#F87171", "#FBBF24"]
+        });
+      }
+
+      // ═══ 8. TOP SHAHARLAR (horizontal bar) ═══
+      const topCities = summary?.top_cities || [];
+      if (topCities.length > 0) {
+        const cityData = topCities.map(c => ({ name: c.name?.split(",")[0] || c.name, Obunachilar: c.value }));
+        const totalCityFollowers = cityData.reduce((a, c) => a + c.Obunachilar, 0);
+        const totalFollowers = summary?.followers_count || totalCityFollowers;
+        if (totalFollowers > totalCityFollowers) {
+          cityData.push({ name: "Boshqa", Obunachilar: totalFollowers - totalCityFollowers });
+        }
+        cards.push({
+          id: "ig_cities", title: "Top shaharlar", icon: "📍", type: "chart", chartType: "hbar",
+          data: cityData, keys: ["Obunachilar"], xKey: "name", colors: ["#E879F9"]
+        });
+      }
+
+      // ═══ 9. STORIES STATISTIKASI (faqat ma'lumot bo'lsagina) ═══
+      const stData = storiesData.length > 0 ? storiesData : (summary?.stories_data || []);
+      const stHasData = stData.some(s => (s.reach || 0) > 0 || (s.impressions || 0) > 0);
+      if (stData.length > 0 && stHasData) {
+        const avgStReach = Math.round(stData.reduce((a, s) => a + (s.reach || 0), 0) / stData.length);
+        const avgStImp = Math.round(stData.reduce((a, s) => a + (s.impressions || 0), 0) / stData.length);
+        const avgStReplies = Math.round(stData.reduce((a, s) => a + (s.replies || 0), 0) / stData.length);
+        const totalStExits = stData.reduce((a, s) => a + (s.exits || 0), 0);
+        const totalStImp = stData.reduce((a, s) => a + (s.impressions || 0), 0);
+        const exitRate = totalStImp > 0 ? Math.round(totalStExits / totalStImp * 100) : 0;
+        const completionRate = totalStImp > 0 ? Math.round((totalStImp - totalStExits) / totalStImp * 100) : 0;
+        const totalStTaps = stData.reduce((a, s) => a + (s.taps || 0), 0);
+
+        cards.push({
+          id: "ig_stories", title: `Stories statistikasi (oxirgi ${stData.length} stories)`, icon: "📱", type: "stats",
+          stats: [
+            { l: "Avg Reach", v: fmtN(avgStReach), c: "#EC4899", i: "👁" },
+            { l: "Avg Impressions", v: fmtN(avgStImp), c: "#60A5FA", i: "📊" },
+            { l: "Exit Rate", v: exitRate + "%", c: "#F87171", i: "🚪" },
+            { l: "Avg Replies", v: String(avgStReplies), c: "#4ADE80", i: "💬" },
+            { l: "Taps", v: fmtN(totalStTaps), c: "#FBBF24", i: "👆" },
+            { l: "Completion Rate", v: completionRate + "%", c: "#00C9BE", i: "✅" },
+          ]
+        });
+
+        if (stData.length >= 3) {
+          cards.push({
+            id: "ig_stories_trend", title: "Stories: Reach vs Exits", icon: "📈", type: "chart", chartType: "line",
+            data: stData.map((s, i) => ({ name: `S${i + 1}`, Reach: s.reach || 0, Exits: s.exits || 0 })),
+            keys: ["Reach", "Exits"], xKey: "name", colors: ["#EC4899", "#F87171"]
+          });
+        }
+      }
+
+      // ═══ 10. TOP POSTLAR ═══
+      // Reach bor — reach bo'yicha, yo'q — likes bo'yicha
+      const sortKey = hasInsights ? "reach" : "likes";
+      const topPosts = [...posts].sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0)).slice(0, 10);
+      if (topPosts.length > 0) {
+        const topKeys = hasInsights ? ["Reach", "Likes", "Saves", "Shares"] : ["Likes", "Comments"];
+        const topColors = hasInsights ? ["#E879F9", "#EC4899", "#4ADE80", "#FB923C"] : ["#F87171", "#FBBF24"];
+        cards.push({
+          id: "ig_top_table", title: "Top postlar", icon: "🏆", type: "chart", chartType: "bar",
+          data: topPosts.map((p, i) => {
+            const row = { name: `#${i + 1} ${typeLabel(p.type)} ${(p.date || "").slice(5, 10)}` };
+            if (hasInsights) { row.Reach = p.reach || 0; row.Likes = p.likes || 0; row.Saves = p.saved || 0; row.Shares = p.shares || 0; }
+            else { row.Likes = p.likes || 0; row.Comments = p.comments || 0; }
+            return row;
+          }),
+          keys: topKeys, xKey: "name", colors: topColors
+        });
+      }
+
+      // ═══ 11. HAFTALIK FOLLOWERS O'SISHI ═══
+      const followerDaily = summary?.follower_daily || [];
+      if (followerDaily.length >= 14) {
+        const weeklyData = [];
+        const weekSize = 7;
+        for (let w = 0; w < Math.floor(followerDaily.length / weekSize); w++) {
+          const weekSlice = followerDaily.slice(w * weekSize, (w + 1) * weekSize);
+          const first = weekSlice[0]?.value || 0;
+          const last = weekSlice[weekSlice.length - 1]?.value || 0;
+          const diff = last - first;
+          weeklyData.push({
+            name: `${w + 1}-hafta`,
+            "Yangi followers": diff >= 0 ? diff : 0,
+            Ketganlar: diff < 0 ? Math.abs(diff) : 0,
+          });
+        }
+        if (weeklyData.length >= 2) {
+          cards.push({
+            id: "ig_follower_growth", title: "Haftalik followers o'sishi", icon: "📈", type: "chart", chartType: "bar",
+            data: weeklyData, keys: ["Yangi followers", "Ketganlar"], xKey: "name",
+            colors: ["#4ADE80", "#F87171"]
+          });
+        }
+      }
+
+      // ═══ 12. LIKE VA IZOH TRENDI (har doim ko'rinadi) ═══
+      const sorted = [...posts].filter(p => p.date).sort((a, b) => a.date.localeCompare(b.date)).slice(-20);
+      if (sorted.length >= 3) {
+        cards.push({
+          id: "ig_like_trend", title: "Like va Izoh trendi", icon: "📈", type: "chart", chartType: "area",
+          data: sorted.map(p => ({ name: (p.date || "").slice(5, 10), Like: p.likes || 0, Izoh: p.comments || 0 })),
+          keys: ["Like", "Izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+        });
+      }
+
+      // ═══ 13. POST TURI TAQSIMOTI (pie — har doim ko'rinadi) ═══
+      const typeCounts = {};
+      posts.forEach(p => { const t = typeLabel(p.type); typeCounts[t] = (typeCounts[t] || 0) + 1; });
       if (Object.keys(typeCounts).length > 1) {
         cards.push({
-          id: "ig_types", title: "Post turlari taqsimoti", icon: "📊", type: "chart", chartType: "pie",
+          id: "ig_types_pie", title: "Post turlari taqsimoti", icon: "📊", type: "chart", chartType: "pie",
           data: Object.entries(typeCounts).map(([name, value]) => ({ name, value })),
           colors: ["#E879F9", "#60A5FA", "#4ADE80", "#FBBF24"]
         });
       }
 
-      // 5. Top 5 eng yaxshi post (bar — tushunarli nomlar bilan)
-      const top5 = [...posts].sort((a, b) => ((b.likes || 0) + (b.comments || 0)) - ((a.likes || 0) + (a.comments || 0))).slice(0, 5);
+      // ═══ 14. ENGAGEMENT RATE GAUGE ═══
+      const engVal = typeof summary?.engagement_rate === "number" ? summary.engagement_rate : parseFloat(summary?.engagement_rate_str || "0");
       cards.push({
-        id: "ig_top5", title: "Top 5 eng yaxshi post", icon: "🏆", type: "chart", chartType: "bar",
-        data: top5.map((p, i) => ({
-          name: `#${i + 1} ${(p.date || "").slice(5, 10)}`,
-          like: p.likes || 0,
-          izoh: p.comments || 0
-        })),
-        keys: ["like", "izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
+        id: "ig_gauge", title: "Engagement Rate", icon: "📈", type: "gauge",
+        value: engVal, max: 10, label: (summary?.engagement_rate_str || engVal.toFixed(1) + "%"),
+        color: engVal > 3 ? "#4ADE80" : engVal > 1 ? "#FBBF24" : "#F87171"
       });
 
-      // 6. Post turi bo'yicha o'rtacha engagement (bar)
-      const typeStats = {};
-      posts.forEach(p => {
-        const t = p.type === "VIDEO" ? "Video" : p.type === "IMAGE" ? "Rasm" : p.type === "CAROUSEL_ALBUM" ? "Karusel" : "Boshqa";
-        if (!typeStats[t]) typeStats[t] = { likes: 0, comments: 0, count: 0 };
-        typeStats[t].likes += p.likes || 0;
-        typeStats[t].comments += p.comments || 0;
-        typeStats[t].count++;
-      });
-      if (Object.keys(typeStats).length > 1) {
-        cards.push({
-          id: "ig_type_avg", title: "Tur bo'yicha o'rtacha engagement", icon: "📊", type: "chart", chartType: "bar",
-          data: Object.entries(typeStats).map(([name, s]) => ({
-            name, "O'rt like": Math.round(s.likes / s.count), "O'rt izoh": Math.round(s.comments / s.count)
-          })),
-          keys: ["O'rt like", "O'rt izoh"], xKey: "name", colors: ["#F87171", "#FBBF24"]
-        });
-      }
-
-      // 7. Eng yaxshi va eng yomon post xulosasi
-      const best = [...posts].sort((a, b) => ((b.likes||0)+(b.comments||0)) - ((a.likes||0)+(a.comments||0)))[0];
-      const worst = [...posts].sort((a, b) => ((a.likes||0)+(a.comments||0)) - ((b.likes||0)+(b.comments||0)))[0];
+      // ═══ 15. XULOSALAR VA TAVSIYALAR ═══
+      const bestKey = hasInsights ? "reach" : "engagement";
+      const best = [...posts].sort((a, b) => (b[bestKey]||0) - (a[bestKey]||0))[0];
+      const worst = [...posts].sort((a, b) => (a[bestKey]||0) - (b[bestKey]||0))[0];
       const items = [];
       if (best) items.push(
-        { l: "🏆 Eng yaxshi post", v: `${fmtN(best.likes||0)} like, ${fmtN(best.comments||0)} izoh (${best.date || ""})`, c: "#4ADE80" },
+        { l: "🏆 Eng yaxshi post", v: hasInsights ? `${fmtN(best.reach||0)} reach, ${fmtN(best.likes||0)} like (${best.date || ""})` : `${fmtN(best.likes||0)} like, ${fmtN(best.comments||0)} izoh (${best.date || ""})`, c: "#4ADE80" },
         { l: "📝 Caption", v: (best.caption || "").slice(0, 80) + ((best.caption||"").length > 80 ? "..." : ""), c: "#60A5FA" }
       );
       if (worst && posts.length > 3) items.push(
-        { l: "📉 Eng past post", v: `${fmtN(worst.likes||0)} like, ${fmtN(worst.comments||0)} izoh (${worst.date || ""})`, c: "#F87171" }
+        { l: "📉 Eng past post", v: hasInsights ? `${fmtN(worst.reach||0)} reach (${worst.date || ""})` : `${fmtN(worst.likes||0)} like (${worst.date || ""})`, c: "#F87171" }
       );
-      const avgEng = posts.reduce((a,p) => a + (p.likes||0) + (p.comments||0), 0) / posts.length;
-      const goodPosts = posts.filter(p => (p.likes||0) + (p.comments||0) > avgEng * 1.5).length;
+      const avgEng = posts.reduce((a,p) => a + (p.engagement||0), 0) / posts.length;
+      const goodPosts = posts.filter(p => (p.engagement||0) > avgEng * 1.5).length;
       items.push(
-        { l: "⭐ O'rtachadan yuqori postlar", v: `${goodPosts} ta (${Math.round(goodPosts/posts.length*100)}%)`, c: "#00C9BE" },
-        { l: "💡 Tavsiya", v: Object.entries(typeStats).sort((a,b) => (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0] ? `"${Object.entries(typeStats).sort((a,b) => (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0][0]}" turidagi postlar eng samarali` : "Ko'proq post chiqaring", c: "#E879F9" }
+        { l: "⭐ O'rtachadan yuqori postlar", v: `${goodPosts} ta (${Math.round(goodPosts/posts.length*100)}%)`, c: "#00C9BE" }
       );
+      // Eng samarali tur
+      const bestType = Object.entries(typeStats).sort((a,b) => hasInsights ? (b[1].reach/b[1].count) - (a[1].reach/a[1].count) : (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0];
+      if (bestType) items.push({ l: "💡 Tavsiya", v: `"${bestType[0]}" turidagi postlar eng samarali`, c: "#E879F9" });
       cards.push({ id: "ig_summary", title: "Xulosalar va tavsiyalar", icon: "💡", type: "highlight", items });
     }
     return cards;
@@ -8323,7 +8725,7 @@ function generateDashboards(source, colSelection) {
 
 // ── Dashboard karta rendereri (har bir chart turini chizadi) ──
 const CHART_TYPE_OPTIONS = [
-  { id: "line", l: "〜 Chiziq" }, { id: "bar", l: "▨ Ustun" }, { id: "area", l: " Maydon" },
+  { id: "line", l: "〜 Chiziq" }, { id: "bar", l: "▨ Ustun" }, { id: "hbar", l: "▬ Yatay" }, { id: "area", l: " Maydon" },
   { id: "pie", l: " Doira" }, { id: "scatter", l: "⋯ Tarqoq" }, { id: "stackedbar", l: "▦ Stacked" },
 ];
 
@@ -8897,6 +9299,16 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
           dot={{ r: 3, fill: "var(--s1)", stroke: colors[i % colors.length], strokeWidth: 2 }} activeDot={{ r: 5, fill: colors[i % colors.length], stroke: "var(--s1)", strokeWidth: 2 }} />)}
       </LineChart></ResponsiveContainer>;
 
+    // Horizontal Bar
+    if (cType === "hbar")
+      return <ResponsiveContainer width="100%" height={h}><BarChart data={d} layout="vertical" margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} horizontal={false} />
+        <XAxis type="number" tick={{ fontSize: 8, fill: "#64748B" }} tickFormatter={yFmt} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey={xKey} tick={{ fontSize: 9, fill: "#94A3B8", fontFamily: "var(--fm)" }} axisLine={false} tickLine={false} width={75} />
+        <Tooltip content={<CustomTip />} />{keys.length > 1 && <Legend wrapperStyle={{ fontSize: 9, fontFamily: "var(--fm)", paddingTop: 0 }} iconType="circle" iconSize={6} />}
+        {keys.map((k, i) => <Bar key={k} dataKey={k} fill={colors[i % colors.length]} radius={[0, 4, 4, 0]} maxBarSize={24} />)}
+      </BarChart></ResponsiveContainer>;
+
     // Bar
     if (cType === "bar")
       return <ResponsiveContainer width="100%" height={h}><BarChart data={d} margin={margin}>
@@ -8973,30 +9385,32 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
       </CardWrap>
     );
 
-  // ── CHART type — faqat ma'lumotga ENG MOS 2-3 ta turni ko'rsatish ──
+  // ── CHART type — faqat ma'lumotga ENG MOS turlarni ko'rsatish ──
+  const isAutoCard = card.id?.startsWith("ig_") || card.id?.startsWith("tg_");
   const compatibleTypes = useMemo(() => {
     const data = card.data || [];
     if (!data.length) return [card.chartType || "bar"];
+
+    // Auto-generated cardlar (Instagram/Telegram) — faqat o'z turida + jadval
+    if (isAutoCard) return [card.chartType || "bar"];
+
     const keys = Object.keys(data[0] || {});
     const numKeys = keys.filter(k => {
       const vals = data.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
       return vals.filter(v => !isNaN(v)).length > data.length * 0.4;
     });
 
-    // Pie chart uchun — faqat bar bilan almashtirish mumkin
     if (card.chartType === "pie") return ["pie", "bar"];
-
-    // Scatter — faqat scatter va bar
     if (card.chartType === "scatter") return ["scatter", "bar"];
+    if (card.chartType === "hbar") return ["hbar", "bar"];
 
-    // Asosiy tur + 1-2 ta alternativa
     const types = [card.chartType || "bar"];
     if (data.length >= 4 && !types.includes("line")) types.push("line");
     if (!types.includes("bar")) types.push("bar");
     if (data.length >= 2 && data.length <= 10 && numKeys.length === 1 && !types.includes("pie")) types.push("pie");
 
-    return types.slice(0, 3); // Max 3 ta
-  }, [card.data, card.chartType]);
+    return types.slice(0, 3);
+  }, [card.data, card.chartType, isAutoCard]);
 
   const filteredOptions = CHART_TYPE_OPTIONS.filter(o => compatibleTypes.includes(o.id));
 
@@ -9616,45 +10030,6 @@ function AppContent() {
   const { notifs, push } = useNotifs();
   const { theme, setTheme, toggle: toggleTheme } = useTheme();
 
-  // ── Global Search (Ctrl+K) ──
-  const [globalSearch, setGlobalSearch] = useState(false);
-  const [globalQ, setGlobalQ] = useState("");
-  const globalSearchResults = useMemo(() => {
-    if (!globalQ.trim() || globalQ.length < 2) return [];
-    const q = globalQ.toLowerCase();
-    const results = [];
-    sources.forEach(src => {
-      if (!src.data?.length) return;
-      src.data.forEach((row, idx) => {
-        const rowText = Object.values(row).map(v => String(v || "")).join(" ").toLowerCase();
-        if (rowText.includes(q)) {
-          const preview = Object.entries(row)
-            .filter(([k]) => !k.startsWith("_"))
-            .slice(0, 3)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(" · ");
-          results.push({ srcName: src.name, srcColor: src.color, preview, idx });
-          if (results.length >= 30) return;
-        }
-      });
-      if (results.length >= 30) return;
-    });
-    return results.slice(0, 20);
-  }, [globalQ, sources]);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setGlobalSearch(v => !v);
-        setGlobalQ("");
-      }
-      if (e.key === "Escape") { setGlobalSearch(false); setGlobalQ(""); }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   // ── Global AI Task Manager ──
   // Sahifa o'zgarganda ham AI jarayoni davom etadi
   const bgTasksRef = useRef([]);
@@ -10088,16 +10463,6 @@ function AppContent() {
               <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
               <div className="page-title">{PAGE_TITLES[page] || page}</div>
             </div>
-            {/* Global Search trigger */}
-            <button onClick={() => { setGlobalSearch(true); setGlobalQ(""); }}
-              title="Global qidiruv (Ctrl+K)"
-              style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", fontSize: 11, fontFamily: "var(--fm)", transition: "all .2s" }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(0,201,190,0.4)"; e.currentTarget.style.color = "var(--teal)"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <span>Qidirish</span>
-              <span style={{ marginLeft: 2, fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--s3)", color: "var(--muted)", fontFamily: "var(--fh)" }}>Ctrl K</span>
-            </button>
 
             <div className="topbar-right">
               {bgTaskCount > 0 && (
@@ -10146,75 +10511,6 @@ function AppContent() {
         </div>
       </div>
 
-      {/* ── GLOBAL SEARCH MODAL (Ctrl+K) ── */}
-      {globalSearch && (
-        <div onClick={() => { setGlobalSearch(false); setGlobalQ(""); }}
-          style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "10vh" }}>
-          <div onClick={e => e.stopPropagation()}
-            style={{ width: "min(600px, 92vw)", background: "var(--s1)", border: "1px solid rgba(0,201,190,0.25)", borderRadius: 16, overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.5)" }}>
-            {/* Qidiruv input */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input
-                autoFocus
-                value={globalQ}
-                onChange={e => setGlobalQ(e.target.value)}
-                placeholder="Barcha manbalar bo'yicha qidirish..."
-                style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, fontFamily: "var(--fm)", color: "var(--text)" }}
-              />
-              {globalQ && (
-                <button onClick={() => setGlobalQ("")} style={{ background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 2 }}>✕</button>
-              )}
-              <kbd style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "var(--s3)", color: "var(--muted)", fontFamily: "var(--fh)", border: "1px solid var(--border)" }}>ESC</kbd>
-            </div>
-
-            {/* Natijalar */}
-            <div style={{ maxHeight: 380, overflowY: "auto" }}>
-              {globalQ.length < 2 ? (
-                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
-                  Barcha manbalaringiz bo'yicha qidirish uchun yozing...
-                  <div style={{ marginTop: 8, fontSize: 10, color: "var(--s4)" }}>
-                    {sources.filter(s => s.connected).length} ta manba · {sources.reduce((a, s) => a + (s.data?.length || 0), 0).toLocaleString()} qator
-                  </div>
-                </div>
-              ) : globalSearchResults.length === 0 ? (
-                <div style={{ padding: "32px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
-                  "{globalQ}" bo'yicha natija topilmadi
-                </div>
-              ) : (
-                <>
-                  <div style={{ padding: "8px 16px 4px", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", borderBottom: "1px solid var(--border)" }}>
-                    {globalSearchResults.length} ta natija
-                  </div>
-                  {globalSearchResults.map((r, i) => (
-                    <div key={i}
-                      style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", cursor: "pointer", transition: "background .15s" }}
-                      onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
-                      onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                      onClick={() => { setPage("sources"); setGlobalSearch(false); setGlobalQ(""); }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: r.srcColor || "var(--teal)", flexShrink: 0 }} />
-                        <span style={{ fontSize: 10, fontWeight: 700, color: r.srcColor || "var(--teal)", fontFamily: "var(--fh)" }}>{r.srcName}</span>
-                        <span style={{ fontSize: 9, color: "var(--muted)", marginLeft: "auto" }}>#{r.idx + 1}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {r.preview}
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div style={{ padding: "8px 16px", borderTop: "1px solid var(--border)", display: "flex", gap: 12, fontSize: 10, color: "var(--muted)" }}>
-              <span>↑↓ Ko'chirish</span>
-              <span>Enter — Manbaga o'tish</span>
-              <span style={{ marginLeft: "auto" }}>Esc — Yopish</span>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
