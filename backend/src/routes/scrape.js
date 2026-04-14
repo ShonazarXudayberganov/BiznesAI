@@ -1,34 +1,96 @@
 const express = require('express');
 const cheerio = require('cheerio');
+const https = require('https');
+const http = require('http');
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// Saytdan HTML yuklab olish (Node 18+ fetch)
-async function fetchHtml(url, timeout = 15000) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    try {
-        const res = await fetch(url, {
-            signal: controller.signal,
+// Saytdan HTML yuklab olish (Node.js http/https modullari — SSL ham o'tadi)
+function fetchHtml(url, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+        let parsed;
+        try { parsed = new URL(url); } catch (e) { return reject(new Error('URL noto\'g\'ri formatda')); }
+
+        const isHttps = parsed.protocol === 'https:';
+        const lib = isHttps ? https : http;
+
+        const options = {
+            hostname: parsed.hostname,
+            port: parsed.port || (isHttps ? 443 : 80),
+            path: (parsed.pathname || '/') + (parsed.search || ''),
+            method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.9',
                 'Accept-Language': 'uz,en-US;q=0.9,en;q=0.8,ru;q=0.7',
+                'Accept-Encoding': 'identity',
+                'Connection': 'close',
+            },
+            // SSL xatolarini e'tiborsiz qoldirish (ko'p o'zbek saytlarda SSL muammo)
+            rejectUnauthorized: false,
+        };
+
+        let settled = false;
+        const done = (fn) => { if (!settled) { settled = true; fn(); } };
+
+        const timer = setTimeout(() => {
+            done(() => reject(new Error('Saytga ulanish vaqti tugadi (15 soniya)')));
+            try { req.destroy(); } catch { }
+        }, timeout);
+
+        const req = lib.request(options, (res) => {
+            // Redirect (301/302/307/308) ni kuzatish
+            const loc = res.headers.location;
+            if ([301, 302, 303, 307, 308].includes(res.statusCode) && loc) {
+                clearTimeout(timer);
+                const next = loc.startsWith('http') ? loc : new URL(loc, url).href;
+                fetchHtml(next, timeout).then(
+                    html => done(() => resolve(html)),
+                    err => done(() => reject(err))
+                );
+                return;
             }
+
+            if (res.statusCode < 200 || res.statusCode >= 400) {
+                clearTimeout(timer);
+                done(() => reject(new Error(`HTTP ${res.statusCode}: sayt so'rovni rad etdi`)));
+                return;
+            }
+
+            const chunks = [];
+            res.on('data', chunk => chunks.push(chunk));
+            res.on('end', () => {
+                clearTimeout(timer);
+                const html = Buffer.concat(chunks).toString('utf8');
+                done(() => resolve(html));
+            });
+            res.on('error', err => { clearTimeout(timer); done(() => reject(err)); });
         });
-        clearTimeout(timer);
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        const ct = res.headers.get('content-type') || '';
-        if (!ct.includes('html')) throw new Error(`Sayt HTML qaytarmayapti (${ct})`);
-        return await res.text();
-    } catch (e) {
-        clearTimeout(timer);
-        if (e.name === 'AbortError') throw new Error('Saytga ulanish vaqti tugadi (15 soniya)');
-        throw e;
-    }
+
+        req.on('error', (err) => {
+            clearTimeout(timer);
+            let msg = err.message;
+            if (msg.includes('ENOTFOUND') || msg.includes('getaddrinfo'))
+                msg = `Sayt topilmadi: "${parsed.hostname}" domen mavjud emas`;
+            else if (msg.includes('ECONNREFUSED'))
+                msg = 'Sayt ulanishni rad etdi';
+            else if (msg.includes('ETIMEDOUT') || msg.includes('socket hang up'))
+                msg = 'Ulanish vaqti tugadi';
+            else if (msg.includes('ECONNRESET'))
+                msg = 'Sayt ulanishni uzdi (ECONNRESET)';
+            done(() => reject(new Error(msg)));
+        });
+
+        req.setTimeout(timeout, () => {
+            done(() => reject(new Error('Saytga ulanish vaqti tugadi (15 soniya)')));
+            try { req.destroy(); } catch { }
+        });
+
+        req.end();
+    });
 }
 
 // Matnni tozalash
@@ -54,8 +116,6 @@ function extractInternalLinks($, baseUrl, limit = 20) {
 // Bir sahifani tahlil qilish
 function analyzePage(html, url) {
     const $ = cheerio.load(html);
-
-    // Navigatsiya, footer, script, style ni olib tashlash (asosiy kontent uchun)
     $('script, style, noscript, iframe, svg, canvas').remove();
 
     const title = cleanText($('title').text()) || cleanText($('h1').first().text()) || '';
@@ -65,20 +125,17 @@ function analyzePage(html, url) {
     const ogImage = $('meta[property="og:image"]').attr('content') || '';
     const canonical = $('link[rel="canonical"]').attr('href') || url;
 
-    // Sarlavhalar
     const headings = { h1: [], h2: [], h3: [] };
     $('h1').each((_, el) => { const t = cleanText($(el).text()); if (t) headings.h1.push(t); });
     $('h2').each((_, el) => { const t = cleanText($(el).text()); if (t) headings.h2.push(t); });
     $('h3').each((_, el) => { const t = cleanText($(el).text()); if (t) headings.h3.push(t); });
 
-    // Asosiy matn (paragraf + list)
     const paragraphs = [];
     $('p, li').each((_, el) => {
         const t = cleanText($(el).text());
         if (t.length > 30) paragraphs.push(t);
     });
 
-    // Aloqa ma'lumotlari
     const phones = [];
     const emails = [];
     const pageText = $.text();
@@ -87,7 +144,6 @@ function analyzePage(html, url) {
     const emailMatches = pageText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) || [];
     emailMatches.forEach(e => emails.push(e));
 
-    // Ijtimoiy tarmoqlar
     const socials = {};
     const socialPatterns = {
         instagram: /instagram\.com\/([^\/\s"'?]+)/,
@@ -96,13 +152,11 @@ function analyzePage(html, url) {
         youtube: /youtube\.com\/(channel|c|@)\/([^\/\s"'?]+)/,
         tiktok: /tiktok\.com\/@([^\/\s"'?]+)/,
     };
-    const fullHtml = html;
     Object.entries(socialPatterns).forEach(([net, rx]) => {
-        const m = fullHtml.match(rx);
+        const m = html.match(rx);
         if (m) socials[net] = m[0].startsWith('http') ? m[0] : 'https://' + m[0];
     });
 
-    // Mahsulot/xizmat bloklari (karta ko'rinishidagi)
     const cards = [];
     $('[class*="card"], [class*="product"], [class*="service"], [class*="item"], [class*="offer"]').each((_, el) => {
         const t = cleanText($(el).text()).substring(0, 150);
@@ -110,7 +164,6 @@ function analyzePage(html, url) {
         if (t.length > 20) cards.push({ text: t, price: price || null });
     });
 
-    // Narxlar
     const prices = [];
     const priceRx = /(\d[\d\s.,]+)\s*(so'm|sum|рублей|руб|uzs)/gi;
     let pm;
@@ -119,7 +172,6 @@ function analyzePage(html, url) {
         if (!isNaN(num) && num > 0) prices.push(num);
     }
 
-    // Ichki havolalar soni
     const internalLinks = extractInternalLinks($, url, 30);
     const externalLinks = [];
     $('a[href]').each((_, el) => {
@@ -130,10 +182,7 @@ function analyzePage(html, url) {
         } catch { }
     });
 
-    // Sayt tili
     const lang = $('html').attr('lang') || '';
-
-    // Asosiy kontent matni (SEO tahlil uchun)
     const mainContent = paragraphs.slice(0, 30).join('\n');
 
     return {
@@ -168,41 +217,36 @@ router.post('/', async (req, res) => {
     if (!url) return res.status(400).json({ error: 'url kerak' });
     if (!sourceId) return res.status(400).json({ error: 'sourceId kerak' });
 
-    // Manba foydalanuvchiga tegishliligini tekshirish
     const check = await pool.query('SELECT id FROM sources WHERE id=$1 AND user_id=$2', [sourceId, req.userId]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
 
-    // URL ni normallashtirish
     let normalizedUrl = url.trim();
     if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
 
     try {
         console.log(`[SCRAPE] Starting: ${normalizedUrl} (deep=${deepScan})`);
 
-        // 1. Asosiy sahifani yuklash
         const mainHtml = await fetchHtml(normalizedUrl);
         const mainData = analyzePage(mainHtml, normalizedUrl);
 
         const allPages = [{ ...mainData, _type: 'website_page', _page_type: 'bosh_sahifa' }];
 
-        // 2. Deep scan — ichki sahifalarni ham o'qish
         if (deepScan) {
-            const innerLinks = mainData.ichki_havolalar.slice(0, 10); // Max 10 sahifa
+            const innerLinks = mainData.ichki_havolalar.slice(0, 10);
             let scanned = 0;
             for (const link of innerLinks) {
                 try {
                     console.log(`[SCRAPE] Inner page: ${link}`);
                     const html = await fetchHtml(link, 10000);
                     const pageData = analyzePage(html, link);
-                    // Ichki sahifa turi aniqlash (URL dan)
-                    const path = new URL(link).pathname.toLowerCase();
+                    const pathLower = new URL(link).pathname.toLowerCase();
                     let pageType = 'ichki_sahifa';
-                    if (/contact|aloqa|bog-lan|murojaat/.test(path)) pageType = 'aloqa_sahifasi';
-                    else if (/about|biz-haqimizda|haqimizda|about-us/.test(path)) pageType = 'biz_haqimizda';
-                    else if (/product|mahsulot|catalog|katalog/.test(path)) pageType = 'mahsulotlar';
-                    else if (/service|xizmat/.test(path)) pageType = 'xizmatlar';
-                    else if (/price|narx|tarif/.test(path)) pageType = 'narxlar';
-                    else if (/blog|yangilik|news/.test(path)) pageType = 'blog';
+                    if (/contact|aloqa|bog-lan|murojaat/.test(pathLower)) pageType = 'aloqa_sahifasi';
+                    else if (/about|biz-haqimizda|haqimizda|about-us/.test(pathLower)) pageType = 'biz_haqimizda';
+                    else if (/product|mahsulot|catalog|katalog/.test(pathLower)) pageType = 'mahsulotlar';
+                    else if (/service|xizmat/.test(pathLower)) pageType = 'xizmatlar';
+                    else if (/price|narx|tarif/.test(pathLower)) pageType = 'narxlar';
+                    else if (/blog|yangilik|news/.test(pathLower)) pageType = 'blog';
                     allPages.push({ ...pageData, _type: 'website_page', _page_type: pageType });
                     scanned++;
                 } catch (e) {
@@ -212,7 +256,6 @@ router.post('/', async (req, res) => {
             console.log(`[SCRAPE] Inner pages scanned: ${scanned}`);
         }
 
-        // 3. Umumiy statistika summary = bitta yig'ma yozuv
         const allPhones = [...new Set(allPages.flatMap(p => p.telefon_raqamlar))];
         const allEmails = [...new Set(allPages.flatMap(p => p.email_manzillar))];
         const allSocials = Object.assign({}, ...allPages.map(p => p.ijtimoiy_tarmoqlar));
@@ -245,7 +288,6 @@ router.post('/', async (req, res) => {
 
         const finalData = [summary, ...allPages];
 
-        // 4. Bazaga saqlash
         await pool.query(
             `INSERT INTO source_data (source_id, data, row_count, updated_at)
        VALUES ($1, $2, $3, NOW())
@@ -275,12 +317,7 @@ router.post('/', async (req, res) => {
 
     } catch (e) {
         console.error('[SCRAPE] Error:', e.message);
-        // Xatoni o'zbekchalashtirish
-        let errMsg = e.message;
-        if (errMsg.includes('ENOTFOUND') || errMsg.includes('getaddrinfo')) errMsg = `Sayt topilmadi: "${normalizedUrl}" manzili mavjud emas yoki internet ulangan emas`;
-        else if (errMsg.includes('ECONNREFUSED')) errMsg = 'Sayt ulanishni rad etdi (Connection refused)';
-        else if (errMsg.includes('certificate') || errMsg.includes('SSL')) errMsg = 'Saytning SSL sertifikati bilan muammo bor';
-        res.status(500).json({ error: errMsg });
+        res.status(500).json({ error: e.message });
     }
 });
 
