@@ -130,6 +130,7 @@ const SOURCE_TYPES = {
   image: { id: "image", icon: "🖼️", label: "Rasm tahlili", color: "#EC4899", desc: "JPG, PNG rasmlar — AI tavsiflaydi" },
   onec: { id: "onec", icon: "🏦", label: "1C Buxgalteriya", color: "#FF6B35", desc: "1C:Enterprise OData API" },
   yandex: { id: "yandex", icon: "📈", label: "Yandex Metrika", color: "#FC3F1D", desc: "Sayt traffigi va statistikasi" },
+  website: { id: "website", icon: "🌐", label: "Veb-sayt tahlili", color: "#00C9BE", desc: "Sayt URL → kontakt, mahsulot, SEO, ijtimoiy tarmoqlar" },
   database: { id: "database", icon: "🗄️", label: "SQL Database", color: "#06B6D4", desc: "MySQL/PostgreSQL ulanish" },
   manual: { id: "manual", icon: "📝", label: "Qo'lda JSON", color: "#94A3B8", desc: "Bevosita JSON kiritish" },
 };
@@ -4436,6 +4437,40 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     setLoading(false);
   };
 
+  // ── Veb-sayt tahlil qilish ──
+  const handleWebsiteScrape = async (deepScan = false) => {
+    const url = (src.config?.siteUrl || "").trim();
+    if (!url) { push("Sayt URL manzilini kiriting", "warn"); return; }
+    setLoading(true);
+    push(`Sayt yuklanmoqda: ${url} ...`, "info");
+    try {
+      const token = Token.get();
+      const res = await fetch("/api/scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ url, sourceId: src.id, deepScan }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Nomalum xato");
+      push(`✓ ${json.pagesScanned} ta sahifa tahlil qilindi, ${json.rowCount} ta ma'lumot bazaga saqlandi`, "ok");
+      if (json.summary?.phones?.length) push(`Telefon: ${json.summary.phones.slice(0, 3).join(", ")}`, "info");
+      if (json.summary?.emails?.length) push(`Email: ${json.summary.emails.slice(0, 3).join(", ")}`, "info");
+      const soc = json.summary?.socials || {};
+      if (Object.keys(soc).length) push(`Ijtimoiy: ${Object.keys(soc).join(", ")}`, "info");
+      // Manbani yangilash — backenddan yangi data yuklash
+      const allSources = await SourcesAPI.getAll();
+      if (Array.isArray(allSources)) {
+        const fresh = allSources.find(s => s.id === src.id);
+        if (fresh) onUpdate({ ...src, ...fresh, connected: true, active: true });
+      }
+    } catch (e) {
+      let msg = e.message;
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) msg = "Serverga ulanib bo'lmadi. Internet yoki server tekshiring.";
+      push("Sayt xato: " + msg, "error");
+    }
+    setLoading(false);
+  };
+
   // ── Manba turaga qarab yangilash ──
   const handleRefreshData = async () => {
     if (src.type === "instagram") return handleInstagramFetch();
@@ -4445,6 +4480,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     if (src.type === "crm") return handleCrmFetch();
     if (src.type === "onec") return handle1CFetch();
     if (src.type === "yandex") return handleYandexFetch();
+    if (src.type === "website") return handleWebsiteScrape(false);
     push("Bu manba turini qo'lda yangilash kerak", "info");
   };
 
@@ -5074,6 +5110,77 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ══ WEBSITE TAHLILI ══ */}
+      {src.type === "website" && (
+        <div className="src-config">
+          <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "8px 10px", background: "rgba(0,201,190,0.06)", borderRadius: 6, border: "1px solid rgba(0,201,190,0.15)" }}>
+            🌐 Sayt URL ni kiriting — tizim avtomatik ravishda saytning barcha kontaktlari, mahsulot/xizmatlar, narxlar, ijtimoiy tarmoqlar va SEO ma'lumotlarini yig'ib bazaga saqlaydi.
+          </div>
+
+          <label className="field-label">Sayt URL manzili</label>
+          <input
+            className="field mb8"
+            placeholder="https://biznesingiz.uz"
+            value={src.config?.siteUrl || ""}
+            onChange={e => updateConfig("siteUrl", e.target.value)}
+          />
+
+          <div className="flex gap8 mb8" style={{ alignItems: "center" }}>
+            <input
+              type="checkbox"
+              id={"deepScan_" + src.id}
+              checked={!!src.config?.deepScan}
+              onChange={e => updateConfig("deepScan", e.target.checked)}
+              style={{ width: 14, height: 14 }}
+            />
+            <label htmlFor={"deepScan_" + src.id} style={{ fontSize: 11, color: "var(--muted)", cursor: "pointer" }}>
+              Chuqur skanerlash — ichki sahifalarni ham tahlil qilish (uzoqroq, lekin to'liqroq)
+            </label>
+          </div>
+
+          <div className="flex gap8">
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => handleWebsiteScrape(!!src.config?.deepScan)}
+              disabled={loading || !src.config?.siteUrl}
+            >
+              {loading ? "Tahlil qilinmoqda..." : "🌐 Saytni tahlil qilish"}
+            </button>
+            {src.connected && (
+              <button className="btn btn-sm" onClick={() => handleWebsiteScrape(!!src.config?.deepScan)} disabled={loading} style={{ opacity: 0.7 }}>
+                Yangilash
+              </button>
+            )}
+          </div>
+
+          {/* Natija ko'rinishi */}
+          {src.connected && src.data?.length > 0 && (() => {
+            const summary = src.data.find(d => d._type === "SAYT_STATISTIKA");
+            if (!summary) return null;
+            return (
+              <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid rgba(0,201,190,0.15)" }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: "#00C9BE", marginBottom: 8 }}>✓ Tahlil natijalari</div>
+                <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.8 }}>
+                  {summary.bosh_sahifa_sarlavhasi && <div><b>Sarlavha:</b> {summary.bosh_sahifa_sarlavhasi}</div>}
+                  {summary.meta_tavsif && <div><b>Tavsif:</b> {summary.meta_tavsif.substring(0, 100)}...</div>}
+                  <div><b>Tahlil qilingan:</b> {summary.tahlil_qilingan_sahifalar} ta sahifa</div>
+                  {summary.telefon_raqamlar?.length > 0 && <div><b>Telefon:</b> {summary.telefon_raqamlar.join(", ")}</div>}
+                  {summary.email_manzillar?.length > 0 && <div><b>Email:</b> {summary.email_manzillar.join(", ")}</div>}
+                  {Object.keys(summary.ijtimoiy_tarmoqlar || {}).length > 0 && (
+                    <div><b>Ijtimoiy:</b> {Object.entries(summary.ijtimoiy_tarmoqlar).map(([k, v]) => (
+                      <a key={k} href={v} target="_blank" rel="noreferrer" style={{ color: "var(--teal)", marginRight: 8 }}>{k}</a>
+                    ))}</div>
+                  )}
+                  {summary.narxlar_soni > 0 && <div><b>Narxlar:</b> {summary.narxlar_soni} ta ({summary.min_narx?.toLocaleString()} — {summary.max_narx?.toLocaleString()} so'm)</div>}
+                  {summary.asosiy_sarlavhalar?.length > 0 && <div><b>Bo'limlar:</b> {summary.asosiy_sarlavhalar.slice(0, 5).join(" · ")}</div>}
+                  <div style={{ color: "var(--muted)", marginTop: 4 }}>Yangilangan: {summary.oxirgi_tekshiruv}</div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
