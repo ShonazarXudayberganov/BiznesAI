@@ -13,7 +13,7 @@ import {
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
-const sanitize = (html) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b','i','code','span','br','div','table','tr','td','th','thead','tbody','a','strong','em','ul','ol','li','p','h1','h2','h3','hr'], ALLOWED_ATTR: ['style','class','href','target','title'] });
+const sanitize = (html) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b', 'i', 'code', 'span', 'br', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'a', 'strong', 'em', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'hr'], ALLOWED_ATTR: ['style', 'class', 'href', 'target', 'title'] });
 
 // ─────────────────────────────────────────────────────────────
 // SAAS PLANS — Tarif rejalari
@@ -510,19 +510,19 @@ ${JSON.stringify(teachers, null, 2)}`;
     }
 
     // Boshqa manbalar uchun (Excel, Sheets, API, Manual) — AQLLI FALLBACK
-    const techKeys = new Set(["id","_id","_type","_entity","source_id","webhook_url","created_at","updated_at","__v","_v"]);
+    const techKeys = new Set(["id", "_id", "_type", "_entity", "source_id", "webhook_url", "created_at", "updated_at", "__v", "_v"]);
     const allData = s.data || [];
     const cleanRow = (row) => { const c = {}; Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) c[k] = v; }); return c; };
-    
+
     // Sheet guruhlash
     const sheets = {};
     allData.forEach(row => { const sh = row._sheet || "default"; if (!sheets[sh]) sheets[sh] = []; sheets[sh].push(row); });
     const sheetNames = Object.keys(sheets);
-    
+
     let context = `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv`;
     if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(", ")}`;
     context += `):\n`;
-    
+
     // Ustunlar va statistika
     const sampleRow = allData[0] || {};
     const allKeys = Object.keys(sampleRow).filter(k => !techKeys.has(k) && !k.startsWith("_"));
@@ -537,7 +537,7 @@ ${JSON.stringify(teachers, null, 2)}`;
       const vals = allData.map(r => parseFloat(String(r[col] || "").replace(/[^0-9.-]/g, ""))).filter(v => !isNaN(v));
       if (vals.length > 0) {
         const sum = vals.reduce((a, b) => a + b, 0);
-        context += `  ${col}: jami=${Math.round(sum*100)/100}, o'rtacha=${Math.round(sum/vals.length*100)/100}, min=${Math.min(...vals)}, max=${Math.max(...vals)}, soni=${vals.length}\n`;
+        context += `  ${col}: jami=${Math.round(sum * 100) / 100}, o'rtacha=${Math.round(sum / vals.length * 100) / 100}, min=${Math.min(...vals)}, max=${Math.max(...vals)}, soni=${vals.length}\n`;
       }
     });
 
@@ -1508,36 +1508,36 @@ function LandingPage({ onLogin, onRegister }) {
   const I = (paths, c1, c2, id) => (
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs><linearGradient id={id} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-        <stop stopColor={c1}/><stop offset="1" stopColor={c2}/>
+        <stop stopColor={c1} /><stop offset="1" stopColor={c2} />
       </linearGradient></defs>
       {paths}
     </svg>
   );
   const feats = [
-    { ico: I(<><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" stroke={`url(#fi0)`} strokeWidth="1.8"/><path d="M9 14h6l2 8H7l2-8z" stroke={`url(#fi0)`} strokeWidth="1.8"/><circle cx="12" cy="6" r="1.5" fill={`url(#fi0)`}/></>, "#E8B84B","#D4A853","fi0"), title: "4 ta AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar. O'zbek tilida to'liq qo'llab-quvvatlanadi.", c: "var(--gold)" },
-    { ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8"/></>, "#00C9BE","#00A89E","fi1"), title: "12 ta Ma'lumot Manbasi", desc: "Excel, Google Sheets, REST API, Instagram, Telegram, CRM, PDF, Rasm, 1C Buxgalteriya, Yandex Metrika, SQL Database — barchasini ulang.", c: "var(--teal)" },
-    { ico: I(<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke={`url(#fi2)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></>, "#4ADE80","#22C55E","fi2"), title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge va boshqalar. AI avtomatik mos grafikni tanlaydi.", c: "var(--green)" },
-    { ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#fi3)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#fi3)`} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill={`url(#fi3)`}/></>, "#F87171","#EF4444","fi3"), title: "Anomaliya Aniqlash", desc: "Matematik va AI tahlil orqali g'ayrioddiy o'zgarishlarni avtomatik topadi. Siz so'ramasdan xabar beradi.", c: "var(--red)" },
-    { ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#fi4)`} strokeWidth="1.8"/><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#A78BFA","#7C3AED","fi4"), title: "Ovozli Kiritish", desc: "Mikrofon orqali savol bering — O'zbek va Rus tilida ishlaydi. Qo'l bilan yozish shart emas.", c: "var(--purple)" },
-    { ico: I(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round"/><polyline points="14 2 14 8 20 8" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="13" x2="16" y2="13" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round"/><line x1="8" y1="17" x2="13" y2="17" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round"/></>, "#F87171","#DC2626","fi5"), title: "Hujjat Tahlili", desc: "PDF, Word, TXT fayllarni yuklang — AI mazmunni o'qib, tahlil qiladi va javob beradi.", c: "#F87171" },
-    { ico: I(<><rect x="3" y="3" width="18" height="18" rx="3" stroke={`url(#fi6)`} strokeWidth="1.8"/><circle cx="8.5" cy="8.5" r="2" stroke={`url(#fi6)`} strokeWidth="1.5"/><path d="M21 15l-5-5L5 21" stroke={`url(#fi6)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></>, "#EC4899","#DB2777","fi6"), title: "Rasm Tahlili", desc: "Rasm yuklang — AI rasm tarkibini tavsiflaydi, diagrammalarni o'qiydi va ma'lumot ajratadi.", c: "#EC4899" },
-    { ico: I(<><path d="M4 4h16v16H4z" stroke={`url(#fi7)`} strokeWidth="0"/><rect x="3" y="3" width="18" height="18" rx="2" stroke={`url(#fi7)`} strokeWidth="1.8"/><path d="M8 12h8M8 8h8M8 16h5" stroke={`url(#fi7)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#60A5FA","#3B82F6","fi7"), title: "Avtomatik Hisobotlar", desc: "PDF, Excel, TXT formatida professional hisobotlar. 8 xil modul — bir tugma bilan tayyor.", c: "#60A5FA" },
-    { ico: I(<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></>, "#8B5CF6","#6D28D9","fi8"), title: "CRM Integratsiya", desc: "LC-UP CRM dan lidlar, guruhlar, o'quvchilar, o'qituvchilar ma'lumotlarini tortib, AI bilan tahlil qiling.", c: "#8B5CF6" },
+    { ico: I(<><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z" stroke={`url(#fi0)`} strokeWidth="1.8" /><path d="M9 14h6l2 8H7l2-8z" stroke={`url(#fi0)`} strokeWidth="1.8" /><circle cx="12" cy="6" r="1.5" fill={`url(#fi0)`} /></>, "#E8B84B", "#D4A853", "fi0"), title: "4 ta AI Provayder", desc: "Claude, ChatGPT, DeepSeek, Gemini — bitta joydan boshqaring. SSE streaming bilan real-vaqt javoblar. O'zbek tilida to'liq qo'llab-quvvatlanadi.", c: "var(--gold)" },
+    { ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8" /><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8" /><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8" /><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#fi1)`} strokeWidth="1.8" /></>, "#00C9BE", "#00A89E", "fi1"), title: "12 ta Ma'lumot Manbasi", desc: "Excel, Google Sheets, REST API, Instagram, Telegram, CRM, PDF, Rasm, 1C Buxgalteriya, Yandex Metrika, SQL Database — barchasini ulang.", c: "var(--teal)" },
+    { ico: I(<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke={`url(#fi2)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></>, "#4ADE80", "#22C55E", "fi2"), title: "9 xil Grafik Turi", desc: "Chiziq, ustun, doira, maydon, tarqoq, gauge va boshqalar. AI avtomatik mos grafikni tanlaydi.", c: "var(--green)" },
+    { ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#fi3)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#fi3)`} strokeWidth="2" strokeLinecap="round" /><circle cx="12" cy="16.5" r="1" fill={`url(#fi3)`} /></>, "#F87171", "#EF4444", "fi3"), title: "Anomaliya Aniqlash", desc: "Matematik va AI tahlil orqali g'ayrioddiy o'zgarishlarni avtomatik topadi. Siz so'ramasdan xabar beradi.", c: "var(--red)" },
+    { ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#fi4)`} strokeWidth="1.8" /><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#fi4)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#A78BFA", "#7C3AED", "fi4"), title: "Ovozli Kiritish", desc: "Mikrofon orqali savol bering — O'zbek va Rus tilida ishlaydi. Qo'l bilan yozish shart emas.", c: "var(--purple)" },
+    { ico: I(<><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round" /><polyline points="14 2 14 8 20 8" stroke={`url(#fi5)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="8" y1="13" x2="16" y2="13" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round" /><line x1="8" y1="17" x2="13" y2="17" stroke={`url(#fi5)`} strokeWidth="1.5" strokeLinecap="round" /></>, "#F87171", "#DC2626", "fi5"), title: "Hujjat Tahlili", desc: "PDF, Word, TXT fayllarni yuklang — AI mazmunni o'qib, tahlil qiladi va javob beradi.", c: "#F87171" },
+    { ico: I(<><rect x="3" y="3" width="18" height="18" rx="3" stroke={`url(#fi6)`} strokeWidth="1.8" /><circle cx="8.5" cy="8.5" r="2" stroke={`url(#fi6)`} strokeWidth="1.5" /><path d="M21 15l-5-5L5 21" stroke={`url(#fi6)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></>, "#EC4899", "#DB2777", "fi6"), title: "Rasm Tahlili", desc: "Rasm yuklang — AI rasm tarkibini tavsiflaydi, diagrammalarni o'qiydi va ma'lumot ajratadi.", c: "#EC4899" },
+    { ico: I(<><path d="M4 4h16v16H4z" stroke={`url(#fi7)`} strokeWidth="0" /><rect x="3" y="3" width="18" height="18" rx="2" stroke={`url(#fi7)`} strokeWidth="1.8" /><path d="M8 12h8M8 8h8M8 16h5" stroke={`url(#fi7)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#60A5FA", "#3B82F6", "fi7"), title: "Avtomatik Hisobotlar", desc: "PDF, Excel, TXT formatida professional hisobotlar. 8 xil modul — bir tugma bilan tayyor.", c: "#60A5FA" },
+    { ico: I(<><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><polyline points="9 22 9 12 15 12 15 22" stroke={`url(#fi8)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></>, "#8B5CF6", "#6D28D9", "fi8"), title: "CRM Integratsiya", desc: "LC-UP CRM dan lidlar, guruhlar, o'quvchilar, o'qituvchilar ma'lumotlarini tortib, AI bilan tahlil qiling.", c: "#8B5CF6" },
   ];
 
   const howItWorks = [
-    { step: "01", title: "Ma'lumot ulang", desc: "Data Hub da Excel, CRM, Instagram yoki boshqa manbani ulang. Drag & drop bilan fayl tashlang.", ico: I(<><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke={`url(#hw0)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#00C9BE","#00A89E","hw0"), c: "var(--teal)" },
-    { step: "02", title: "AI savol bering", desc: "Chat sahifasida savolingizni yozing yoki mikrofon bosib ayting. AI ma'lumotlaringiz asosida javob beradi.", ico: I(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={`url(#hw1)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#E8B84B","#D4A853","hw1"), c: "var(--gold)" },
-    { step: "03", title: "Natija oling", desc: "Grafiklar, hisobotlar, ogohlantirishlar — barchasi avtomatik. Bir tugma bilan PDF ga eksport qiling.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round"/></>, "#4ADE80","#22C55E","hw2"), c: "var(--green)" },
+    { step: "01", title: "Ma'lumot ulang", desc: "Data Hub da Excel, CRM, Instagram yoki boshqa manbani ulang. Drag & drop bilan fayl tashlang.", ico: I(<><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" stroke={`url(#hw0)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#00C9BE", "#00A89E", "hw0"), c: "var(--teal)" },
+    { step: "02", title: "AI savol bering", desc: "Chat sahifasida savolingizni yozing yoki mikrofon bosib ayting. AI ma'lumotlaringiz asosida javob beradi.", ico: I(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={`url(#hw1)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#E8B84B", "#D4A853", "hw1"), c: "var(--gold)" },
+    { step: "03", title: "Natija oling", desc: "Grafiklar, hisobotlar, ogohlantirishlar — barchasi avtomatik. Bir tugma bilan PDF ga eksport qiling.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#hw2)`} strokeWidth="2.5" strokeLinecap="round" /></>, "#4ADE80", "#22C55E", "hw2"), c: "var(--green)" },
   ];
 
   const whyCards = [
-    { title: "Vaqtingizni tejang", desc: "Soatlab Excel bilan o'tirib hisobot yozish o'rniga — AI 30 soniyada tayyor qiladi. Siz biznesga e'tibor bering, hisobotni AI ga qoldiring.", ico: I(<><circle cx="12" cy="12" r="10" stroke={`url(#wc0)`} strokeWidth="1.8"/><polyline points="12 6 12 12 16 14" stroke={`url(#wc0)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></>, "#E8B84B","#D4A853","wc0"), c: "#E8B84B" },
-    { title: "Raqamlarga asoslaning", desc: "Sezgi bilan emas, aniq raqamlar bilan qaror qabul qiling. Qayerda pul yo'qolayotganini, qayerda o'sayotganini real-vaqtda ko'ring.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round"/></>, "#4ADE80","#22C55E","wc1"), c: "#4ADE80" },
-    { title: "Muammolarni oldindan ko'ring", desc: "AI sizning ma'lumotlaringizda anomaliyalarni avtomatik topadi. Savdo tushayotganini siz bilmasdan — tizim ogohlantiradi.", ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#wc2)`} strokeWidth="1.8"/><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#wc2)`} strokeWidth="2" strokeLinecap="round"/><circle cx="12" cy="16.5" r="1" fill={`url(#wc2)`}/></>, "#F87171","#EF4444","wc2"), c: "#F87171" },
-    { title: "Barcha ma'lumot bir joyda", desc: "Excel, CRM, Instagram, Telegram — turli joylardagi ma'lumotlar bitta ekranda. Boshqa tab almashish, fayl qidirish yo'q.", ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8"/></>, "#00C9BE","#00A89E","wc3"), c: "#00C9BE" },
-    { title: "Xodimga to'lamang — AI qiladi", desc: "Tahlilchi yollash oyiga 5-10 mln so'm. BiznesAI bilan professional tahlilni 99 ming so'mdan oling. 50 barobar arzon.", ico: I(<><line x1="12" y1="1" x2="12" y2="23" stroke={`url(#wc4)`} strokeWidth="1.8"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={`url(#wc4)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#A78BFA","#7C3AED","wc4"), c: "#A78BFA" },
-    { title: "Ovozingiz bilan so'rang", desc: "Yozishga vaqt yo'qmi? Mikrofon bosing va savol bering. AI O'zbek tilida tushunadi va javob beradi. Mashina haydab ketayotganda ham ishlaydi.", ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#wc5)`} strokeWidth="1.8"/><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round"/></>, "#EC4899","#DB2777","wc5"), c: "#EC4899" },
+    { title: "Vaqtingizni tejang", desc: "Soatlab Excel bilan o'tirib hisobot yozish o'rniga — AI 30 soniyada tayyor qiladi. Siz biznesga e'tibor bering, hisobotni AI ga qoldiring.", ico: I(<><circle cx="12" cy="12" r="10" stroke={`url(#wc0)`} strokeWidth="1.8" /><polyline points="12 6 12 12 16 14" stroke={`url(#wc0)`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></>, "#E8B84B", "#D4A853", "wc0"), c: "#E8B84B" },
+    { title: "Raqamlarga asoslaning", desc: "Sezgi bilan emas, aniq raqamlar bilan qaror qabul qiling. Qayerda pul yo'qolayotganini, qayerda o'sayotganini real-vaqtda ko'ring.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /></>, "#4ADE80", "#22C55E", "wc1"), c: "#4ADE80" },
+    { title: "Muammolarni oldindan ko'ring", desc: "AI sizning ma'lumotlaringizda anomaliyalarni avtomatik topadi. Savdo tushayotganini siz bilmasdan — tizim ogohlantiradi.", ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#wc2)`} strokeWidth="1.8" /><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#wc2)`} strokeWidth="2" strokeLinecap="round" /><circle cx="12" cy="16.5" r="1" fill={`url(#wc2)`} /></>, "#F87171", "#EF4444", "wc2"), c: "#F87171" },
+    { title: "Barcha ma'lumot bir joyda", desc: "Excel, CRM, Instagram, Telegram — turli joylardagi ma'lumotlar bitta ekranda. Boshqa tab almashish, fayl qidirish yo'q.", ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /></>, "#00C9BE", "#00A89E", "wc3"), c: "#00C9BE" },
+    { title: "Xodimga to'lamang — AI qiladi", desc: "Tahlilchi yollash oyiga 5-10 mln so'm. BiznesAI bilan professional tahlilni 99 ming so'mdan oling. 50 barobar arzon.", ico: I(<><line x1="12" y1="1" x2="12" y2="23" stroke={`url(#wc4)`} strokeWidth="1.8" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={`url(#wc4)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#A78BFA", "#7C3AED", "wc4"), c: "#A78BFA" },
+    { title: "Ovozingiz bilan so'rang", desc: "Yozishga vaqt yo'qmi? Mikrofon bosing va savol bering. AI O'zbek tilida tushunadi va javob beradi. Mashina haydab ketayotganda ham ishlaydi.", ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#wc5)`} strokeWidth="1.8" /><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#EC4899", "#DB2777", "wc5"), c: "#EC4899" },
   ];
 
   const faqs = [
@@ -1561,10 +1561,10 @@ function LandingPage({ onLogin, onRegister }) {
       {/* NAV */}
       <nav className="land-nav">
         <div className="land-logo">BIZ<span>NES</span>AI</div>
-        <div className="flex gap8 aic" style={{flexWrap:"wrap"}}>
-          {[{l:"Xususiyatlar",id:"features"},{l:"Qanday ishlaydi",id:"howitworks"},{l:"Narxlar",id:"pricing"},{l:"FAQ",id:"faq"}].map(n=>(
-            <button key={n.id} onClick={()=>scrollTo(n.id)} style={{fontSize:13,color:"var(--text2)",background:"none",border:"none",fontFamily:"var(--fh)",fontWeight:500,padding:"6px 12px",cursor:"pointer",transition:"color .2s"}}
-              onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</button>
+        <div className="flex gap8 aic" style={{ flexWrap: "wrap" }}>
+          {[{ l: "Xususiyatlar", id: "features" }, { l: "Qanday ishlaydi", id: "howitworks" }, { l: "Narxlar", id: "pricing" }, { l: "FAQ", id: "faq" }].map(n => (
+            <button key={n.id} onClick={() => scrollTo(n.id)} style={{ fontSize: 13, color: "var(--text2)", background: "none", border: "none", fontFamily: "var(--fh)", fontWeight: 500, padding: "6px 12px", cursor: "pointer", transition: "color .2s" }}
+              onMouseEnter={e => e.target.style.color = "var(--teal)"} onMouseLeave={e => e.target.style.color = "var(--text2)"}>{n.l}</button>
           ))}
           <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
           <button className="btn btn-ghost btn-sm" onClick={onLogin}>Kirish</button>
@@ -1574,7 +1574,7 @@ function LandingPage({ onLogin, onRegister }) {
 
       {/* HERO */}
       <div className="land-hero">
-        <div className="hero-badge"><span style={{color:"var(--teal)"}}>&#9670;</span> Tizim doimiy yangilanib boradi — har hafta yangi imkoniyatlar</div>
+        <div className="hero-badge"><span style={{ color: "var(--teal)" }}>&#9670;</span> Tizim doimiy yangilanib boradi — har hafta yangi imkoniyatlar</div>
         <h1 className="hero-title">
           Biznesingizni<br />
           <span className="grad">Sun'iy Intellekt</span><br />
@@ -1585,14 +1585,14 @@ function LandingPage({ onLogin, onRegister }) {
           Savol bering — tahlil, grafik, hisobot tayyor. Hatto ovozingiz bilan so'rang.
         </p>
         <div className="hero-btns">
-          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{padding:"14px 36px",fontSize:15}}>
+          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{ padding: "14px 36px", fontSize: 15 }}>
             Bepul boshlang →
           </button>
-          <button className="btn btn-ghost btn-lg" onClick={onLogin} style={{padding:"14px 28px",fontSize:15}}>
+          <button className="btn btn-ghost btn-lg" onClick={onLogin} style={{ padding: "14px 28px", fontSize: 15 }}>
             Kirish
           </button>
         </div>
-        <div style={{marginTop:28,display:"flex",gap:20,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"var(--muted)",fontFamily:"var(--fm)"}}>
+        <div style={{ marginTop: 28, display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", fontSize: 12, color: "var(--muted)", fontFamily: "var(--fm)" }}>
           <span>✓ Kredit karta shart emas</span>
           <span>✓ 30 soniyada ro'yxatdan o'ting</span>
           <span>✓ 5 ta AI so'rov bepul</span>
@@ -1601,7 +1601,7 @@ function LandingPage({ onLogin, onRegister }) {
 
       {/* STATS */}
       <div className="land-stats">
-        {[{n:"4+",l:"AI Provayder"},{n:"12",l:"Ma'lumot manbasi"},{n:"9",l:"Grafik turi"},{n:"Voice",l:"Ovozli kiritish"},{n:"100%",l:"O'zbek tilida"}].map((s,i)=>(
+        {[{ n: "4+", l: "AI Provayder" }, { n: "12", l: "Ma'lumot manbasi" }, { n: "9", l: "Grafik turi" }, { n: "Voice", l: "Ovozli kiritish" }, { n: "100%", l: "O'zbek tilida" }].map((s, i) => (
           <div key={i} className="stat-block">
             <div className="stat-num">{s.n}</div>
             <div className="stat-lbl">{s.l}</div>
@@ -1613,23 +1613,23 @@ function LandingPage({ onLogin, onRegister }) {
       <div id="howitworks" className="land-section">
         <h2 className="land-section-title">Qanday ishlaydi?</h2>
         <p className="land-section-sub">3 ta oddiy qadamda biznes tahlilga ega bo'ling</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:24,maxWidth:960,margin:"0 auto"}}>
-          {howItWorks.map((h,i)=>(
-            <div key={i} style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:16,padding:"32px 28px",textAlign:"center",position:"relative",transition:"all .25s",cursor:"default"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=h.c+"50";e.currentTarget.style.transform="translateY(-4px)"}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="none"}}>
-              <div style={{position:"absolute",top:16,left:20,fontFamily:"var(--fh)",fontSize:42,fontWeight:900,color:h.c,opacity:0.08}}>{h.step}</div>
-              <div style={{marginBottom:16,width:48,height:48,borderRadius:14,background:`${h.c}12`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>{h.ico}</div>
-              <div style={{fontFamily:"var(--fh)",fontSize:17,fontWeight:700,marginBottom:8,color:h.c}}>{h.title}</div>
-              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.7}}>{h.desc}</div>
-              {i<2&&<div style={{position:"absolute",right:-16,top:"50%",fontSize:20,color:"var(--muted)",display:window.innerWidth>800?"block":"none"}}>→</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 24, maxWidth: 960, margin: "0 auto" }}>
+          {howItWorks.map((h, i) => (
+            <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: "32px 28px", textAlign: "center", position: "relative", transition: "all .25s", cursor: "default" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = h.c + "50"; e.currentTarget.style.transform = "translateY(-4px)" }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none" }}>
+              <div style={{ position: "absolute", top: 16, left: 20, fontFamily: "var(--fh)", fontSize: 42, fontWeight: 900, color: h.c, opacity: 0.08 }}>{h.step}</div>
+              <div style={{ marginBottom: 16, width: 48, height: 48, borderRadius: 14, background: `${h.c}12`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>{h.ico}</div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 17, fontWeight: 700, marginBottom: 8, color: h.c }}>{h.title}</div>
+              <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.7 }}>{h.desc}</div>
+              {i < 2 && <div style={{ position: "absolute", right: -16, top: "50%", fontSize: 20, color: "var(--muted)", display: window.innerWidth > 800 ? "block" : "none" }}>→</div>}
             </div>
           ))}
         </div>
       </div>
 
       {/* FEATURES */}
-      <div id="features" className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+      <div id="features" className="land-section" style={{ background: "var(--s1)", margin: 0, padding: "70px 48px" }}>
         <h2 className="land-section-title">Kuchli imkoniyatlar</h2>
         <p className="land-section-sub">Biznes tahlili uchun zarur bo'lgan barcha vositalar — bitta platformada</p>
         <div className="feat-grid">
@@ -1647,34 +1647,34 @@ function LandingPage({ onLogin, onRegister }) {
       <div className="land-section">
         <h2 className="land-section-title">Nega aynan BiznesAI?</h2>
         <p className="land-section-sub">Biznesingizni tushunish uchun soatlab vaqt sarflamang — AI buni soniyalarda qiladi</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:20,maxWidth:1100,margin:"0 auto"}}>
-          {whyCards.map((w,i)=>(
-            <div key={i} style={{padding:"28px 24px",borderRadius:16,border:"1px solid var(--border)",background:"var(--s1)",transition:"all .3s var(--ease)",cursor:"default",position:"relative",overflow:"hidden"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=w.c+"50";e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.boxShadow=`0 16px 40px ${w.c}15`}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-              <div style={{position:"absolute",top:0,left:0,right:0,height:"2px",background:`linear-gradient(90deg,transparent,${w.c}60,transparent)`,opacity:0.6}}/>
-              <div style={{width:52,height:52,borderRadius:14,background:`${w.c}10`,border:`1px solid ${w.c}20`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>{w.ico}</div>
-              <div style={{fontFamily:"var(--fh)",fontSize:17,fontWeight:700,marginBottom:8,color:w.c,letterSpacing:"-0.3px"}}>{w.title}</div>
-              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8}}>{w.desc}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 20, maxWidth: 1100, margin: "0 auto" }}>
+          {whyCards.map((w, i) => (
+            <div key={i} style={{ padding: "28px 24px", borderRadius: 16, border: "1px solid var(--border)", background: "var(--s1)", transition: "all .3s var(--ease)", cursor: "default", position: "relative", overflow: "hidden" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = w.c + "50"; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 16px 40px ${w.c}15` }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "2px", background: `linear-gradient(90deg,transparent,${w.c}60,transparent)`, opacity: 0.6 }} />
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: `${w.c}10`, border: `1px solid ${w.c}20`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>{w.ico}</div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 17, fontWeight: 700, marginBottom: 8, color: w.c, letterSpacing: "-0.3px" }}>{w.title}</div>
+              <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.8 }}>{w.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* TESTIMONIALS */}
-      <div className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+      <div className="land-section" style={{ background: "var(--s1)", margin: 0, padding: "70px 48px" }}>
         <h2 className="land-section-title">Foydalanuvchilar fikri</h2>
         <p className="land-section-sub">BiznesAI ishlatayotgan mutaxassislar nima deydi</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20,maxWidth:1000,margin:"0 auto"}}>
-          {testimonials.map((t,i)=>(
-            <div key={i} style={{padding:"28px",borderRadius:16,border:"1px solid var(--border)",background:"var(--bg)",position:"relative"}}>
-              <div style={{fontSize:40,color:"var(--gold)",opacity:0.12,position:"absolute",top:12,right:20,fontFamily:"Georgia,serif",fontWeight:700}}>&ldquo;</div>
-              <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8,marginBottom:20,fontStyle:"italic"}}>"{t.text}"</div>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{width:40,height:40,borderRadius:10,background:"linear-gradient(135deg,var(--gold),var(--teal))",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--fh)",fontWeight:800,fontSize:13,color:"#000"}}>{t.ava}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 20, maxWidth: 1000, margin: "0 auto" }}>
+          {testimonials.map((t, i) => (
+            <div key={i} style={{ padding: "28px", borderRadius: 16, border: "1px solid var(--border)", background: "var(--bg)", position: "relative" }}>
+              <div style={{ fontSize: 40, color: "var(--gold)", opacity: 0.12, position: "absolute", top: 12, right: 20, fontFamily: "Georgia,serif", fontWeight: 700 }}>&ldquo;</div>
+              <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.8, marginBottom: 20, fontStyle: "italic" }}>"{t.text}"</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "linear-gradient(135deg,var(--gold),var(--teal))", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fh)", fontWeight: 800, fontSize: 13, color: "#000" }}>{t.ava}</div>
                 <div>
-                  <div style={{fontFamily:"var(--fh)",fontSize:13,fontWeight:700}}>{t.name}</div>
-                  <div style={{fontSize:11,color:"var(--muted)"}}>{t.role}</div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700 }}>{t.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{t.role}</div>
                 </div>
               </div>
             </div>
@@ -1683,37 +1683,37 @@ function LandingPage({ onLogin, onRegister }) {
       </div>
 
       {/* PRICING */}
-      <div id="pricing" className="land-section" style={{padding:"70px 40px"}}>
+      <div id="pricing" className="land-section" style={{ padding: "70px 40px" }}>
         <h2 className="land-section-title">Qulay narxlar</h2>
         <p className="land-section-sub">Biznesingiz hajmiga mos tarif tanlang. Istalgan vaqtda yangilash mumkin.</p>
         <div className="billing-toggle">
           <div className="billing-pill">
-            <div className={`billing-opt ${billing==="monthly"?"active":""}`} onClick={()=>setBilling("monthly")}>Oylik</div>
-            <div className={`billing-opt ${billing==="yearly"?"active teal":""}`} onClick={()=>setBilling("yearly")}>Yillik</div>
+            <div className={`billing-opt ${billing === "monthly" ? "active" : ""}`} onClick={() => setBilling("monthly")}>Oylik</div>
+            <div className={`billing-opt ${billing === "yearly" ? "active teal" : ""}`} onClick={() => setBilling("yearly")}>Yillik</div>
           </div>
-          {billing==="yearly"&&<span className="billing-save">2 oy bepul!</span>}
+          {billing === "yearly" && <span className="billing-save">2 oy bepul!</span>}
         </div>
         <div className="pricing-grid">
-          {planList.map(plan=>(
-            <div key={plan.id} className={`plan-card ${plan.badge?"popular":""}`}>
-              {plan.badge&&<div className="plan-badge">{plan.badge}</div>}
-              <div className="plan-name" style={{color:plan.color}}>{plan.nameUz}</div>
-              <div className="plan-price" style={{color:plan.price_monthly===0?"var(--text)":plan.color}}>
-                {billing==="yearly"&&plan.price_yearly>0
-                  ?<>{Math.round(plan.price_yearly/12).toLocaleString("uz-UZ")}<span> so'm</span></>
-                  :plan.price_monthly===0?"Bepul":<>{plan.price_monthly.toLocaleString("uz-UZ")}<span> so'm</span></>}
+          {planList.map(plan => (
+            <div key={plan.id} className={`plan-card ${plan.badge ? "popular" : ""}`}>
+              {plan.badge && <div className="plan-badge">{plan.badge}</div>}
+              <div className="plan-name" style={{ color: plan.color }}>{plan.nameUz}</div>
+              <div className="plan-price" style={{ color: plan.price_monthly === 0 ? "var(--text)" : plan.color }}>
+                {billing === "yearly" && plan.price_yearly > 0
+                  ? <>{Math.round(plan.price_yearly / 12).toLocaleString("uz-UZ")}<span> so'm</span></>
+                  : plan.price_monthly === 0 ? "Bepul" : <>{plan.price_monthly.toLocaleString("uz-UZ")}<span> so'm</span></>}
               </div>
-              <div className="plan-period">{plan.price_monthly===0?"Doimo bepul":billing==="yearly"?"oyiga (yillik hisob)":"oyiga"}</div>
-              <div className="plan-divider"/>
-              {plan.features.map((f,i)=>(
+              <div className="plan-period">{plan.price_monthly === 0 ? "Doimo bepul" : billing === "yearly" ? "oyiga (yillik hisob)" : "oyiga"}</div>
+              <div className="plan-divider" />
+              {plan.features.map((f, i) => (
                 <div key={i} className="plan-feat">
-                  <span className="plan-feat-ico" style={{color:f.ok?"var(--green)":"var(--muted)"}}>{f.ok?"✓":"✗"}</span>
-                  <span style={{color:f.ok?"var(--text2)":"var(--muted)",fontSize:11}}>{f.t}</span>
+                  <span className="plan-feat-ico" style={{ color: f.ok ? "var(--green)" : "var(--muted)" }}>{f.ok ? "✓" : "✗"}</span>
+                  <span style={{ color: f.ok ? "var(--text2)" : "var(--muted)", fontSize: 11 }}>{f.t}</span>
                 </div>
               ))}
               <div className="plan-btn">
-                <button className="btn btn-primary" style={{width:"100%",background:plan.price_monthly===0?"var(--s3)":undefined,color:plan.price_monthly===0?"var(--text2)":undefined,boxShadow:plan.price_monthly===0?"none":undefined,border:plan.price_monthly===0?"1px solid var(--border)":"none"}}
-                  onClick={onRegister}>{plan.price_monthly===0?"Bepul boshlash":"Tanlash →"}</button>
+                <button className="btn btn-primary" style={{ width: "100%", background: plan.price_monthly === 0 ? "var(--s3)" : undefined, color: plan.price_monthly === 0 ? "var(--text2)" : undefined, boxShadow: plan.price_monthly === 0 ? "none" : undefined, border: plan.price_monthly === 0 ? "1px solid var(--border)" : "none" }}
+                  onClick={onRegister}>{plan.price_monthly === 0 ? "Bepul boshlash" : "Tanlash →"}</button>
               </div>
             </div>
           ))}
@@ -1721,20 +1721,20 @@ function LandingPage({ onLogin, onRegister }) {
       </div>
 
       {/* FAQ */}
-      <div id="faq" className="land-section" style={{background:"var(--s1)",margin:0,padding:"70px 48px"}}>
+      <div id="faq" className="land-section" style={{ background: "var(--s1)", margin: 0, padding: "70px 48px" }}>
         <h2 className="land-section-title">Ko'p so'raladigan savollar</h2>
         <p className="land-section-sub">Savolingiz bormi? Javoblar shu yerda</p>
-        <div style={{maxWidth:720,margin:"0 auto"}}>
-          {faqs.map((f,i)=>(
-            <div key={i} style={{borderBottom:"1px solid var(--border)",padding:"0"}}>
-              <div onClick={()=>setOpenFaq(openFaq===i?null:i)}
-                style={{padding:"20px 0",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",transition:"color .2s"}}
-                onMouseEnter={e=>e.currentTarget.style.color="var(--teal)"} onMouseLeave={e=>e.currentTarget.style.color="var(--text)"}>
-                <span style={{fontFamily:"var(--fh)",fontSize:14,fontWeight:600}}>{f.q}</span>
-                <span style={{fontSize:18,color:"var(--muted)",transition:"transform .3s",transform:openFaq===i?"rotate(45deg)":"none",flexShrink:0,marginLeft:16}}>+</span>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          {faqs.map((f, i) => (
+            <div key={i} style={{ borderBottom: "1px solid var(--border)", padding: "0" }}>
+              <div onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                style={{ padding: "20px 0", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", transition: "color .2s" }}
+                onMouseEnter={e => e.currentTarget.style.color = "var(--teal)"} onMouseLeave={e => e.currentTarget.style.color = "var(--text)"}>
+                <span style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600 }}>{f.q}</span>
+                <span style={{ fontSize: 18, color: "var(--muted)", transition: "transform .3s", transform: openFaq === i ? "rotate(45deg)" : "none", flexShrink: 0, marginLeft: 16 }}>+</span>
               </div>
-              {openFaq===i&&(
-                <div style={{padding:"0 0 20px",fontSize:13,color:"var(--text2)",lineHeight:1.8,animation:"fadeIn .3s ease"}}>{f.a}</div>
+              {openFaq === i && (
+                <div style={{ padding: "0 0 20px", fontSize: 13, color: "var(--text2)", lineHeight: 1.8, animation: "fadeIn .3s ease" }}>{f.a}</div>
               )}
             </div>
           ))}
@@ -1742,14 +1742,14 @@ function LandingPage({ onLogin, onRegister }) {
       </div>
 
       {/* CTA */}
-      <div className="land-section" style={{textAlign:"center",padding:"80px 48px"}}>
+      <div className="land-section" style={{ textAlign: "center", padding: "80px 48px" }}>
         <h2 className="land-section-title">Biznesingizni AI bilan boshqarishni boshlang</h2>
-        <p className="land-section-sub" style={{marginBottom:32}}>Ro'yxatdan o'tish 30 soniya — kredit karta shart emas</p>
-        <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap"}}>
-          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{padding:"16px 40px",fontSize:16}}>Bepul boshlash →</button>
-          <button className="btn btn-ghost btn-lg" onClick={()=>scrollTo("features")} style={{padding:"16px 32px",fontSize:16}}>Batafsil →</button>
+        <p className="land-section-sub" style={{ marginBottom: 32 }}>Ro'yxatdan o'tish 30 soniya — kredit karta shart emas</p>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+          <button className="btn btn-primary btn-lg" onClick={onRegister} style={{ padding: "16px 40px", fontSize: 16 }}>Bepul boshlash →</button>
+          <button className="btn btn-ghost btn-lg" onClick={() => scrollTo("features")} style={{ padding: "16px 32px", fontSize: 16 }}>Batafsil →</button>
         </div>
-        <div style={{marginTop:32,display:"flex",gap:32,justifyContent:"center",flexWrap:"wrap",fontSize:12,color:"var(--muted)"}}>
+        <div style={{ marginTop: 32, display: "flex", gap: 32, justifyContent: "center", flexWrap: "wrap", fontSize: 12, color: "var(--muted)" }}>
           <span>&#9670; 4 ta AI provayder</span>
           <span>&#9670; 12 ta manba turi</span>
           <span>&#9670; Ovozli kiritish</span>
@@ -1759,34 +1759,34 @@ function LandingPage({ onLogin, onRegister }) {
       </div>
 
       {/* FOOTER */}
-      <div style={{borderTop:"1px solid var(--border)",padding:"32px 48px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:32}}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "32px 48px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 32 }}>
         <div>
-          <div style={{fontFamily:"var(--fh)",fontWeight:800,fontSize:18,marginBottom:12}}>BIZ<span style={{color:"var(--gold)"}}>NES</span>AI</div>
-          <div style={{fontSize:12,color:"var(--muted)",lineHeight:1.7}}>O'zbekiston uchun AI-powered biznes tahlil platformasi. Barcha ma'lumotlaringizni bitta joyda tahlil qiling.</div>
+          <div style={{ fontFamily: "var(--fh)", fontWeight: 800, fontSize: 18, marginBottom: 12 }}>BIZ<span style={{ color: "var(--gold)" }}>NES</span>AI</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.7 }}>O'zbekiston uchun AI-powered biznes tahlil platformasi. Barcha ma'lumotlaringizni bitta joyda tahlil qiling.</div>
         </div>
         <div>
-          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Sahifalar</div>
-          {[{l:"Xususiyatlar",id:"features"},{l:"Narxlar",id:"pricing"},{l:"FAQ",id:"faq"},{l:"Qanday ishlaydi",id:"howitworks"}].map(n=>(
-            <div key={n.id} style={{fontSize:12,color:"var(--text2)",cursor:"pointer",padding:"4px 0",transition:"color .2s"}}
-              onClick={()=>scrollTo(n.id)} onMouseEnter={e=>e.target.style.color="var(--teal)"} onMouseLeave={e=>e.target.style.color="var(--text2)"}>{n.l}</div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>Sahifalar</div>
+          {[{ l: "Xususiyatlar", id: "features" }, { l: "Narxlar", id: "pricing" }, { l: "FAQ", id: "faq" }, { l: "Qanday ishlaydi", id: "howitworks" }].map(n => (
+            <div key={n.id} style={{ fontSize: 12, color: "var(--text2)", cursor: "pointer", padding: "4px 0", transition: "color .2s" }}
+              onClick={() => scrollTo(n.id)} onMouseEnter={e => e.target.style.color = "var(--teal)"} onMouseLeave={e => e.target.style.color = "var(--text2)"}>{n.l}</div>
           ))}
         </div>
         <div>
-          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Ma'lumot manbalari</div>
-          {["Excel/CSV","Google Sheets","Instagram","Telegram","CRM","PDF/Word","Rasmlar","1C Buxgalteriya","Yandex Metrika","SQL Database"].map(s=>(
-            <div key={s} style={{fontSize:11,color:"var(--text2)",padding:"3px 0"}}>{s}</div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>Ma'lumot manbalari</div>
+          {["Excel/CSV", "Google Sheets", "Instagram", "Telegram", "CRM", "PDF/Word", "Rasmlar", "1C Buxgalteriya", "Yandex Metrika", "SQL Database"].map(s => (
+            <div key={s} style={{ fontSize: 11, color: "var(--text2)", padding: "3px 0" }}>{s}</div>
           ))}
         </div>
         <div>
-          <div style={{fontFamily:"var(--fh)",fontSize:11,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:2,marginBottom:12}}>Aloqa</div>
-          <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.8}}>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>Aloqa</div>
+          <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.8 }}>
             <div>info@shonazar.uz</div>
             <div>Telegram: @biznesai_uz</div>
             <div>shonazar.uz</div>
           </div>
         </div>
       </div>
-      <div style={{borderTop:"1px solid var(--border)",padding:"16px 48px",textAlign:"center",fontSize:11,color:"var(--muted)"}}>
+      <div style={{ borderTop: "1px solid var(--border)", padding: "16px 48px", textAlign: "center", fontSize: 11, color: "var(--muted)" }}>
         © 2025-2026 BiznesAI. Barcha huquqlar himoyalangan. O'zbekistonda ishlab chiqilgan.
       </div>
     </div>
@@ -2013,7 +2013,7 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 
             <button className="btn btn-primary" style={{ width: "100%" }} onClick={pay}
               disabled={!card.num || card.num.replace(/\s/g, "").length < 16}>
-               {price.toLocaleString("uz-UZ")} so'm to'lash
+              {price.toLocaleString("uz-UZ")} so'm to'lash
             </button>
             <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: "var(--muted)" }}>
               256-bit SSL shifrlash · Xavfsiz to'lov
@@ -2029,7 +2029,7 @@ function PaymentModal({ plan, billing, user, onClose, onSuccess, push }) {
 // PROFILE & BILLING PAGE
 // ─────────────────────────────────────────────────────────────
 function ProfilePage({ user, onPlanChange, push, sources }) {
-  if (!user) return <div className="card" style={{textAlign:"center",padding:32}}>Foydalanuvchi topilmadi</div>;
+  if (!user) return <div className="card" style={{ textAlign: "center", padding: 32 }}>Foydalanuvchi topilmadi</div>;
   const [tab, setTab] = useState("profile");
   const [billing, setBilling] = useState("monthly");
   const [editName, setEditName] = useState(user.name || "");
@@ -2127,7 +2127,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
               </div>
               {user.plan === "free" && (
                 <button className="btn btn-primary btn-sm" style={{ marginTop: 14, width: "100%" }} onClick={() => setTab("billing")}>
-                   Yangilash
+                  Yangilash
                 </button>
               )}
             </div>
@@ -2150,7 +2150,7 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
                 <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>Boshqa qurilmadan kirgan bo'lsangiz, shu yerdan tugatishingiz mumkin.</div>
                 <button className="btn btn-ghost btn-sm" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.2)", fontSize: 10 }}
                   onClick={async () => {
-                    try { await AuthAPI.changePassword("", ""); } catch {}
+                    try { await AuthAPI.changePassword("", ""); } catch { }
                     // Serverda barcha sessiyalarni tugatish
                     try {
                       const headers = { 'Content-Type': 'application/json' };
@@ -2522,39 +2522,39 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 
       {/* ── Yangi foydalanuvchi qo'shish modali ── */}
       {showAddUser && (
-        <div style={{position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,0.6)",backdropFilter:"blur(8px)"}}>
-          <div style={{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:20,padding:"32px",width:"100%",maxWidth:480,position:"relative",animation:"fadeIn .2s ease"}}>
-            <button onClick={()=>{setShowAddUser(false);setAddUserError("");}} style={{position:"absolute",top:16,right:16,background:"none",border:"none",color:"var(--muted)",fontSize:18,cursor:"pointer"}}>✕</button>
-            <div style={{fontFamily:"var(--fh)",fontSize:18,fontWeight:800,marginBottom:4}}>Yangi foydalanuvchi</div>
-            <div style={{fontSize:12,color:"var(--muted)",marginBottom:20}}>Ma'lumotlarni to'ldiring va tarifni tanlang</div>
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}>
+          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 20, padding: "32px", width: "100%", maxWidth: 480, position: "relative", animation: "fadeIn .2s ease" }}>
+            <button onClick={() => { setShowAddUser(false); setAddUserError(""); }} style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "var(--muted)", fontSize: 18, cursor: "pointer" }}>✕</button>
+            <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Yangi foydalanuvchi</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>Ma'lumotlarni to'ldiring va tarifni tanlang</div>
 
-            {addUserError&&<div style={{padding:"10px 14px",borderRadius:10,background:"rgba(248,113,113,0.1)",border:"1px solid rgba(248,113,113,0.2)",color:"#F87171",fontSize:12,marginBottom:14}}>{addUserError}</div>}
+            {addUserError && <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171", fontSize: 12, marginBottom: 14 }}>{addUserError}</div>}
 
-            <div style={{display:"grid",gap:14}}>
+            <div style={{ display: "grid", gap: 14 }}>
               <div>
-                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Ism *</label>
-                <input className="field" placeholder="Ism Familiya" value={newUser.name} onChange={e=>setNewUser(p=>({...p,name:e.target.value}))} />
+                <label style={{ display: "block", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>Ism *</label>
+                <input className="field" placeholder="Ism Familiya" value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} />
               </div>
               <div>
-                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Email *</label>
-                <input className="field" type="email" placeholder="email@example.com" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} />
+                <label style={{ display: "block", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>Email *</label>
+                <input className="field" type="email" placeholder="email@example.com" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} />
               </div>
               <div>
-                <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Parol *</label>
-                <input className="field" type="text" placeholder="Kamida 6 ta belgi" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} />
+                <label style={{ display: "block", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>Parol *</label>
+                <input className="field" type="text" placeholder="Kamida 6 ta belgi" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} />
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
-                  <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Tarif</label>
-                  <select className="field" value={newUser.plan} onChange={e=>setNewUser(p=>({...p,plan:e.target.value}))}>
-                    {Object.values(PLANS).map(p=>(
-                      <option key={p.id} value={p.id}>{p.nameUz} — {p.price_monthly===0?"Bepul":p.price_monthly.toLocaleString()+" so'm/oy"}</option>
+                  <label style={{ display: "block", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>Tarif</label>
+                  <select className="field" value={newUser.plan} onChange={e => setNewUser(p => ({ ...p, plan: e.target.value }))}>
+                    {Object.values(PLANS).map(p => (
+                      <option key={p.id} value={p.id}>{p.nameUz} — {p.price_monthly === 0 ? "Bepul" : p.price_monthly.toLocaleString() + " so'm/oy"}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label style={{display:"block",fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Rol</label>
-                  <select className="field" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))}>
+                  <label style={{ display: "block", fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 4 }}>Rol</label>
+                  <select className="field" value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}>
                     <option value="user">Foydalanuvchi</option>
                     <option value="admin">Admin</option>
                   </select>
@@ -2563,20 +2563,20 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
             </div>
 
             {/* Tanlangan tarif limiti */}
-            <div style={{marginTop:16,padding:"12px 14px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)"}}>
-              <div style={{fontSize:9,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Tarif limiti: {PLANS[newUser.plan]?.nameUz}</div>
-              <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:11,color:"var(--text2)"}}>
-                <span>AI: <strong style={{color:PLANS[newUser.plan]?.color}}>{PLANS[newUser.plan]?.limits.ai_requests===-1?"Cheksiz":PLANS[newUser.plan]?.limits.ai_requests}</strong>/oy</span>
-                <span>Fayllar: <strong>{PLANS[newUser.plan]?.limits.files===-1?"Cheksiz":PLANS[newUser.plan]?.limits.files}</strong></span>
-                <span>Konnektorlar: <strong>{PLANS[newUser.plan]?.limits.connectors===-1?"Cheksiz":PLANS[newUser.plan]?.limits.connectors}</strong></span>
-                <span>Hisobotlar: <strong>{PLANS[newUser.plan]?.limits.reports===-1?"Cheksiz":PLANS[newUser.plan]?.limits.reports}</strong></span>
+            <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)" }}>
+              <div style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>Tarif limiti: {PLANS[newUser.plan]?.nameUz}</div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 11, color: "var(--text2)" }}>
+                <span>AI: <strong style={{ color: PLANS[newUser.plan]?.color }}>{PLANS[newUser.plan]?.limits.ai_requests === -1 ? "Cheksiz" : PLANS[newUser.plan]?.limits.ai_requests}</strong>/oy</span>
+                <span>Fayllar: <strong>{PLANS[newUser.plan]?.limits.files === -1 ? "Cheksiz" : PLANS[newUser.plan]?.limits.files}</strong></span>
+                <span>Konnektorlar: <strong>{PLANS[newUser.plan]?.limits.connectors === -1 ? "Cheksiz" : PLANS[newUser.plan]?.limits.connectors}</strong></span>
+                <span>Hisobotlar: <strong>{PLANS[newUser.plan]?.limits.reports === -1 ? "Cheksiz" : PLANS[newUser.plan]?.limits.reports}</strong></span>
               </div>
             </div>
 
-            <div style={{display:"flex",gap:10,marginTop:20}}>
-              <button className="btn btn-ghost" style={{flex:1}} onClick={()=>{setShowAddUser(false);setAddUserError("");}}>Bekor qilish</button>
-              <button className="btn btn-primary" style={{flex:1}} onClick={handleAddUser} disabled={addUserLoading}>
-                {addUserLoading?"Qo'shilmoqda...":"Foydalanuvchi qo'shish"}
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setShowAddUser(false); setAddUserError(""); }}>Bekor qilish</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAddUser} disabled={addUserLoading}>
+                {addUserLoading ? "Qo'shilmoqda..." : "Foydalanuvchi qo'shish"}
               </button>
             </div>
           </div>
@@ -2591,8 +2591,8 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
           </div>
           <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>{currentUser.email} · {new Date().toLocaleString("uz-UZ")}</div>
         </div>
-        <div className="flex gap8" style={{flexWrap:"wrap"}}>
-          <button className="btn btn-primary btn-sm" onClick={()=>setShowAddUser(true)}>+ Yangi foydalanuvchi</button>
+        <div className="flex gap8" style={{ flexWrap: "wrap" }}>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddUser(true)}>+ Yangi foydalanuvchi</button>
           <button className="btn btn-ghost btn-sm" onClick={refresh}>↻ Yangilash</button>
           <button className="btn btn-ghost btn-sm" onClick={exportCSV}>↓ Foydalanuvchilar CSV</button>
           <button className="btn btn-ghost btn-sm" onClick={exportPaymentCSV}>↓ To'lovlar CSV</button>
@@ -3205,190 +3205,190 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
       {/* ═══ USER DETAIL MODAL ═══ */}
       {selectedUser && (() => {
         try {
-        const u = users.find(uu => uu.id === selectedUser.id) || selectedUser;
-        const plan = PLANS[u?.plan] || PLANS.free;
-        const uRevenue = u.totalPaid || 0;
-        const curM = new Date().toISOString().slice(0, 7);
-        const aiUsed = u.ai_requests_month === curM ? (u.ai_requests_used || 0) : 0;
-        // Foydalanuvchi manbalar — API dan kelgan sourceCount/totalRows
-        const uSourceCount = u.sourceCount || 0;
-        const uTotalRows = u.totalRows || 0;
-        const daysSinceReg = u.created ? Math.floor((Date.now() - new Date(u.created).getTime()) / 86400000) : 0;
-        const isActive = u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 7 * 86400000;
+          const u = users.find(uu => uu.id === selectedUser.id) || selectedUser;
+          const plan = PLANS[u?.plan] || PLANS.free;
+          const uRevenue = u.totalPaid || 0;
+          const curM = new Date().toISOString().slice(0, 7);
+          const aiUsed = u.ai_requests_month === curM ? (u.ai_requests_used || 0) : 0;
+          // Foydalanuvchi manbalar — API dan kelgan sourceCount/totalRows
+          const uSourceCount = u.sourceCount || 0;
+          const uTotalRows = u.totalRows || 0;
+          const daysSinceReg = u.created ? Math.floor((Date.now() - new Date(u.created).getTime()) / 86400000) : 0;
+          const isActive = u.lastLogin && (Date.now() - new Date(u.lastLogin).getTime()) < 7 * 86400000;
 
-        return (
-          <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setSelectedUser(null)}>
-            <div className="modal-box" style={{ maxWidth: 640, maxHeight: "92vh" }}>
-              <button className="modal-close" onClick={() => setSelectedUser(null)}>✕</button>
+          return (
+            <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setSelectedUser(null)}>
+              <div className="modal-box" style={{ maxWidth: 640, maxHeight: "92vh" }}>
+                <button className="modal-close" onClick={() => setSelectedUser(null)}>✕</button>
 
-              {/* User header */}
-              <div style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: plan.color + "20", border: `2px solid ${plan.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fh)", fontSize: 24, fontWeight: 800, color: plan.color, flexShrink: 0 }}>
-                  {u.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="f1">
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800 }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{u.email}</div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                    <span className="badge" style={{ borderColor: plan.color + "40", color: plan.color, background: plan.color + "12", border: "1px solid" }}>{plan.nameUz}</span>
-                    {u.status === "blocked" ? <span className="badge b-red">Bloklangan</span> : isActive ? <span className="badge b-ok">Faol</span> : <span className="badge b-no">Nofaol</span>}
-                    {u.role === "admin" && <span className="badge b-warn">Admin</span>}
-                    <span style={{ fontSize: 9, color: "var(--muted)", alignSelf: "center", fontFamily: "var(--fm)" }}>{daysSinceReg} kun a'zo</span>
+                {/* User header */}
+                <div style={{ display: "flex", gap: 14, marginBottom: 16, alignItems: "center" }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 16, background: plan.color + "20", border: `2px solid ${plan.color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fh)", fontSize: 24, fontWeight: 800, color: plan.color, flexShrink: 0 }}>
+                    {u.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="f1">
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800 }}>{u.name}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{u.email}</div>
+                    <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      <span className="badge" style={{ borderColor: plan.color + "40", color: plan.color, background: plan.color + "12", border: "1px solid" }}>{plan.nameUz}</span>
+                      {u.status === "blocked" ? <span className="badge b-red">Bloklangan</span> : isActive ? <span className="badge b-ok">Faol</span> : <span className="badge b-no">Nofaol</span>}
+                      {u.role === "admin" && <span className="badge b-warn">Admin</span>}
+                      <span style={{ fontSize: 9, color: "var(--muted)", alignSelf: "center", fontFamily: "var(--fm)" }}>{daysSinceReg} kun a'zo</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Modal tabs */}
-              <div className="flex gap5 mb14" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
-                {[
-                  { id: "info", l: " Ma'lumotlar" },
-                  { id: "data", l: ` Manbalar (${uSourceCount})` },
-                  { id: "payments", l: ` To'lovlar (${uRevenue > 0 ? "✓" : "0"})` },
-                ].map(t => (
-                  <button key={t.id} className="qcat" onClick={() => setUserTab(t.id)}
-                    style={userTab === t.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.1)", padding: "5px 12px", fontSize: 10 } : { padding: "5px 12px", fontSize: 10 }}>
-                    {t.l}
-                  </button>
-                ))}
-              </div>
-
-              {/* ── INFO TAB ── */}
-              {userTab === "info" && (<div>
-                {/* Stats grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                {/* Modal tabs */}
+                <div className="flex gap5 mb14" style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10 }}>
                   {[
-                    { l: "Ro'yxat sanasi", v: new Date(u.created || Date.now()).toLocaleDateString("uz-UZ"), c: "var(--text2)" },
-                    { l: "Oxirgi kirish", v: u.lastLogin ? new Date(u.lastLogin).toLocaleDateString("uz-UZ") : "Hech qachon", c: isActive ? "var(--green)" : "var(--muted)" },
-                    { l: "AI so'rovlar", v: `${aiUsed} / ${plan.limits.ai_requests === -1 ? "∞" : plan.limits.ai_requests}`, c: plan.limits.ai_requests > 0 && aiUsed / plan.limits.ai_requests > 0.8 ? "var(--red)" : "var(--text2)" },
-                    { l: "Manbalar", v: uSourceCount + " ta", c: "var(--green)" },
-                    { l: "Yozuvlar", v: uTotalRows.toLocaleString(), c: "var(--teal)" },
-                    { l: "Jami to'lov", v: uRevenue > 0 ? uRevenue.toLocaleString("uz-UZ") + " so'm" : "0", c: "var(--gold)" },
-                  ].map((r, i) => (
-                    <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 8.5, color: "var(--muted)", fontFamily: "var(--fh)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{r.l}</div>
-                      <div style={{ fontSize: 13, fontFamily: "var(--fm)", color: r.c, fontWeight: 600 }}>{r.v}</div>
-                    </div>
+                    { id: "info", l: " Ma'lumotlar" },
+                    { id: "data", l: ` Manbalar (${uSourceCount})` },
+                    { id: "payments", l: ` To'lovlar (${uRevenue > 0 ? "✓" : "0"})` },
+                  ].map(t => (
+                    <button key={t.id} className="qcat" onClick={() => setUserTab(t.id)}
+                      style={userTab === t.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.1)", padding: "5px 12px", fontSize: 10 } : { padding: "5px 12px", fontSize: 10 }}>
+                      {t.l}
+                    </button>
                   ))}
                 </div>
 
-                {/* AI usage bar */}
-                {plan.limits.ai_requests > 0 && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div className="flex jb mb6">
-                      <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)" }}>AI SO'ROV LIMITI</span>
-                      <span style={{ fontSize: 10, color: "var(--text2)", fontFamily: "var(--fm)" }}>{aiUsed}/{plan.limits.ai_requests}</span>
-                    </div>
-                    <div className="usage-bar-wrap">
-                      <div className="usage-bar" style={{ width: `${Math.min(100, Math.round(aiUsed / plan.limits.ai_requests * 100))}%`, background: aiUsed / plan.limits.ai_requests > 0.8 ? "var(--red)" : "var(--gold)" }} />
-                    </div>
+                {/* ── INFO TAB ── */}
+                {userTab === "info" && (<div>
+                  {/* Stats grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                    {[
+                      { l: "Ro'yxat sanasi", v: new Date(u.created || Date.now()).toLocaleDateString("uz-UZ"), c: "var(--text2)" },
+                      { l: "Oxirgi kirish", v: u.lastLogin ? new Date(u.lastLogin).toLocaleDateString("uz-UZ") : "Hech qachon", c: isActive ? "var(--green)" : "var(--muted)" },
+                      { l: "AI so'rovlar", v: `${aiUsed} / ${plan.limits.ai_requests === -1 ? "∞" : plan.limits.ai_requests}`, c: plan.limits.ai_requests > 0 && aiUsed / plan.limits.ai_requests > 0.8 ? "var(--red)" : "var(--text2)" },
+                      { l: "Manbalar", v: uSourceCount + " ta", c: "var(--green)" },
+                      { l: "Yozuvlar", v: uTotalRows.toLocaleString(), c: "var(--teal)" },
+                      { l: "Jami to'lov", v: uRevenue > 0 ? uRevenue.toLocaleString("uz-UZ") + " so'm" : "0", c: "var(--gold)" },
+                    ].map((r, i) => (
+                      <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 8.5, color: "var(--muted)", fontFamily: "var(--fh)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{r.l}</div>
+                        <div style={{ fontSize: 13, fontFamily: "var(--fm)", color: r.c, fontWeight: 600 }}>{r.v}</div>
+                      </div>
+                    ))}
                   </div>
-                )}
 
-                {/* Manbalar xulosa */}
-                {uSourceCount > 0 && (
-                  <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Ulangan Manbalar</div>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--s2)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 10 }}>
-                        <span></span>
-                        <span style={{ fontWeight: 600 }}>{uSourceCount} ta manba</span>
-                        <span className="badge b-ok" style={{ fontSize: 7 }}>{uTotalRows} yozuv</span>
+                  {/* AI usage bar */}
+                  {plan.limits.ai_requests > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div className="flex jb mb6">
+                        <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)" }}>AI SO'ROV LIMITI</span>
+                        <span style={{ fontSize: 10, color: "var(--text2)", fontFamily: "var(--fm)" }}>{aiUsed}/{plan.limits.ai_requests}</span>
+                      </div>
+                      <div className="usage-bar-wrap">
+                        <div className="usage-bar" style={{ width: `${Math.min(100, Math.round(aiUsed / plan.limits.ai_requests * 100))}%`, background: aiUsed / plan.limits.ai_requests > 0.8 ? "var(--red)" : "var(--gold)" }} />
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Change plan */}
-                {u.id !== currentUser.id && (
-                  <>
-                    <div className="divider" />
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Tarifni o'zgartirish</div>
-                    <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 16 }}>
-                      {Object.values(PLANS).map(p => (
-                        <button key={p.id} className="btn btn-ghost btn-xs"
-                          style={u.plan === p.id ? { borderColor: p.color, color: p.color, background: p.color + "10" } : {}}
-                          onClick={() => changePlan(u.id, p.id)}>
-                          {u.plan === p.id ? "✓ " : ""}{p.nameUz}
+                  {/* Manbalar xulosa */}
+                  {uSourceCount > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Ulangan Manbalar</div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--s2)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 10 }}>
+                          <span></span>
+                          <span style={{ fontWeight: 600 }}>{uSourceCount} ta manba</span>
+                          <span className="badge b-ok" style={{ fontSize: 7 }}>{uTotalRows} yozuv</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Change plan */}
+                  {u.id !== currentUser.id && (
+                    <>
+                      <div className="divider" />
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 10 }}>Tarifni o'zgartirish</div>
+                      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 16 }}>
+                        {Object.values(PLANS).map(p => (
+                          <button key={p.id} className="btn btn-ghost btn-xs"
+                            style={u.plan === p.id ? { borderColor: p.color, color: p.color, background: p.color + "10" } : {}}
+                            onClick={() => changePlan(u.id, p.id)}>
+                            {u.plan === p.id ? "✓ " : ""}{p.nameUz}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Actions */}
+                  {u.id !== currentUser.id && u.role !== "admin" && (
+                    <>
+                      <div className="divider" />
+                      <div className="flex gap8">
+                        <button className={`btn btn-sm ${u.status === "blocked" ? "btn-teal" : "btn-danger"}`}
+                          onClick={() => { blockUser(u.id, u.status !== "blocked"); setSelectedUser(null); }}>
+                          {u.status === "blocked" ? "✓ Blokdan chiqarish" : "✗ Bloklash"}
                         </button>
-                      ))}
+                        <button className="btn btn-danger btn-sm ml-auto"
+                          onClick={() => { setSelectedUser(null); setConfirmDelete(u); }}>
+                          O'chirish
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>)}
+
+                {/* ── DATA TAB — Foydalanuvchi biznes ma'lumotlari ── */}
+                {userTab === "data" && (<div>
+                  {uSourceCount === 0 && (
+                    <div style={{ textAlign: "center", padding: 32 }}>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}></div>
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Ma'lumot manbasi yo'q</div>
+                      <div className="text-muted text-sm">Bu foydalanuvchi hali hech qanday manba ulamagan</div>
                     </div>
-                  </>
-                )}
-
-                {/* Actions */}
-                {u.id !== currentUser.id && u.role !== "admin" && (
-                  <>
-                    <div className="divider" />
-                    <div className="flex gap8">
-                      <button className={`btn btn-sm ${u.status === "blocked" ? "btn-teal" : "btn-danger"}`}
-                        onClick={() => { blockUser(u.id, u.status !== "blocked"); setSelectedUser(null); }}>
-                        {u.status === "blocked" ? "✓ Blokdan chiqarish" : "✗ Bloklash"}
-                      </button>
-                      <button className="btn btn-danger btn-sm ml-auto"
-                        onClick={() => { setSelectedUser(null); setConfirmDelete(u); }}>
-                         O'chirish
-                      </button>
+                  )}
+                  {uSourceCount > 0 && (
+                    <div style={{ textAlign: "center", padding: 20 }}>
+                      <div style={{ fontSize: 24, marginBottom: 8 }}></div>
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{uSourceCount} ta manba</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>Jami {uTotalRows.toLocaleString()} ta yozuv</div>
                     </div>
-                  </>
-                )}
-              </div>)}
+                  )}
+                </div>)}
 
-              {/* ── DATA TAB — Foydalanuvchi biznes ma'lumotlari ── */}
-              {userTab === "data" && (<div>
-                {uSourceCount === 0 && (
-                  <div style={{ textAlign: "center", padding: 32 }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}></div>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Ma'lumot manbasi yo'q</div>
-                    <div className="text-muted text-sm">Bu foydalanuvchi hali hech qanday manba ulamagan</div>
+                {/* ── PAYMENTS TAB ── */}
+                {userTab === "payments" && (<div>
+                  {/* Payment stats */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                    {[
+                      { l: "Jami to'lov", v: uRevenue > 0 ? uRevenue.toLocaleString("uz-UZ") + " so'm" : "0", c: "var(--gold)" },
+                      { l: "Holat", v: uRevenue > 0 ? "To'langan" : "To'lov yo'q", c: "var(--teal)" },
+                      { l: "Tarif", v: plan.nameUz, c: "var(--purple)" },
+                    ].map((r, i) => (
+                      <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ fontSize: 8.5, color: "var(--muted)", fontFamily: "var(--fh)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{r.l}</div>
+                        <div style={{ fontSize: 14, fontFamily: "var(--fm)", color: r.c, fontWeight: 700 }}>{r.v}</div>
+                      </div>
+                    ))}
                   </div>
-                )}
-                {uSourceCount > 0 && (
-                  <div style={{ textAlign: "center", padding: 20 }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}></div>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{uSourceCount} ta manba</div>
-                    <div style={{ fontSize: 12, color: "var(--muted)" }}>Jami {uTotalRows.toLocaleString()} ta yozuv</div>
-                  </div>
-                )}
-              </div>)}
 
-              {/* ── PAYMENTS TAB ── */}
-              {userTab === "payments" && (<div>
-                {/* Payment stats */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-                  {[
-                    { l: "Jami to'lov", v: uRevenue > 0 ? uRevenue.toLocaleString("uz-UZ") + " so'm" : "0", c: "var(--gold)" },
-                    { l: "Holat", v: uRevenue > 0 ? "To'langan" : "To'lov yo'q", c: "var(--teal)" },
-                    { l: "Tarif", v: plan.nameUz, c: "var(--purple)" },
-                  ].map((r, i) => (
-                    <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ fontSize: 8.5, color: "var(--muted)", fontFamily: "var(--fh)", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{r.l}</div>
-                      <div style={{ fontSize: 14, fontFamily: "var(--fm)", color: r.c, fontWeight: 700 }}>{r.v}</div>
+                  {uRevenue === 0 && (
+                    <div style={{ textAlign: "center", padding: 32 }}>
+                      <div style={{ fontSize: 32, marginBottom: 10 }}></div>
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>To'lov yo'q</div>
+                      <div className="text-muted text-sm">Bu foydalanuvchi hali to'lov qilmagan</div>
                     </div>
-                  ))}
-                </div>
+                  )}
 
-                {uRevenue === 0 && (
-                  <div style={{ textAlign: "center", padding: 32 }}>
-                    <div style={{ fontSize: 32, marginBottom: 10 }}></div>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>To'lov yo'q</div>
-                    <div className="text-muted text-sm">Bu foydalanuvchi hali to'lov qilmagan</div>
-                  </div>
-                )}
-
-                {uRevenue > 0 && (
-                  <div style={{ textAlign: "center", padding: 20 }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}></div>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--gold)" }}>{uRevenue.toLocaleString("uz-UZ")} so'm</div>
-                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Jami to'lov miqdori</div>
-                  </div>
-                )}
-              </div>)}
+                  {uRevenue > 0 && (
+                    <div style={{ textAlign: "center", padding: 20 }}>
+                      <div style={{ fontSize: 24, marginBottom: 8 }}></div>
+                      <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--gold)" }}>{uRevenue.toLocaleString("uz-UZ")} so'm</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>Jami to'lov miqdori</div>
+                    </div>
+                  )}
+                </div>)}
+              </div>
             </div>
-          </div>
-        );
-        } catch(e) {
+          );
+        } catch (e) {
           console.error("[AdminPanel] User modal error:", e);
-          return <div className="modal-overlay" onClick={() => setSelectedUser(null)}><div className="modal-box" style={{textAlign:"center",padding:32}}><div style={{color:"var(--red)",marginBottom:12}}>Xato yuz berdi</div><button className="btn btn-ghost" onClick={() => setSelectedUser(null)}>Yopish</button></div></div>;
+          return <div className="modal-overlay" onClick={() => setSelectedUser(null)}><div className="modal-box" style={{ textAlign: "center", padding: 32 }}><div style={{ color: "var(--red)", marginBottom: 12 }}>Xato yuz berdi</div><button className="btn btn-ghost" onClick={() => setSelectedUser(null)}>Yopish</button></div></div>;
         }
       })()}
     </div>
@@ -3465,16 +3465,16 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
       const res = await fetch(exportUrl);
       if (!res.ok) throw new Error("Sheet ochiq (public) emas yoki URL noto'g'ri. Share → Anyone with link → Viewer qiling.");
-      
+
       const buf = await res.arrayBuffer();
       const workbook = XLSX.read(buf, { type: "array" });
-      
+
       if (!workbook.SheetNames?.length) throw new Error("Sheets bo'sh — hech qanday list topilmadi");
 
       // Barcha listlarni parse qilish
       const allRows = [];
       const sheetInfo = [];
-      
+
       workbook.SheetNames.forEach(sheetName => {
         const ws = workbook.Sheets[sheetName];
         // Aqlli parser — merged header, bo'sh ustunlar, bo'sh qatorlarni to'g'ri ishlaydi
@@ -3626,7 +3626,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           fileName: file.name, type: ext, size: file.size,
           width: dims.w, height: dims.h,
           dataUrl: b64,
-          description: `Rasm: ${file.name} (${dims.w}x${dims.h}, ${(file.size/1024).toFixed(1)}KB)`,
+          description: `Rasm: ${file.name} (${dims.w}x${dims.h}, ${(file.size / 1024).toFixed(1)}KB)`,
         });
       } catch (e) { push(`Rasm xato (${file.name}): ${e.message}`, "error"); }
     }
@@ -3719,7 +3719,15 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
     try { json = JSON.parse(text); } catch { throw new Error("API javob xato: " + text.substring(0, 120)); }
     if (json.error) {
       console.warn("[IG] Error:", json.error.message, json.error.code);
-      throw new Error(json.error.message || "Facebook API xato");
+      let errMsg = json.error.message || "Facebook API xato";
+      const m = errMsg.toLowerCase();
+      if (m.includes("session is invalid because the user logged out")) errMsg = "Sessiya yaroqsiz: Siz Facebook/Instagram dan chiqib ketgansiz yoxud parolni o'zgartirgansiz. Iltimos yaroqli (yangi) Access Token oling.";
+      else if (m.includes("error validating access token")) errMsg = "Token yaroqsiz, eskirgan yoki login qilinmagan. Yangi Token kerak.";
+      else if (m.includes("an active access token must be used")) errMsg = "Faol Access Token kiritilmadi.";
+      else if (m.includes("rate limit") || m.includes("too many calls") || json.error.code === 4) errMsg = "So'rovlar limitdan oshib ketdi. Iltimos birozdan so'ng (yoki 1 soatdan keyin) urinib ko'ring.";
+      else if (m.includes("unsupported get request") || m.includes("not visible")) errMsg = "Ma'lumot topilmadi yoxud bu akkauntni o'qishga sizda ruxsat yo'q.";
+      else if (m.includes("permissions") || m.includes("access_denied")) errMsg = "Tokenda ushbu amal uchun yetarli ruxsat (permissions) yo'q.";
+      throw new Error(errMsg);
     }
     return json;
   };
@@ -3851,7 +3859,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             (pIns.data || []).forEach(m => {
               const entries = (m.values || []).map(v => ({
                 date: (v.end_time || "").slice(0, 10),
-                value: v.value || (typeof v.value === "object" ? Object.values(v.value).reduce((a,b)=>a+b,0) : 0)
+                value: v.value || (typeof v.value === "object" ? Object.values(v.value).reduce((a, b) => a + b, 0) : 0)
               }));
               const vals = entries.map(e => e.value);
               const total = vals.reduce((a, b) => a + b, 0);
@@ -4054,10 +4062,10 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
         // Audience
         audience: audience,
         top_cities: audience.follower_demographics_city
-          ? Object.entries(audience.follower_demographics_city).sort((a,b) => b[1] - a[1]).slice(0, 6).map(([k,v]) => ({ name: k, value: v }))
+          ? Object.entries(audience.follower_demographics_city).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => ({ name: k, value: v }))
           : [],
         top_countries: audience.follower_demographics_country
-          ? Object.entries(audience.follower_demographics_country).sort((a,b) => b[1] - a[1]).slice(0, 5).map(([k,v]) => ({ name: k, value: v }))
+          ? Object.entries(audience.follower_demographics_country).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => ({ name: k, value: v }))
           : [],
         // Stories
         stories_count: stories.length,
@@ -4519,21 +4527,21 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {/* EXCEL */}
           {src.type === "excel" && (
             <div>
-              <div className={`drop-zone ${drag?"drag":""}`}
+              <div className={`drop-zone ${drag ? "drag" : ""}`}
                 onDragOver={e => { e.preventDefault(); setDrag(true) }}
                 onDragLeave={() => setDrag(false)}
                 onDrop={e => { e.preventDefault(); setDrag(false); handleExcelFiles([...e.dataTransfer.files]); }}>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" multiple style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
                   onChange={e => handleExcelFiles([...e.target.files])} />
-                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(74,222,128,0.3))"}}>{loading?"⏳":"📊"}</div>
-                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>{loading?"Yuklanmoqda...":"Excel fayllarni bu yerga tashlang"}</div>
-                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
-                  {["XLSX","XLS","CSV"].map(t=>(
-                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(74,222,128,0.1)",color:"#4ADE80",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(74,222,128,0.15)"}}>{t}</span>
+                <div style={{ fontSize: 52, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(74,222,128,0.3))" }}>{loading ? "⏳" : "📊"}</div>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>{loading ? "Yuklanmoqda..." : "Excel fayllarni bu yerga tashlang"}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>yoki bosib tanlang</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {["XLSX", "XLS", "CSV"].map(t => (
+                    <span key={t} style={{ padding: "3px 10px", borderRadius: 20, background: "rgba(74,222,128,0.1)", color: "#4ADE80", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 600, border: "1px solid rgba(74,222,128,0.15)" }}>{t}</span>
                   ))}
                 </div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:12}}>Bir vaqtda ko'p fayl yuklash mumkin</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 12 }}>Bir vaqtda ko'p fayl yuklash mumkin</div>
               </div>
               {src.files?.map((f, i) => (
                 <div key={i} className="flex aic gap8 mb6" style={{ padding: "6px 10px", background: "var(--s3)", borderRadius: 6, fontSize: 11 }}>
@@ -4551,7 +4559,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
                       <button key={sheet} className="btn btn-ghost btn-xs"
                         style={(src.activeSheet || src.files?.[0]?.sheets?.[0]) === sheet ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}
                         onClick={() => switchSheet(sheet)}>
-                         {sheet}
+                        {sheet}
                       </button>
                     ))}
                   </div>
@@ -4587,7 +4595,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
               {src.connected && src.spreadsheetName && (
                 <div style={{ fontSize: 11, color: "#60A5FA", marginBottom: 8 }}>
-                   <strong>{src.spreadsheetName}</strong> ulangan
+                  <strong>{src.spreadsheetName}</strong> ulangan
                   {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
                 </div>
               )}
@@ -4657,7 +4665,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               ) : src.config?.tokenType === "long-lived" ? (
                 <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(251,191,36,0.06)", borderRadius: 6, border: "1px solid rgba(251,191,36,0.12)" }}>
                   <span style={{ color: "#FBBF24" }}>⏱</span> <strong style={{ color: "#FBBF24" }}>60 kunlik token</strong>
-                  {src.config?.tokenExtendedAt && <span> · tugaydi: ~{new Date(src.config.tokenExtendedAt + 60*86400000).toLocaleDateString("uz-UZ")}</span>}
+                  {src.config?.tokenExtendedAt && <span> · tugaydi: ~{new Date(src.config.tokenExtendedAt + 60 * 86400000).toLocaleDateString("uz-UZ")}</span>}
                 </div>
               ) : (
                 <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(248,113,113,0.06)", borderRadius: 6, border: "1px solid rgba(248,113,113,0.12)" }}>
@@ -4882,33 +4890,33 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {/* DOCUMENT (PDF/Word/TXT) */}
           {src.type === "document" && (
             <div>
-              <input ref={docFileRef} type="file" multiple accept=".pdf,.docx,.doc,.txt,.csv,.md,.log,.rtf" style={{display:"none"}}
-                onChange={e=>{ if(e.target.files.length) handleDocumentFiles(Array.from(e.target.files)); e.target.value=""; }} />
-              <div className={`drop-zone drop-doc ${drag?"drag":""}`}
-                onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
-                onDrop={e=>{e.preventDefault();setDrag(false);handleDocumentFiles(Array.from(e.dataTransfer.files));}}
-                onClick={()=>docFileRef.current?.click()}>
-                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(248,113,113,0.3))"}}>📄</div>
-                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>Hujjatlarni bu yerga tashlang</div>
-                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
-                  {["PDF","DOCX","TXT","CSV","MD"].map(t=>(
-                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(248,113,113,0.1)",color:"#F87171",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(248,113,113,0.15)"}}>{t}</span>
+              <input ref={docFileRef} type="file" multiple accept=".pdf,.docx,.doc,.txt,.csv,.md,.log,.rtf" style={{ display: "none" }}
+                onChange={e => { if (e.target.files.length) handleDocumentFiles(Array.from(e.target.files)); e.target.value = ""; }} />
+              <div className={`drop-zone drop-doc ${drag ? "drag" : ""}`}
+                onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+                onDrop={e => { e.preventDefault(); setDrag(false); handleDocumentFiles(Array.from(e.dataTransfer.files)); }}
+                onClick={() => docFileRef.current?.click()}>
+                <div style={{ fontSize: 52, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(248,113,113,0.3))" }}>📄</div>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>Hujjatlarni bu yerga tashlang</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>yoki bosib tanlang</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {["PDF", "DOCX", "TXT", "CSV", "MD"].map(t => (
+                    <span key={t} style={{ padding: "3px 10px", borderRadius: 20, background: "rgba(248,113,113,0.1)", color: "#F87171", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 600, border: "1px solid rgba(248,113,113,0.15)" }}>{t}</span>
                   ))}
                 </div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:12,display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:14}}>🤖</span> AI hujjat mazmunini o'qib tahlil qiladi
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 14 }}>🤖</span> AI hujjat mazmunini o'qib tahlil qiladi
                 </div>
               </div>
-              {src.files?.length>0&&(
-                <div style={{marginTop:12,padding:12,background:"var(--s2)",borderRadius:12,border:"1px solid var(--border)"}}>
-                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Yuklangan fayllar ({src.files.length})</div>
-                  {src.files.map((f,i)=>(
-                    <div key={i} style={{fontSize:12,padding:"8px 12px",background:"var(--s1)",borderRadius:8,marginBottom:4,display:"flex",alignItems:"center",gap:8,border:"1px solid var(--border2)"}}>
-                      <span style={{fontSize:18}}>{f.type==='pdf'?'📕':f.type==='docx'?'📘':f.type==='txt'?'📝':'📋'}</span>
-                      <span style={{flex:1,fontWeight:600,fontSize:12}}>{f.fileName}</span>
-                      <span style={{padding:"2px 8px",borderRadius:12,background:"rgba(248,113,113,0.1)",color:"#F87171",fontSize:9,fontFamily:"var(--fh)",fontWeight:700}}>{f.type?.toUpperCase()}</span>
-                      <span style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fm)"}}>{Math.round((f.size||0)/1024)} KB</span>
+              {src.files?.length > 0 && (
+                <div style={{ marginTop: 12, padding: 12, background: "var(--s2)", borderRadius: 12, border: "1px solid var(--border)" }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Yuklangan fayllar ({src.files.length})</div>
+                  {src.files.map((f, i) => (
+                    <div key={i} style={{ fontSize: 12, padding: "8px 12px", background: "var(--s1)", borderRadius: 8, marginBottom: 4, display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--border2)" }}>
+                      <span style={{ fontSize: 18 }}>{f.type === 'pdf' ? '📕' : f.type === 'docx' ? '📘' : f.type === 'txt' ? '📝' : '📋'}</span>
+                      <span style={{ flex: 1, fontWeight: 600, fontSize: 12 }}>{f.fileName}</span>
+                      <span style={{ padding: "2px 8px", borderRadius: 12, background: "rgba(248,113,113,0.1)", color: "#F87171", fontSize: 9, fontFamily: "var(--fh)", fontWeight: 700 }}>{f.type?.toUpperCase()}</span>
+                      <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{Math.round((f.size || 0) / 1024)} KB</span>
                     </div>
                   ))}
                 </div>
@@ -4919,35 +4927,35 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {/* IMAGE (Rasm tahlili) */}
           {src.type === "image" && (
             <div>
-              <input ref={imgFileRef} type="file" multiple accept="image/*" style={{display:"none"}}
-                onChange={e=>{ if(e.target.files.length) handleImageFiles(Array.from(e.target.files)); e.target.value=""; }} />
-              <div className={`drop-zone drop-img ${drag?"drag":""}`}
-                onDragOver={e=>{e.preventDefault();setDrag(true);}} onDragLeave={()=>setDrag(false)}
-                onDrop={e=>{e.preventDefault();setDrag(false);handleImageFiles(Array.from(e.dataTransfer.files));}}
-                onClick={()=>imgFileRef.current?.click()}>
-                <div style={{fontSize:52,marginBottom:12,filter:"drop-shadow(0 4px 12px rgba(236,72,153,0.3))"}}>🖼️</div>
-                <div style={{fontFamily:"var(--fh)",fontSize:16,fontWeight:700,marginBottom:6,color:"var(--text)"}}>Rasmlarni bu yerga tashlang</div>
-                <div style={{fontSize:12,color:"var(--muted)",marginBottom:8}}>yoki bosib tanlang</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",justifyContent:"center"}}>
-                  {["JPG","PNG","GIF","WebP","SVG"].map(t=>(
-                    <span key={t} style={{padding:"3px 10px",borderRadius:20,background:"rgba(236,72,153,0.1)",color:"#EC4899",fontSize:10,fontFamily:"var(--fh)",fontWeight:600,border:"1px solid rgba(236,72,153,0.15)"}}>{t}</span>
+              <input ref={imgFileRef} type="file" multiple accept="image/*" style={{ display: "none" }}
+                onChange={e => { if (e.target.files.length) handleImageFiles(Array.from(e.target.files)); e.target.value = ""; }} />
+              <div className={`drop-zone drop-img ${drag ? "drag" : ""}`}
+                onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+                onDrop={e => { e.preventDefault(); setDrag(false); handleImageFiles(Array.from(e.dataTransfer.files)); }}
+                onClick={() => imgFileRef.current?.click()}>
+                <div style={{ fontSize: 52, marginBottom: 12, filter: "drop-shadow(0 4px 12px rgba(236,72,153,0.3))" }}>🖼️</div>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 6, color: "var(--text)" }}>Rasmlarni bu yerga tashlang</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>yoki bosib tanlang</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {["JPG", "PNG", "GIF", "WebP", "SVG"].map(t => (
+                    <span key={t} style={{ padding: "3px 10px", borderRadius: 20, background: "rgba(236,72,153,0.1)", color: "#EC4899", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 600, border: "1px solid rgba(236,72,153,0.15)" }}>{t}</span>
                   ))}
                 </div>
-                <div style={{fontSize:10,color:"var(--muted)",marginTop:12,display:"flex",alignItems:"center",gap:6}}>
-                  <span style={{fontSize:14}}>🤖</span> AI rasm mazmunini tavsiflaydi va tahlil qiladi
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 14 }}>🤖</span> AI rasm mazmunini tavsiflaydi va tahlil qiladi
                 </div>
               </div>
-              {src.data?.length>0&&(
-                <div style={{marginTop:12}}>
-                  <div style={{fontSize:10,color:"var(--muted)",fontFamily:"var(--fh)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Yuklangan rasmlar ({src.data.length})</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(100px,1fr))",gap:10}}>
-                    {src.data.slice(0,12).map((r,i)=>(
-                      <div key={i} style={{borderRadius:12,overflow:"hidden",border:"2px solid var(--border)",aspectRatio:"1",position:"relative",transition:"all .2s",cursor:"pointer"}}
-                        onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(236,72,153,0.4)"}
-                        onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border)"}>
-                        {r.rasm_url?<img src={r.rasm_url} alt={r.fayl_nomi} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:
-                        <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--s2)",fontSize:24}}>🖼️</div>}
-                        <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"4px 6px",background:"linear-gradient(transparent,rgba(0,0,0,0.7))",fontSize:8,color:"#fff",fontFamily:"var(--fm)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.fayl_nomi}</div>
+              {src.data?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>Yuklangan rasmlar ({src.data.length})</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(100px,1fr))", gap: 10 }}>
+                    {src.data.slice(0, 12).map((r, i) => (
+                      <div key={i} style={{ borderRadius: 12, overflow: "hidden", border: "2px solid var(--border)", aspectRatio: "1", position: "relative", transition: "all .2s", cursor: "pointer" }}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(236,72,153,0.4)"}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                        {r.rasm_url ? <img src={r.rasm_url} alt={r.fayl_nomi} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> :
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--s2)", fontSize: 24 }}>🖼️</div>}
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "4px 6px", background: "linear-gradient(transparent,rgba(0,0,0,0.7))", fontSize: 8, color: "#fff", fontFamily: "var(--fm)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.fayl_nomi}</div>
                       </div>
                     ))}
                   </div>
@@ -4960,22 +4968,22 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
           {src.type === "onec" && (
             <div>
               <label className="field-label">1C Server URL</label>
-              <input className="field mb8" placeholder="http://server:8080/base" value={src.config?.onecUrl||""} onChange={e=>updateConfig("onecUrl",e.target.value)} />
+              <input className="field mb8" placeholder="http://server:8080/base" value={src.config?.onecUrl || ""} onChange={e => updateConfig("onecUrl", e.target.value)} />
               <div className="flex gap8 mb8">
                 <div className="f1">
                   <label className="field-label">Login</label>
-                  <input className="field" placeholder="Administrator" value={src.config?.onecLogin||""} onChange={e=>updateConfig("onecLogin",e.target.value)} />
+                  <input className="field" placeholder="Administrator" value={src.config?.onecLogin || ""} onChange={e => updateConfig("onecLogin", e.target.value)} />
                 </div>
                 <div className="f1">
                   <label className="field-label">Parol</label>
-                  <input className="field" type="password" value={src.config?.onecPassword||""} onChange={e=>updateConfig("onecPassword",e.target.value)} />
+                  <input className="field" type="password" value={src.config?.onecPassword || ""} onChange={e => updateConfig("onecPassword", e.target.value)} />
                 </div>
               </div>
-              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
+              <div className="notice text-xs text-muted mb8" style={{ padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
                 1C:Enterprise OData API yoqilgan bo'lishi kerak. Sozlamalar → Umumiy → HTTP xizmatlar → OData
               </div>
               <button className="btn btn-primary btn-sm" onClick={handle1CFetch} disabled={loading}>
-                {loading?"Yuklanmoqda...":"🏦 1C dan yuklash"}
+                {loading ? "Yuklanmoqda..." : "🏦 1C dan yuklash"}
               </button>
             </div>
           )}
@@ -4986,18 +4994,18 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               <div className="flex gap8 mb8">
                 <div className="f1">
                   <label className="field-label">Counter ID</label>
-                  <input className="field" placeholder="12345678" value={src.config?.ymCounter||""} onChange={e=>updateConfig("ymCounter",e.target.value)} />
+                  <input className="field" placeholder="12345678" value={src.config?.ymCounter || ""} onChange={e => updateConfig("ymCounter", e.target.value)} />
                 </div>
                 <div className="f1">
                   <label className="field-label">OAuth Token</label>
-                  <input className="field" type="password" placeholder="y0_AgA..." value={src.config?.ymToken||""} onChange={e=>updateConfig("ymToken",e.target.value)} />
+                  <input className="field" type="password" placeholder="y0_AgA..." value={src.config?.ymToken || ""} onChange={e => updateConfig("ymToken", e.target.value)} />
                 </div>
               </div>
-              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
-                Token olish: <a href="https://oauth.yandex.com/authorize?response_type=token&client_id=764adcc8e4774061bafdd1e1b1751e82" target="_blank" rel="noreferrer" style={{color:"var(--teal)"}}>Yandex OAuth →</a>
+              <div className="notice text-xs text-muted mb8" style={{ padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
+                Token olish: <a href="https://oauth.yandex.com/authorize?response_type=token&client_id=764adcc8e4774061bafdd1e1b1751e82" target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>Yandex OAuth →</a>
               </div>
               <button className="btn btn-primary btn-sm" onClick={handleYandexFetch} disabled={loading}>
-                {loading?"Yuklanmoqda...":"📈 Metrika yuklash"}
+                {loading ? "Yuklanmoqda..." : "📈 Metrika yuklash"}
               </button>
             </div>
           )}
@@ -5008,41 +5016,41 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               <div className="flex gap8 mb8">
                 <div className="f1">
                   <label className="field-label">DB turi</label>
-                  <select className="field" value={src.config?.dbType||"postgresql"} onChange={e=>updateConfig("dbType",e.target.value)}>
+                  <select className="field" value={src.config?.dbType || "postgresql"} onChange={e => updateConfig("dbType", e.target.value)}>
                     <option value="postgresql">PostgreSQL</option>
                     <option value="mysql">MySQL</option>
                   </select>
                 </div>
                 <div className="f1">
                   <label className="field-label">Host</label>
-                  <input className="field" placeholder="localhost" value={src.config?.dbHost||""} onChange={e=>updateConfig("dbHost",e.target.value)} />
+                  <input className="field" placeholder="localhost" value={src.config?.dbHost || ""} onChange={e => updateConfig("dbHost", e.target.value)} />
                 </div>
-                <div style={{width:80}}>
+                <div style={{ width: 80 }}>
                   <label className="field-label">Port</label>
-                  <input className="field" placeholder="5432" value={src.config?.dbPort||""} onChange={e=>updateConfig("dbPort",e.target.value)} />
+                  <input className="field" placeholder="5432" value={src.config?.dbPort || ""} onChange={e => updateConfig("dbPort", e.target.value)} />
                 </div>
               </div>
               <div className="flex gap8 mb8">
                 <div className="f1">
                   <label className="field-label">Database</label>
-                  <input className="field" placeholder="mydb" value={src.config?.dbName||""} onChange={e=>updateConfig("dbName",e.target.value)} />
+                  <input className="field" placeholder="mydb" value={src.config?.dbName || ""} onChange={e => updateConfig("dbName", e.target.value)} />
                 </div>
                 <div className="f1">
                   <label className="field-label">Login</label>
-                  <input className="field" placeholder="user" value={src.config?.dbUser||""} onChange={e=>updateConfig("dbUser",e.target.value)} />
+                  <input className="field" placeholder="user" value={src.config?.dbUser || ""} onChange={e => updateConfig("dbUser", e.target.value)} />
                 </div>
                 <div className="f1">
                   <label className="field-label">Parol</label>
-                  <input className="field" type="password" value={src.config?.dbPass||""} onChange={e=>updateConfig("dbPass",e.target.value)} />
+                  <input className="field" type="password" value={src.config?.dbPass || ""} onChange={e => updateConfig("dbPass", e.target.value)} />
                 </div>
               </div>
               <label className="field-label">SQL Query</label>
-              <textarea className="field mb8" rows={3} placeholder="SELECT * FROM sales ORDER BY date DESC LIMIT 100" value={src.config?.dbQuery||""} onChange={e=>updateConfig("dbQuery",e.target.value)} style={{fontFamily:"var(--fm)",fontSize:12}} />
-              <div className="notice text-xs text-muted mb8" style={{padding:8,borderRadius:6,border:"1px solid var(--border)"}}>
+              <textarea className="field mb8" rows={3} placeholder="SELECT * FROM sales ORDER BY date DESC LIMIT 100" value={src.config?.dbQuery || ""} onChange={e => updateConfig("dbQuery", e.target.value)} style={{ fontFamily: "var(--fm)", fontSize: 12 }} />
+              <div className="notice text-xs text-muted mb8" style={{ padding: 8, borderRadius: 6, border: "1px solid var(--border)" }}>
                 SQL ulanish backend API orqali ishlaydi. Xavfsizlik uchun to'g'ridan-to'g'ri brauzerdan ulanib bo'lmaydi.
               </div>
               <button className="btn btn-primary btn-sm" onClick={handleDatabaseTest} disabled={loading}>
-                {loading?"Ulanmoqda...":"🗄️ Ulanish va yuklash"}
+                {loading ? "Ulanmoqda..." : "🗄️ Ulanish va yuklash"}
               </button>
             </div>
           )}
@@ -5164,7 +5172,7 @@ function DataHubPage({ sources, setSources, push, user }) {
         <div className="add-panel mb16">
           <div className="section-hd mb12">Manba Turi Tanlang</div>
           {(() => {
-            const primary = ["excel","sheets","instagram","crm","document","manual"];
+            const primary = ["excel", "sheets", "instagram", "crm", "document", "manual"];
             const secondary = Object.keys(SOURCE_TYPES).filter(k => !primary.includes(k));
             const [showMore, setShowMore2] = [showMoreTypes, setShowMoreTypes];
             const visibleTypes = showMore ? Object.values(SOURCE_TYPES) : primary.map(k => SOURCE_TYPES[k]);
@@ -5540,7 +5548,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
               // Pie uchun value tekshirish
               if (c.chartType === "pie" && !c.data.every(d => d.value != null || d.name != null)) return false;
               // Bar/line uchun keys tekshirish
-              if (["bar","line","area","stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
+              if (["bar", "line", "area", "stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
               // Data ichida hamma NaN bo'lsa — o'chirish
               if (c.chartType !== "pie") {
                 const k = c.keys?.[0];
@@ -5560,7 +5568,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           LS.set(curCacheKey, updated);
           // Agar hali shu sahifada bo'lsa — state ni yangilash
           setAiCards(updated);
-        } catch {}
+        } catch { }
       });
 
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
@@ -5674,7 +5682,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
           ))}
           <button className="btn btn-ghost btn-sm ml-auto" onClick={() => setFilter("table")}
             style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-             Jadval
+            Jadval
           </button>
         </div>
       )}
@@ -5684,7 +5692,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
         <div className="flex gap6 mb14 aic">
           <button className="btn btn-ghost btn-sm" onClick={() => setFilter("table")}
             style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-             Jadval ko'rinishi
+            Jadval ko'rinishi
           </button>
         </div>
       )}
@@ -5709,7 +5717,7 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
       {/* Dashboard kartalar gridi */}
       {filter !== "table" && filteredCards.length > 0 && (
-        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_charts_"+(workingSource?.id||"")}
+        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_charts_" + (workingSource?.id || "")}
           onDeleteCard={(id) => { const updated = aiCards.filter(c => c.id !== id); setAiCards(updated); LS.set(cacheKey, updated); }} />
       )}
 
@@ -5790,14 +5798,14 @@ function VoiceButton({ onResult }) {
       }}>
       {listening ? (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="6" y="6" width="12" height="12" rx="2" fill="#fff"/>
+          <rect x="6" y="6" width="12" height="12" rx="2" fill="#fff" />
         </svg>
       ) : (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="2" width="6" height="11" rx="3"/>
-          <path d="M5 10a7 7 0 0 0 14 0"/>
-          <line x1="12" y1="17" x2="12" y2="22"/>
-          <line x1="8" y1="22" x2="16" y2="22"/>
+          <rect x="9" y="2" width="6" height="11" rx="3" />
+          <path d="M5 10a7 7 0 0 0 14 0" />
+          <line x1="12" y1="17" x2="12" y2="22" />
+          <line x1="8" y1="22" x2="16" y2="22" />
         </svg>
       )}
     </button>
@@ -5828,10 +5836,12 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const [showSessions, setShowSessions] = useState(false);
 
   // ── Chat sessiyalar tizimi ──
-  const nowTS = () => new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
-  const defaultMsg = [{ role: "assistant", content: connectedSources.length > 0
-    ? `Salom! Sizda ${connectedSources.length} ta manba ulangan. Manbani tanlang va savolingizni yozing.`
-    : "Salom! Boshlash uchun avval Data Hub sahifasidan manba ulang (Excel, Google Sheets yoki boshqa). Keyin menga savol bering — tahlil qilaman.", time: nowTS() }];
+  const nowTS = () => new Date().toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const defaultMsg = [{
+    role: "assistant", content: connectedSources.length > 0
+      ? `Salom! Sizda ${connectedSources.length} ta manba ulangan. Manbani tanlang va savolingizni yozing.`
+      : "Salom! Boshlash uchun avval Data Hub sahifasidan manba ulang (Excel, Google Sheets yoki boshqa). Keyin menga savol bering — tahlil qilaman.", time: nowTS()
+  }];
 
   const [sessions, setSessions] = useState(() => {
     const saved = LS.get(sessionsKey, []);
@@ -5885,7 +5895,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     let preview = null;
 
     try {
-      if (['jpg','jpeg','png','gif','webp','svg'].includes(ext)) {
+      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
         // Rasm — base64
         const b64 = await new Promise((resolve) => {
           const reader = new FileReader();
@@ -5893,15 +5903,15 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
           reader.readAsDataURL(file);
         });
         preview = b64;
-        content = `[RASM YUKLANDI: ${file.name}, ${(file.size/1024).toFixed(1)}KB. Rasmni tavsiflab bering va savolga javob bering]`;
-      } else if (['txt','csv','md','log'].includes(ext)) {
+        content = `[RASM YUKLANDI: ${file.name}, ${(file.size / 1024).toFixed(1)}KB. Rasmni tavsiflab bering va savolga javob bering]`;
+      } else if (['txt', 'csv', 'md', 'log'].includes(ext)) {
         content = await file.text();
         content = `[FAYL: ${file.name}]\n${content.substring(0, 15000)}`;
       } else if (ext === 'pdf') {
         // Backend orqali PDF matnini ajratish
         try {
           const parsed = await UploadAPI.parseOnly(file);
-          content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${parsed.text || "[PDF dan matn ajratib bo'lmadi]"}`;
+          content = `[PDF FAYL: ${file.name}, ${(file.size / 1024).toFixed(1)}KB]\n${parsed.text || "[PDF dan matn ajratib bo'lmadi]"}`;
         } catch {
           // Fallback: frontend regex
           const buf = await file.arrayBuffer();
@@ -5910,7 +5920,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
           const chunks = [];
           const matches = raw.match(/\(([^)]{2,})\)\s*Tj/g) || [];
           matches.forEach(m => { const t = m.match(/\(([^)]+)\)/); if (t) chunks.push(t[1]); });
-          content = `[PDF FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB]\n${chunks.join(' ').substring(0, 15000) || "[PDF dan matn ajratib bo'lmadi]"}`;
+          content = `[PDF FAYL: ${file.name}, ${(file.size / 1024).toFixed(1)}KB]\n${chunks.join(' ').substring(0, 15000) || "[PDF dan matn ajratib bo'lmadi]"}`;
         }
       } else if (ext === 'docx') {
         const buf = await file.arrayBuffer();
@@ -5919,14 +5929,14 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
         const xmlContent = raw.match(/<w:t[^>]*>([^<]+)<\/w:t>/g) || [];
         const text = xmlContent.map(t => t.replace(/<[^>]+>/g, '')).join(' ');
         content = `[WORD FAYL: ${file.name}]\n${text.substring(0, 15000) || "[Word dan matn ajratib bo'lmadi]"}`;
-      } else if (['xlsx','xls'].includes(ext)) {
+      } else if (['xlsx', 'xls'].includes(ext)) {
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { defval: "" }).slice(0, 50);
         content = `[EXCEL FAYL: ${file.name}, ${data.length} qator]\n${JSON.stringify(data.slice(0, 20), null, 2)}`;
       } else {
-        content = `[FAYL: ${file.name}, ${(file.size/1024).toFixed(1)}KB — bu format qo'llab-quvvatlanmaydi]`;
+        content = `[FAYL: ${file.name}, ${(file.size / 1024).toFixed(1)}KB — bu format qo'llab-quvvatlanmaydi]`;
       }
     } catch (e) {
       content = `[FAYL: ${file.name} — o'qishda xato: ${e.message}]`;
@@ -6019,7 +6029,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     const disp = text + (attachedFile ? ` 📎 ${attachedFile.name}` : "");
     setInput(""); setAttachedFile(null);
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
-    const ts = new Date().toLocaleString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+    const ts = new Date().toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
     const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name), time: ts }, { role: "assistant", content: "", time: ts }];
     setMessages(newMsgs); setLoading(true);
 
@@ -6067,7 +6077,7 @@ MAZMUN QOIDALARI:
       setMessages(m => m); // Sessions tizimi avtomatik saqlaydi
     } catch (e) {
       if (e.name === 'AbortError') {
-        setMessages(m => { const c = [...m]; if (c[c.length-1]?.content) c[c.length-1].content += "\n\n⏹ *To'xtatildi*"; return c; });
+        setMessages(m => { const c = [...m]; if (c[c.length - 1]?.content) c[c.length - 1].content += "\n\n⏹ *To'xtatildi*"; return c; });
       } else {
         setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: " Xato: " + e.message }; return c; });
       }
@@ -6239,15 +6249,15 @@ MAZMUN QOIDALARI:
           <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
         </div>
         <button onClick={newSession}
-          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid rgba(0,201,190,0.3)", background:"rgba(0,201,190,0.08)", color:"var(--teal)", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}
-          onMouseEnter={e=>{e.currentTarget.style.background="rgba(0,201,190,0.15)"}}
-          onMouseLeave={e=>{e.currentTarget.style.background="rgba(0,201,190,0.08)"}}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(0,201,190,0.3)", background: "rgba(0,201,190,0.08)", color: "var(--teal)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,201,190,0.15)" }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,201,190,0.08)" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Yangi
         </button>
         <button onClick={() => setShowSessions(p => !p)}
-          style={{ padding:"6px 14px", borderRadius:8, border:"1px solid var(--border)", background: showSessions ? "var(--s3)" : "var(--s2)", color:"var(--text2)", fontSize:11, fontFamily:"var(--fh)", fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5, transition:"all .2s" }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: showSessions ? "var(--s3)" : "var(--s2)", color: "var(--text2)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
           Tarix ({sessions.length})
         </button>
       </div>
@@ -6371,7 +6381,7 @@ MAZMUN QOIDALARI:
           style={{ minWidth: 44, height: 44, borderRadius: 12, border: "1px solid var(--border)", background: attachedFile ? "linear-gradient(135deg,rgba(0,201,190,0.15),rgba(0,201,190,0.08))" : "var(--s2)", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = attachedFile ? "var(--teal)" : "var(--muted)"; }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
         </button>
         <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing, fayl paste qiling yoki 🎤 bosing..."} value={input}
           onChange={e => setInput(e.target.value)}
@@ -6392,7 +6402,7 @@ MAZMUN QOIDALARI:
         {loading ? (
           <button className="chat-send-btn" onClick={stopAI} title="To'xtatish"
             style={{ background: "linear-gradient(135deg,#F87171,#EF4444)", boxShadow: "0 4px 16px rgba(248,113,113,0.4)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
           </button>
         ) : (
           <button className="chat-send-btn" onClick={() => sendMsg()} disabled={!input.trim() && !attachedFile}>➤</button>
@@ -6529,10 +6539,10 @@ JAVOB QOIDALARI:
       {/* ── Tab tanlash: Tahlil / Chartlar ── */}
       <div className="flex gap8 mb16 aic">
         <button className={`btn ${anaTab === "tahlil" ? "btn-primary" : "btn-ghost"}`} onClick={() => setAnaTab("tahlil")}>
-           AI Tahlil Modullari
+          AI Tahlil Modullari
         </button>
         <button className={`btn ${anaTab === "chartlar" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAnaTab("chartlar")}>
-           Vizual Tahlil (Grafiklar)
+          Vizual Tahlil (Grafiklar)
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba ulangan</span>
@@ -6644,12 +6654,12 @@ JAVOB QOIDALARI:
                       if (t.startsWith("### ")) return `<h3 style="font-size:13px;font-weight:700;color:#4A5568;margin:14px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`;
                       if (t.startsWith("## ")) return `<h2 style="font-size:15px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`;
                       if (t.startsWith("# ")) return `<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1">${t.slice(2)}</h1>`;
-                      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:10px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 8px 8px 0;color:#2D3748">${t.slice(2).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
-                      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0"><span style="color:#0D9488;font-weight:bold;margin-right:6px">●</span>${t.slice(2).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
+                      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:10px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 8px 8px 0;color:#2D3748">${t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
+                      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0"><span style="color:#0D9488;font-weight:bold;margin-right:6px">●</span>${t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
                       const nm = t.match(/^(\d+)\.\s(.+)/);
-                      if (nm) return `<div style="padding-left:22px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800">${nm[1]}.</span>${nm[2].replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</div>`;
-                      if (t.startsWith("|") && t.endsWith("|")) { if (t.replace(/[|\-\s:]/g,"").length===0) return ""; const cells = t.split("|").filter(c=>c.trim()).map(c=>c.trim()); return `<tr>${cells.map(c=>`<td style="padding:8px 14px;border-bottom:1px solid #EDF2F7;font-size:12px">${c.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}</td>`).join("")}</tr>`; }
-                      return `<div style="margin:3px 0;line-height:1.75">${t.replace(/\*\*(.+?)\*\*/g,'<b style="color:#1A202C">$1</b>')}</div>`;
+                      if (nm) return `<div style="padding-left:22px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800">${nm[1]}.</span>${nm[2].replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
+                      if (t.startsWith("|") && t.endsWith("|")) { if (t.replace(/[|\-\s:]/g, "").length === 0) return ""; const cells = t.split("|").filter(c => c.trim()).map(c => c.trim()); return `<tr>${cells.map(c => `<td style="padding:8px 14px;border-bottom:1px solid #EDF2F7;font-size:12px">${c.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</td>`).join("")}</tr>`; }
+                      return `<div style="margin:3px 0;line-height:1.75">${t.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>')}</div>`;
                     }).join("\n");
                     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border:1px solid #E2E8F0;border-radius:8px}table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;background:#F0FDFA;text-transform:uppercase;font-size:10px;letter-spacing:1px}table tr:nth-child(even){background:#F7FAFC}@media print{body{padding:24px 32px}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1"><div><div style="font-size:24px;font-weight:800;color:#1A202C">BIZ<span style="color:#B8860B">NES</span>AI</div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">BiznesAI · shonazar.uz</div></body></html>`;
                     const iframe = document.createElement("iframe");
@@ -6667,7 +6677,7 @@ JAVOB QOIDALARI:
             {relatedCharts.length > 0 && (
               <div>
                 <div className="section-hd mb10"> Aloqador Grafiklar</div>
-                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_ana_rel"} />
+                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_ana_rel"} />
               </div>
             )}
           </div>
@@ -6723,7 +6733,7 @@ JAVOB QOIDALARI:
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_ana_all"} />
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_ana_all"} />
         )}
       </div>)}
     </div>
@@ -6876,8 +6886,8 @@ HISOBOT QOIDALARI:
     const t = text || report; const l = lbl || label;
     const contentHtml = mdToHtml(t);
     const today = new Date();
-    const dateStr = today.toLocaleDateString("uz-UZ", { year:"numeric", month:"long", day:"numeric" });
-    const timeStr = today.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit" });
+    const dateStr = today.toLocaleDateString("uz-UZ", { year: "numeric", month: "long", day: "numeric" });
+    const timeStr = today.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -7021,13 +7031,13 @@ HISOBOT QOIDALARI:
       {/* ── Tab tanlash ── */}
       <div className="flex gap8 mb16 aic flex-wrap">
         <button className={`btn ${repTab === "hisobotlar" ? "btn-primary" : "btn-ghost"}`} onClick={() => setRepTab("hisobotlar")}>
-           Hisobot Yaratish
+          Hisobot Yaratish
         </button>
         <button className={`btn ${repTab === "tarix" ? "btn-teal" : "btn-ghost"}`} onClick={() => setRepTab("tarix")}>
-           Tarix ({savedReports.length})
+          Tarix ({savedReports.length})
         </button>
         <button className={`btn ${repTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setRepTab("vizual")}>
-           Vizual Grafiklar
+          Vizual Grafiklar
         </button>
         {connectedSources.length > 0 && (
           <span className="badge b-ok ml-auto">{connectedSources.length} ta manba</span>
@@ -7135,7 +7145,7 @@ HISOBOT QOIDALARI:
             {relatedCharts.length > 0 && (
               <div>
                 <div className="section-hd mb10"> Aloqador Grafiklar</div>
-                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_rep_rel"} />
+                <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_rep_rel"} />
               </div>
             )}
           </div>
@@ -7201,7 +7211,7 @@ HISOBOT QOIDALARI:
             {/* Hammasini tozalash */}
             <div style={{ textAlign: "center", marginTop: 16 }}>
               <button className="btn btn-danger btn-sm" onClick={() => { if (confirm("Barcha hisobotlarni o'chirish?")) { LS.set(repKey, []); window.location.reload(); } }}>
-                 Barcha tarixni tozalash
+                Barcha tarixni tozalash
               </button>
             </div>
           </div>
@@ -7257,7 +7267,7 @@ HISOBOT QOIDALARI:
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_rep_all"} />
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_rep_all"} />
         )}
       </div>)}
     </div>
@@ -7444,13 +7454,13 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
       {/* ── Tab tanlash ── */}
       <div className="flex gap8 mb16 aic flex-wrap">
         <button className={`btn ${alertTab === "ogohlantirishlar" ? "btn-primary" : "btn-ghost"}`} onClick={() => setAlertTab("ogohlantirishlar")}>
-           Ogohlantirishlar {unread > 0 && <span style={{ background: "rgba(251,113,133,0.9)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 9, marginLeft: 4, fontWeight: 700 }}>{unread}</span>}
+          Ogohlantirishlar {unread > 0 && <span style={{ background: "rgba(251,113,133,0.9)", color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 9, marginLeft: 4, fontWeight: 700 }}>{unread}</span>}
         </button>
         <button className={`btn ${alertTab === "tekshirish" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAlertTab("tekshirish")}>
-           AI Tekshirish
+          AI Tekshirish
         </button>
         <button className={`btn ${alertTab === "vizual" ? "btn-teal" : "btn-ghost"}`} onClick={() => setAlertTab("vizual")}>
-           Vizual Monitoring
+          Vizual Monitoring
         </button>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{prov.icon} {prov.name}</span>
@@ -7580,7 +7590,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
                 {/* Metrika badge — kattaroq va ko'rinarliroq */}
                 {al.metric && (
                   <div style={{ marginLeft: 50, display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 10, background: `linear-gradient(135deg, ${at.color}08, ${at.color}15)`, border: `1px solid ${at.color}25` }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={at.color} strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={at.color} strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
                     <span style={{ fontSize: 12, fontFamily: "var(--fm)", fontWeight: 700, color: at.color }}>{al.metric}</span>
                   </div>
                 )}
@@ -7670,7 +7680,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
         {checkResult && !loading && relatedCharts.length > 0 && (
           <div>
             <div className="section-hd mb10"> Aloqador Grafiklar</div>
-            <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_alert_rel"} />
+            <CardGrid cards={relatedCharts} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_alert_rel"} />
           </div>
         )}
 
@@ -7764,7 +7774,7 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 
         {/* Barcha kartalar */}
         {allCards.length > 0 && (
-          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_alert_all"} />
+          <CardGrid cards={allCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_alert_all"} />
         )}
       </div>)}
     </div>
@@ -8005,7 +8015,7 @@ function generateDashboards(source, colSelection) {
     const summary = data.find(d => d._type === "PROFIL_STATISTIKA");
     const posts = data.filter(d => !d._type);
     const storiesData = data.filter(d => d._type === "STORY");
-    const fmtN = (n) => { if (n >= 1000000) return (n/1000000).toFixed(1) + "M"; if (n >= 1000) return (n/1000).toFixed(1) + "K"; return String(n); };
+    const fmtN = (n) => { if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"; if (n >= 1000) return (n / 1000).toFixed(1) + "K"; return String(n); };
     const pctStr = (v) => v > 0 ? `+${v}%` : `${v}%`;
     const typeLabel = (t) => t === "VIDEO" ? "Video" : t === "IMAGE" ? "Rasm" : t === "REEL" ? "Reel" : t === "CAROUSEL_ALBUM" ? "Carousel" : t || "Boshqa";
 
@@ -8044,12 +8054,14 @@ function generateDashboards(source, colSelection) {
 
       // Insights yo'q — ogohlantirish
       if (!hasInsights && !hasProfileInsights) {
-        cards.push({ id: "ig_warn", title: "Insights ma'lumotlari", icon: "⚠️", type: "highlight", items: [
-          { l: "Holat", v: "Reach, Impressions, Saves, Shares ma'lumotlari olinmadi", c: "#FBBF24" },
-          { l: "Sabab", v: "Token da instagram_manage_insights ruxsati yo'q", c: "#F87171" },
-          { l: "Yechim", v: "Graph API Explorer da yangi token oling va instagram_manage_insights ni tanlang", c: "#4ADE80" },
-          { l: "Hozir ko'rinadi", v: "Faqat likes, comments, followers — asosiy ma'lumotlar", c: "#60A5FA" },
-        ]});
+        cards.push({
+          id: "ig_warn", title: "Insights ma'lumotlari", icon: "⚠️", type: "highlight", items: [
+            { l: "Holat", v: "Reach, Impressions, Saves, Shares ma'lumotlari olinmadi", c: "#FBBF24" },
+            { l: "Sabab", v: "Token da instagram_manage_insights ruxsati yo'q", c: "#F87171" },
+            { l: "Yechim", v: "Graph API Explorer da yangi token oling va instagram_manage_insights ni tanlang", c: "#4ADE80" },
+            { l: "Hozir ko'rinadi", v: "Faqat likes, comments, followers — asosiy ma'lumotlar", c: "#60A5FA" },
+          ]
+        });
       }
 
       // ═══ 2. REACH & IMPRESSIONS — kunlik (faqat insights bo'lsagina) ═══
@@ -8133,7 +8145,7 @@ function generateDashboards(source, colSelection) {
           cards.push({
             id: "ig_hours", title: "Eng faol soatlar", icon: "🕐", type: "chart", chartType: "bar",
             data: hourData, keys: ["Faollar"], xKey: "name",
-            colors: hourData.map(d => d.Faollar > hourData.reduce((a,b)=>a+b.Faollar,0)/hourData.length*1.3 ? "#FB923C" : "#A78BFA")
+            colors: hourData.map(d => d.Faollar > hourData.reduce((a, b) => a + b.Faollar, 0) / hourData.length * 1.3 ? "#FB923C" : "#A78BFA")
           });
         }
       }
@@ -8288,23 +8300,23 @@ function generateDashboards(source, colSelection) {
 
       // ═══ 15. XULOSALAR VA TAVSIYALAR ═══
       const bestKey = hasInsights ? "reach" : "engagement";
-      const best = [...posts].sort((a, b) => (b[bestKey]||0) - (a[bestKey]||0))[0];
-      const worst = [...posts].sort((a, b) => (a[bestKey]||0) - (b[bestKey]||0))[0];
+      const best = [...posts].sort((a, b) => (b[bestKey] || 0) - (a[bestKey] || 0))[0];
+      const worst = [...posts].sort((a, b) => (a[bestKey] || 0) - (b[bestKey] || 0))[0];
       const items = [];
       if (best) items.push(
-        { l: "🏆 Eng yaxshi post", v: hasInsights ? `${fmtN(best.reach||0)} reach, ${fmtN(best.likes||0)} like (${best.date || ""})` : `${fmtN(best.likes||0)} like, ${fmtN(best.comments||0)} izoh (${best.date || ""})`, c: "#4ADE80" },
-        { l: "📝 Caption", v: (best.caption || "").slice(0, 80) + ((best.caption||"").length > 80 ? "..." : ""), c: "#60A5FA" }
+        { l: "🏆 Eng yaxshi post", v: hasInsights ? `${fmtN(best.reach || 0)} reach, ${fmtN(best.likes || 0)} like (${best.date || ""})` : `${fmtN(best.likes || 0)} like, ${fmtN(best.comments || 0)} izoh (${best.date || ""})`, c: "#4ADE80" },
+        { l: "📝 Caption", v: (best.caption || "").slice(0, 80) + ((best.caption || "").length > 80 ? "..." : ""), c: "#60A5FA" }
       );
       if (worst && posts.length > 3) items.push(
-        { l: "📉 Eng past post", v: hasInsights ? `${fmtN(worst.reach||0)} reach (${worst.date || ""})` : `${fmtN(worst.likes||0)} like (${worst.date || ""})`, c: "#F87171" }
+        { l: "📉 Eng past post", v: hasInsights ? `${fmtN(worst.reach || 0)} reach (${worst.date || ""})` : `${fmtN(worst.likes || 0)} like (${worst.date || ""})`, c: "#F87171" }
       );
-      const avgEng = posts.reduce((a,p) => a + (p.engagement||0), 0) / posts.length;
-      const goodPosts = posts.filter(p => (p.engagement||0) > avgEng * 1.5).length;
+      const avgEng = posts.reduce((a, p) => a + (p.engagement || 0), 0) / posts.length;
+      const goodPosts = posts.filter(p => (p.engagement || 0) > avgEng * 1.5).length;
       items.push(
-        { l: "⭐ O'rtachadan yuqori postlar", v: `${goodPosts} ta (${Math.round(goodPosts/posts.length*100)}%)`, c: "#00C9BE" }
+        { l: "⭐ O'rtachadan yuqori postlar", v: `${goodPosts} ta (${Math.round(goodPosts / posts.length * 100)}%)`, c: "#00C9BE" }
       );
       // Eng samarali tur
-      const bestType = Object.entries(typeStats).sort((a,b) => hasInsights ? (b[1].reach/b[1].count) - (a[1].reach/a[1].count) : (b[1].likes/b[1].count) - (a[1].likes/a[1].count))[0];
+      const bestType = Object.entries(typeStats).sort((a, b) => hasInsights ? (b[1].reach / b[1].count) - (a[1].reach / a[1].count) : (b[1].likes / b[1].count) - (a[1].likes / a[1].count))[0];
       if (bestType) items.push({ l: "💡 Tavsiya", v: `"${bestType[0]}" turidagi postlar eng samarali`, c: "#E879F9" });
       cards.push({ id: "ig_summary", title: "Xulosalar va tavsiyalar", icon: "💡", type: "highlight", items });
     }
@@ -8738,11 +8750,11 @@ function AiProgressBar({ loading }) {
   const [progress, setProgress] = useState(0);
   const steps = [
     { label: "Tayyorlanmoqda", icon: "⚙", pct: 15 },
-    { label: "Yuborilmoqda",   icon: "↑", pct: 30 },
-    { label: "Tahlil",         icon: "◈", pct: 55 },
-    { label: "Hisoblash",      icon: "#", pct: 75 },
-    { label: "Grafik",         icon: "▨", pct: 90 },
-    { label: "Yakunlash",      icon: "✓", pct: 97 },
+    { label: "Yuborilmoqda", icon: "↑", pct: 30 },
+    { label: "Tahlil", icon: "◈", pct: 55 },
+    { label: "Hisoblash", icon: "#", pct: 75 },
+    { label: "Grafik", icon: "▨", pct: 90 },
+    { label: "Yakunlash", icon: "✓", pct: 97 },
   ];
 
   useEffect(() => {
@@ -8860,7 +8872,7 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
 
   return (
     <div>
-      <div ref={btnRef} className="tb-item" onClick={() => setOpen(!open)} title="Mavzu tanlash" style={{ padding:"0 10px" }}>
+      <div ref={btnRef} className="tb-item" onClick={() => setOpen(!open)} title="Mavzu tanlash" style={{ padding: "0 10px" }}>
         <div style={{ width: 16, height: 16, borderRadius: "50%", background: prev.grad, boxShadow: `0 0 8px ${prev.accent}40` }} />
       </div>
       {open && createPortal(
@@ -8878,7 +8890,7 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
                     cursor: "pointer", marginBottom: 4, display: "flex", alignItems: "center", gap: 12, transition: "all .2s",
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; e.currentTarget.style.borderColor = `${tp.accent}20`; }}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; }}}>
+                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } }}>
                   <div style={{ width: 28, height: 28, borderRadius: 8, background: tp.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#000", fontWeight: 800, boxShadow: active ? `0 0 16px ${tp.accent}35` : "0 2px 6px rgba(0,0,0,0.3)" }}>
                     {t.icon}
                   </div>
@@ -8887,7 +8899,7 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
                     <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{t.desc}</div>
                   </div>
                   {active && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tp.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tp.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                   )}
                 </button>
               );
@@ -8909,15 +8921,15 @@ function LiveClock() {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-  const days = ["Yak","Dush","Sesh","Chor","Pay","Jum","Shan"];
+  const days = ["Yak", "Dush", "Sesh", "Chor", "Pay", "Jum", "Shan"];
   const day = days[now.getDay()];
-  const date = now.toLocaleDateString("uz-UZ", { day:"2-digit", month:"2-digit", year:"numeric" });
-  const time = now.toLocaleTimeString("uz-UZ", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  const date = now.toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = now.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   return (
-    <div className="tb-item hide-mobile" style={{ cursor:"default", gap:8, display:"flex", alignItems:"center" }}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink:0 }}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      <span style={{ fontFamily:"var(--fm)", fontSize:10, letterSpacing:0.3, lineHeight:1, display:"flex", alignItems:"center" }}>
-        <span style={{ color:"var(--muted)" }}>{day}</span>&nbsp;{date}&nbsp;<span style={{ color:"var(--teal)", fontWeight:600 }}>{time}</span>
+    <div className="tb-item hide-mobile" style={{ cursor: "default", gap: 8, display: "flex", alignItems: "center" }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+      <span style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 0.3, lineHeight: 1, display: "flex", alignItems: "center" }}>
+        <span style={{ color: "var(--muted)" }}>{day}</span>&nbsp;{date}&nbsp;<span style={{ color: "var(--teal)", fontWeight: 600 }}>{time}</span>
       </span>
     </div>
   );
@@ -8949,13 +8961,13 @@ function RenderMD({ text }) {
     if (rows.length === 0) return null;
     const hdr = rows[0]; const body = rows.slice(1);
     return (
-      <div key={key} style={{ overflowX:"auto", margin:"12px 0", borderRadius:10, border:"1px solid var(--border)", background:"var(--s1)" }}>
-        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-          <thead><tr style={{ background:"linear-gradient(135deg, rgba(0,212,200,0.06), rgba(212,168,83,0.04))" }}>{hdr.map((h,j) => <th key={j} style={{ padding:"10px 14px", textAlign:"left", borderBottom:"2px solid var(--teal)30", color:"var(--teal)", fontFamily:"var(--fh)", fontSize:10, textTransform:"uppercase", letterSpacing:1.5, fontWeight:700 }}>{h}</th>)}</tr></thead>
-          <tbody>{body.map((row,ri) => <tr key={ri} style={{ background: ri%2===0 ? "transparent" : "rgba(255,255,255,0.015)", transition:"background .15s" }}
+      <div key={key} style={{ overflowX: "auto", margin: "12px 0", borderRadius: 10, border: "1px solid var(--border)", background: "var(--s1)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead><tr style={{ background: "linear-gradient(135deg, rgba(0,212,200,0.06), rgba(212,168,83,0.04))" }}>{hdr.map((h, j) => <th key={j} style={{ padding: "10px 14px", textAlign: "left", borderBottom: "2px solid var(--teal)30", color: "var(--teal)", fontFamily: "var(--fh)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 700 }}>{h}</th>)}</tr></thead>
+          <tbody>{body.map((row, ri) => <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)", transition: "background .15s" }}
             onMouseEnter={e => e.currentTarget.style.background = "rgba(0,212,200,0.03)"}
-            onMouseLeave={e => e.currentTarget.style.background = ri%2===0 ? "transparent" : "rgba(255,255,255,0.015)"}
-          >{row.map((c,ci) => <td key={ci} style={{ padding:"8px 14px", borderBottom:"1px solid var(--border)", fontSize:12, lineHeight:1.5 }} dangerouslySetInnerHTML={{__html:fmt(c)}}/>)}</tr>)}</tbody>
+            onMouseLeave={e => e.currentTarget.style.background = ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)"}
+          >{row.map((c, ci) => <td key={ci} style={{ padding: "8px 14px", borderBottom: "1px solid var(--border)", fontSize: 12, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: fmt(c) }} />)}</tr>)}</tbody>
         </table>
       </div>
     );
@@ -8975,31 +8987,31 @@ function RenderMD({ text }) {
       tableRows = []; inTable = false;
     }
     // Divider
-    if (trimmed === "---" || trimmed === "***") { elements.push(<div key={i} style={{ height:1, background:"linear-gradient(90deg,transparent 5%,var(--teal)30 50%,transparent 95%)", margin:"16px 0" }}/>); return; }
+    if (trimmed === "---" || trimmed === "***") { elements.push(<div key={i} style={{ height: 1, background: "linear-gradient(90deg,transparent 5%,var(--teal)30 50%,transparent 95%)", margin: "16px 0" }} />); return; }
     // H1 — katta sarlavha, gradient pastki chiziq
-    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:17, fontWeight:800, marginTop:20, marginBottom:10, color:"var(--gold)", paddingBottom:8, borderBottom:"2px solid", borderImage:"linear-gradient(90deg,var(--gold)80,var(--teal)40,transparent) 1" }}>{trimmed.slice(2)}</div>); return; }
+    if (trimmed.startsWith("# ")) { elements.push(<div key={i} style={{ fontFamily: "var(--fh)", fontSize: 17, fontWeight: 800, marginTop: 20, marginBottom: 10, color: "var(--gold)", paddingBottom: 8, borderBottom: "2px solid", borderImage: "linear-gradient(90deg,var(--gold)80,var(--teal)40,transparent) 1" }}>{trimmed.slice(2)}</div>); return; }
     // H2 — teal rangda, chap chiziq
-    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:15, fontWeight:800, marginTop:18, marginBottom:6, color:"var(--teal)", display:"flex", alignItems:"center", gap:8 }}><div style={{ width:4, height:18, borderRadius:2, background:"linear-gradient(180deg,var(--teal),var(--teal)40)", flexShrink:0 }}/><span>{trimmed.slice(3)}</span></div>); return; }
+    if (trimmed.startsWith("## ")) { elements.push(<div key={i} style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 800, marginTop: 18, marginBottom: 6, color: "var(--teal)", display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 4, height: 18, borderRadius: 2, background: "linear-gradient(180deg,var(--teal),var(--teal)40)", flexShrink: 0 }} /><span>{trimmed.slice(3)}</span></div>); return; }
     // H3 — purple rangda
-    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily:"var(--fh)", fontSize:13.5, fontWeight:700, marginTop:14, marginBottom:4, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}><div style={{ width:3, height:14, borderRadius:2, background:"var(--purple)" }}/><span>{trimmed.slice(4)}</span></div>); return; }
+    if (trimmed.startsWith("### ")) { elements.push(<div key={i} style={{ fontFamily: "var(--fh)", fontSize: 13.5, fontWeight: 700, marginTop: 14, marginBottom: 4, color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 3, height: 14, borderRadius: 2, background: "var(--purple)" }} /><span>{trimmed.slice(4)}</span></div>); return; }
     // Blockquote — chiroyli fon bilan
-    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft:"3px solid var(--teal)", margin:"10px 0", padding:"10px 16px", color:"var(--text)", fontSize:13, background:"linear-gradient(135deg,rgba(0,212,200,0.05),rgba(0,212,200,0.02))", borderRadius:"0 10px 10px 0", lineHeight:1.7, border:"1px solid rgba(0,212,200,0.08)", borderLeftWidth:3 }} dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/>); return; }
+    if (trimmed.startsWith("> ")) { elements.push(<div key={i} style={{ borderLeft: "3px solid var(--teal)", margin: "10px 0", padding: "10px 16px", color: "var(--text)", fontSize: 13, background: "linear-gradient(135deg,rgba(0,212,200,0.05),rgba(0,212,200,0.02))", borderRadius: "0 10px 10px 0", lineHeight: 1.7, border: "1px solid rgba(0,212,200,0.08)", borderLeftWidth: 3 }} dangerouslySetInnerHTML={{ __html: fmt(trimmed.slice(2)) }} />); return; }
     // Bullet — teal nuqta
     if (trimmed.startsWith("- ") || trimmed.startsWith("• ") || trimmed.startsWith("* ")) {
-      elements.push(<div key={i} style={{ paddingLeft:18, position:"relative", margin:"4px 0", fontSize:13, lineHeight:1.7 }}><span style={{ position:"absolute", left:3, color:"var(--teal)", fontSize:7, top:8 }}>●</span><span dangerouslySetInnerHTML={{__html:fmt(trimmed.slice(2))}}/></div>);
+      elements.push(<div key={i} style={{ paddingLeft: 18, position: "relative", margin: "4px 0", fontSize: 13, lineHeight: 1.7 }}><span style={{ position: "absolute", left: 3, color: "var(--teal)", fontSize: 7, top: 8 }}>●</span><span dangerouslySetInnerHTML={{ __html: fmt(trimmed.slice(2)) }} /></div>);
       return;
     }
     // Numbered list — raqam badge
     const numMatch = trimmed.match(/^(\d+)\.\s(.+)/);
-    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft:26, position:"relative", margin:"4px 0", fontSize:13, lineHeight:1.7 }}><span style={{ position:"absolute", left:0, top:2, color:"var(--gold)", fontWeight:800, fontFamily:"var(--fm)", fontSize:10, background:"rgba(212,168,83,0.12)", width:20, height:20, borderRadius:6, display:"inline-flex", alignItems:"center", justifyContent:"center", border:"1px solid rgba(212,168,83,0.15)" }}>{numMatch[1]}</span><span dangerouslySetInnerHTML={{__html:fmt(numMatch[2])}}/></div>); return; }
+    if (numMatch) { elements.push(<div key={i} style={{ paddingLeft: 26, position: "relative", margin: "4px 0", fontSize: 13, lineHeight: 1.7 }}><span style={{ position: "absolute", left: 0, top: 2, color: "var(--gold)", fontWeight: 800, fontFamily: "var(--fm)", fontSize: 10, background: "rgba(212,168,83,0.12)", width: 20, height: 20, borderRadius: 6, display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(212,168,83,0.15)" }}>{numMatch[1]}</span><span dangerouslySetInnerHTML={{ __html: fmt(numMatch[2]) }} /></div>); return; }
     // Empty line
-    if (!trimmed) { elements.push(<div key={i} style={{ height:8 }}/>); return; }
+    if (!trimmed) { elements.push(<div key={i} style={{ height: 8 }} />); return; }
     // Normal text
-    elements.push(<div key={i} style={{ margin:"3px 0", fontSize:13, lineHeight:1.7, color:"var(--text)" }} dangerouslySetInnerHTML={{__html:fmt(trimmed)}}/>);
+    elements.push(<div key={i} style={{ margin: "3px 0", fontSize: 13, lineHeight: 1.7, color: "var(--text)" }} dangerouslySetInnerHTML={{ __html: fmt(trimmed) }} />);
   });
   // Flush remaining table
   if (tableRows.length > 0) elements.push(renderTable(tableRows, "tlast"));
-  return <div style={{ fontSize:13, lineHeight:1.7 }}>{elements}</div>;
+  return <div style={{ fontSize: 13, lineHeight: 1.7 }}>{elements}</div>;
 }
 
 const AngledXTick = ({ x, y, payload }) => (
@@ -9150,7 +9162,7 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
               <DashCard card={card} chartOverrides={chartOverrides} setChartOverride={setChartOverride} onRemove={hideCard} onDelete={onDeleteCard || onRemoveCard} />
               {/* YANGI indikator — 3 daqiqa ichida yaratilgan kartalar, pastki chap burchak */}
               {card.id && String(card.id).startsWith("ai_") && (Date.now() - parseInt(String(card.id).split("_")[1] || 0)) < 180000 && (
-                <div style={{ position:"absolute", bottom:8, right:8, zIndex:5, width:8, height:8, borderRadius:"50%", background:"#4ADE80", boxShadow:"0 0 8px rgba(74,222,128,0.6)", animation:"pulse-voice 2s ease infinite" }} title="Yangi qo'shilgan" />
+                <div style={{ position: "absolute", bottom: 8, right: 8, zIndex: 5, width: 8, height: 8, borderRadius: "50%", background: "#4ADE80", boxShadow: "0 0 8px rgba(74,222,128,0.6)", animation: "pulse-voice 2s ease infinite" }} title="Yangi qo'shilgan" />
               )}
             </div>
           );
@@ -9334,8 +9346,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
     return (
       <CardWrap>
         <div className="flex aic jb mb12">
-          <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
-          {(onRemove || onDelete) && <div style={{display:"flex",gap:4}}>{onRemove && <button onClick={()=>onRemove(card.id)} title="Yashirish" style={{width:28,height:28,borderRadius:8,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--teal)";e.currentTarget.style.color="var(--teal)"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--muted)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>}{onDelete && <button onClick={()=>onDelete(card.id)} title="O'chirish" style={{width:28,height:28,borderRadius:8,border:"1px solid rgba(248,113,113,0.2)",background:"rgba(248,113,113,0.06)",color:"#F87171",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.12)";e.currentTarget.style.borderColor="rgba(248,113,113,0.4)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.06)";e.currentTarget.style.borderColor="rgba(248,113,113,0.2)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>}</div>}
+          <div className="card-title" style={{ marginBottom: 0 }}>{card.icon} {card.title}</div>
+          {(onRemove || onDelete) && <div style={{ display: "flex", gap: 4 }}>{onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)" }} onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg></button>}{onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>}</div>}
         </div>
         <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(110px,1fr))", gap: 8, alignContent: "center" }}>
           {card.stats.map((s, i) => (
@@ -9355,8 +9367,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
     return (
       <CardWrap>
         <div className="flex aic jb mb8">
-          <div className="card-title" style={{marginBottom:0,textAlign:"center",flex:1}}>{card.icon} {card.title}</div>
-          {(onRemove || onDelete) && <div style={{display:"flex",gap:4}}>{onRemove && <button onClick={()=>onRemove(card.id)} title="Yashirish" style={{width:28,height:28,borderRadius:8,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--teal)";e.currentTarget.style.color="var(--teal)"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--muted)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>}{onDelete && <button onClick={()=>onDelete(card.id)} title="O'chirish" style={{width:28,height:28,borderRadius:8,border:"1px solid rgba(248,113,113,0.2)",background:"rgba(248,113,113,0.06)",color:"#F87171",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.12)";e.currentTarget.style.borderColor="rgba(248,113,113,0.4)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.06)";e.currentTarget.style.borderColor="rgba(248,113,113,0.2)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>}</div>}
+          <div className="card-title" style={{ marginBottom: 0, textAlign: "center", flex: 1 }}>{card.icon} {card.title}</div>
+          {(onRemove || onDelete) && <div style={{ display: "flex", gap: 4 }}>{onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)" }} onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg></button>}{onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>}</div>}
         </div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ maxWidth: 220, width: "100%" }}>
@@ -9371,8 +9383,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
     return (
       <CardWrap>
         <div className="flex aic jb mb12">
-          <div className="card-title" style={{marginBottom:0}}>{card.icon} {card.title}</div>
-          {(onRemove || onDelete) && <div style={{display:"flex",gap:4}}>{onRemove && <button onClick={()=>onRemove(card.id)} title="Yashirish" style={{width:28,height:28,borderRadius:8,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--teal)";e.currentTarget.style.color="var(--teal)"}} onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--border)";e.currentTarget.style.color="var(--muted)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>}{onDelete && <button onClick={()=>onDelete(card.id)} title="O'chirish" style={{width:28,height:28,borderRadius:8,border:"1px solid rgba(248,113,113,0.2)",background:"rgba(248,113,113,0.06)",color:"#F87171",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(248,113,113,0.12)";e.currentTarget.style.borderColor="rgba(248,113,113,0.4)"}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(248,113,113,0.06)";e.currentTarget.style.borderColor="rgba(248,113,113,0.2)"}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>}</div>}
+          <div className="card-title" style={{ marginBottom: 0 }}>{card.icon} {card.title}</div>
+          {(onRemove || onDelete) && <div style={{ display: "flex", gap: 4 }}>{onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)" }} onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg></button>}{onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish" style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }} onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)" }} onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>}</div>}
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
           {card.items.map((it, i) => (
@@ -9431,8 +9443,8 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
             <button onClick={() => setTableView(v => !v)} title={tableView ? "Grafik ko'rinishi" : "Jadval ko'rinishi"}
               style={{ width: 28, height: 28, borderRadius: 8, border: tableView ? "1px solid rgba(0,201,190,0.5)" : "1px solid var(--border)", background: tableView ? "rgba(0,201,190,0.12)" : "var(--s2)", color: tableView ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}>
               {tableView
-                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></svg>
               }
             </button>
           )}
@@ -9440,13 +9452,13 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
             style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
           </button>}
           {onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish"
             style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
             onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)"; }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
           </button>}
         </div>
       </div>
@@ -9551,7 +9563,7 @@ function DashboardPage({ sources, aiConfig, setPage, user }) {
     try {
       let ctx = "";
       if (Token.get()) {
-        try { const r = await SourcesAPI.getAiContext(src.id, newWidget.label); if (r?.context) ctx = r.context; } catch {}
+        try { const r = await SourcesAPI.getAiContext(src.id, newWidget.label); if (r?.context) ctx = r.context; } catch { }
       }
       if (!ctx) ctx = buildMergedContext([src]);
       const prompt = `Foydalanuvchi "${newWidget.label}" ko'rsatkichini bilmoqchi. Manba: "${src.name}" (${src.data.length} qator).
@@ -9588,7 +9600,7 @@ FAQAT JSON, boshqa narsa yozma.`;
     try {
       let ctx = "";
       if (Token.get()) {
-        try { const r = await SourcesAPI.getAiContext(src.id, w.label); if (r?.context) ctx = r.context; } catch {}
+        try { const r = await SourcesAPI.getAiContext(src.id, w.label); if (r?.context) ctx = r.context; } catch { }
       }
       if (!ctx) ctx = buildMergedContext([src]);
       const prompt = `"${w.label}" ko'rsatkichini hisobla. Manba: "${src.name}" (${src.data.length} qator). DATA:\n${ctx}
@@ -9627,7 +9639,7 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
     try {
       let ctx = "";
       if (Token.get()) {
-        try { const r = await SourcesAPI.getAiContext(workingSrc.id, q); if (r?.context) ctx = r.context; } catch {}
+        try { const r = await SourcesAPI.getAiContext(workingSrc.id, q); if (r?.context) ctx = r.context; } catch { }
       }
       if (!ctx) ctx = buildMergedContext([workingSrc]);
       const prompt = `Biznes tahlilchi. So'rov: "${q}"
@@ -9714,70 +9726,70 @@ FAQAT JSON.`;
 
       {/* ── Custom widgets ── */}
       <div style={{ marginBottom: 16 }}>
-          <div className="flex aic jb mb8">
-            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
-            <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
-          </div>
-          {widgets.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
-              {widgets.map(w => {
-                const isLoading = widgetLoading === w.id;
-                return (
-                  <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", transition: "all .2s" }}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = w.color + "40"}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                    <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4 }}>
-                      <button onClick={() => refreshWidget(w)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }} title="Yangilash">↻</button>
-                      <button onClick={() => removeWidget(w.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
-                    </div>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: w.color }}>
-                      {isLoading ? (
-                        <div>
-                          <div style={{ height: 2, background: "var(--s3)", borderRadius: 2, marginBottom: 4, overflow: "hidden" }}>
-                            <div style={{ height: "100%", borderRadius: 2, background: w.color, animation: "dashProg 1.5s ease infinite" }} />
-                          </div>
-                          <span style={{ fontSize: 10, color: "var(--muted)" }}>AI hisoblayapti</span>
-                        </div>
-                      ) : w.value || "—"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, fontWeight: 600 }}>{w.label}</div>
-                    {w.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{w.sub}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {showAddWidget && (
-            <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginTop: 8 }}>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <input className="field f1" placeholder="Nima bilmoqchisiz? (masalan: Jami o'quvchilar soni)" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
-              </div>
-              <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                <select className="field f1" value={newWidget.sourceId} onChange={e => setNewWidget(p => ({ ...p, sourceId: e.target.value }))}>
-                  <option value="">Manba tanlang...</option>
-                  {connected.map(s => <option key={s.id} value={s.id}>{s.name} ({s.data?.length} qator)</option>)}
-                </select>
-                <input type="color" value={newWidget.color} onChange={e => setNewWidget(p => ({ ...p, color: e.target.value }))} style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer" }} />
-              </div>
-              <div className="flex gap8">
-                <button className="btn btn-primary btn-sm" onClick={addWidget} disabled={!newWidget.label || !newWidget.sourceId || widgetLoading}>
-                  {widgetLoading ? "AI hisoblayapti..." : "Qo'shish"}
-                </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowAddWidget(false)}>Bekor</button>
-              </div>
-            </div>
-          )}
+        <div className="flex aic jb mb8">
+          <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
+          <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
         </div>
+        {widgets.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
+            {widgets.map(w => {
+              const isLoading = widgetLoading === w.id;
+              return (
+                <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", transition: "all .2s" }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = w.color + "40"}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+                  <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4 }}>
+                    <button onClick={() => refreshWidget(w)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }} title="Yangilash">↻</button>
+                    <button onClick={() => removeWidget(w.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
+                  </div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: w.color }}>
+                    {isLoading ? (
+                      <div>
+                        <div style={{ height: 2, background: "var(--s3)", borderRadius: 2, marginBottom: 4, overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 2, background: w.color, animation: "dashProg 1.5s ease infinite" }} />
+                        </div>
+                        <span style={{ fontSize: 10, color: "var(--muted)" }}>AI hisoblayapti</span>
+                      </div>
+                    ) : w.value || "—"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, fontWeight: 600 }}>{w.label}</div>
+                  {w.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{w.sub}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {showAddWidget && (
+          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <input className="field f1" placeholder="Nima bilmoqchisiz? (masalan: Jami o'quvchilar soni)" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+              <select className="field f1" value={newWidget.sourceId} onChange={e => setNewWidget(p => ({ ...p, sourceId: e.target.value }))}>
+                <option value="">Manba tanlang...</option>
+                {connected.map(s => <option key={s.id} value={s.id}>{s.name} ({s.data?.length} qator)</option>)}
+              </select>
+              <input type="color" value={newWidget.color} onChange={e => setNewWidget(p => ({ ...p, color: e.target.value }))} style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer" }} />
+            </div>
+            <div className="flex gap8">
+              <button className="btn btn-primary btn-sm" onClick={addWidget} disabled={!newWidget.label || !newWidget.sourceId || widgetLoading}>
+                {widgetLoading ? "AI hisoblayapti..." : "Qo'shish"}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowAddWidget(false)}>Bekor</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Tezkor amallar ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>
         {[
-          { lbl: "Grafiklar", desc: "Vizualizatsiya", page: "charts", c: "#00C9BE", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
-          { lbl: "AI Maslahat", desc: "Savol bering", page: "chat", c: "#4ADE80", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
-          { lbl: "Tahlil", desc: "Chuqur analitika", page: "analytics", c: "#E8B84B", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
-          { lbl: "Hisobotlar", desc: "PDF eksport", page: "reports", c: "#A78BFA", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-          { lbl: "Ogohlantirishlar", desc: "AI monitoring", page: "alerts", c: "#F87171", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg> },
-          { lbl: "Data Hub", desc: "Manbalar", page: "datahub", c: "#38BDF8", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> },
+          { lbl: "Grafiklar", desc: "Vizualizatsiya", page: "charts", c: "#00C9BE", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg> },
+          { lbl: "AI Maslahat", desc: "Savol bering", page: "chat", c: "#4ADE80", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
+          { lbl: "Tahlil", desc: "Chuqur analitika", page: "analytics", c: "#E8B84B", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg> },
+          { lbl: "Hisobotlar", desc: "PDF eksport", page: "reports", c: "#A78BFA", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg> },
+          { lbl: "Ogohlantirishlar", desc: "AI monitoring", page: "alerts", c: "#F87171", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg> },
+          { lbl: "Data Hub", desc: "Manbalar", page: "datahub", c: "#38BDF8", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg> },
         ].map((a, i) => (
           <div key={i} onClick={() => setPage(a.page)}
             style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all .2s", display: "flex", alignItems: "center", gap: 10 }}
@@ -9809,7 +9821,7 @@ FAQAT JSON.`;
             <div className="flex aic jb" style={{ cursor: "pointer" }} onClick={() => setAnomalyOpen(p => !p)}>
               <div className="flex aic gap10">
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24" /></svg>
                 </div>
                 <div>
                   <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar {unreadCount > 0 && <span style={{ color: "var(--red)", fontSize: 12 }}>({unreadCount} yangi)</span>}</div>
@@ -9821,7 +9833,7 @@ FAQAT JSON.`;
                 {warnCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{warnCount} ogohlantirish</span>}
                 {infoCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60A5FA", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{infoCount} ma'lumot</span>}
                 {hiddenAnomalies.length > 0 && <span onClick={e => { e.stopPropagation(); resetHiddenAnomalies(); }} style={{ padding: "4px 10px", borderRadius: 20, background: "var(--s3)", border: "1px solid var(--border)", color: "var(--muted)", fontSize: 10, fontFamily: "var(--fh)", cursor: "pointer" }}>Barchasini ko'rsatish</span>}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .3s", transform: anomalyOpen ? "rotate(180deg)" : "rotate(0)" }}><polyline points="6 9 12 15 18 9"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .3s", transform: anomalyOpen ? "rotate(180deg)" : "rotate(0)" }}><polyline points="6 9 12 15 18 9" /></svg>
               </div>
             </div>
             {/* Kartalar — faqat ochiq bo'lganda */}
@@ -9914,7 +9926,7 @@ FAQAT JSON.`;
 
       {/* Dashboard kartalar */}
       {dashCards.length > 0 && (
-        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_"+(user?.id||"anon")+"_layout_dash"} onDeleteCard={(id) => removeDashCard(id)} />
+        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_dash"} onDeleteCard={(id) => removeDashCard(id)} />
       )}
 
       {/* ── Ma'lumot yo'q holat ── */}
@@ -10254,32 +10266,32 @@ function AppContent() {
 
   // ── Onboarding Modal ──
   const onboardingModal = showOnboarding && (
-    <div style={{ position:"fixed", inset:0, zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.7)", backdropFilter:"blur(12px)" }}>
-      <div style={{ background:"var(--s1)", border:"1px solid var(--border)", borderRadius:24, padding:"36px 32px", width:"100%", maxWidth:460, position:"relative", animation:"fadeIn .3s ease" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}>
+      <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 24, padding: "36px 32px", width: "100%", maxWidth: 460, position: "relative", animation: "fadeIn .3s ease" }}>
         {/* Progress */}
-        <div style={{ display:"flex", gap:4, marginBottom:24 }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 24 }}>
           {onbQuestions.map((_, i) => (
-            <div key={i} style={{ flex:1, height:3, borderRadius:2, background: i <= onbStep ? "linear-gradient(90deg,#00C9BE,#4ADE80)" : "var(--s3)", transition:"all .3s" }} />
+            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= onbStep ? "linear-gradient(90deg,#00C9BE,#4ADE80)" : "var(--s3)", transition: "all .3s" }} />
           ))}
         </div>
         {/* Savol */}
-        <div style={{ fontSize:10, color:"var(--teal)", fontFamily:"var(--fh)", textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{onbStep + 1} / {onbQuestions.length}</div>
-        <div style={{ fontFamily:"var(--fh)", fontSize:20, fontWeight:800, marginBottom:16, lineHeight:1.3 }}>{onbQuestions[onbStep]?.label}</div>
+        <div style={{ fontSize: 10, color: "var(--teal)", fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>{onbStep + 1} / {onbQuestions.length}</div>
+        <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, marginBottom: 16, lineHeight: 1.3 }}>{onbQuestions[onbStep]?.label}</div>
         {/* Input */}
         {onbQuestions[onbStep]?.type === "input" ? (
           <input className="field" placeholder={onbQuestions[onbStep]?.placeholder} value={onbData[onbQuestions[onbStep]?.key] || ""}
             onChange={e => setOnbData(p => ({ ...p, [onbQuestions[onbStep]?.key]: e.target.value }))}
-            onKeyDown={e => { if (e.key === "Enter") { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }}}
-            style={{ fontSize:14, padding:"14px 18px", marginBottom:16 }} autoFocus />
+            onKeyDown={e => { if (e.key === "Enter") { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); } }}
+            style={{ fontSize: 14, padding: "14px 18px", marginBottom: 16 }} autoFocus />
         ) : (
-          <div style={{ display:"grid", gap:8, marginBottom:16 }}>
+          <div style={{ display: "grid", gap: 8, marginBottom: 16 }}>
             {onbQuestions[onbStep]?.options?.map(opt => (
               <button key={opt} onClick={() => { setOnbData(p => ({ ...p, [onbQuestions[onbStep]?.key]: opt })); setTimeout(() => { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }, 200); }}
                 style={{
-                  padding:"12px 18px", borderRadius:12, border:`1px solid ${onbData[onbQuestions[onbStep]?.key] === opt ? "rgba(0,201,190,0.5)" : "var(--border)"}`,
+                  padding: "12px 18px", borderRadius: 12, border: `1px solid ${onbData[onbQuestions[onbStep]?.key] === opt ? "rgba(0,201,190,0.5)" : "var(--border)"}`,
                   background: onbData[onbQuestions[onbStep]?.key] === opt ? "rgba(0,201,190,0.08)" : "var(--s2)",
                   color: onbData[onbQuestions[onbStep]?.key] === opt ? "var(--teal)" : "var(--text2)",
-                  fontSize:13, textAlign:"left", cursor:"pointer", transition:"all .2s", fontWeight: onbData[onbQuestions[onbStep]?.key] === opt ? 700 : 400,
+                  fontSize: 13, textAlign: "left", cursor: "pointer", transition: "all .2s", fontWeight: onbData[onbQuestions[onbStep]?.key] === opt ? 700 : 400,
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = "rgba(0,201,190,0.3)"}
                 onMouseLeave={e => { if (onbData[onbQuestions[onbStep]?.key] !== opt) e.currentTarget.style.borderColor = "var(--border)"; }}>
@@ -10290,13 +10302,13 @@ function AppContent() {
         )}
         {/* Tugmalar */}
         <div className="flex gap8">
-          {onbStep > 0 && <button className="btn btn-ghost" style={{ flex:1 }} onClick={() => setOnbStep(s => s - 1)}>← Orqaga</button>}
+          {onbStep > 0 && <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setOnbStep(s => s - 1)}>← Orqaga</button>}
           {onbQuestions[onbStep]?.type === "input" && (
-            <button className="btn btn-primary" style={{ flex:1 }} onClick={() => { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => { onbStep < onbQuestions.length - 1 ? setOnbStep(s => s + 1) : saveOnboarding(); }}>
               {onbStep < onbQuestions.length - 1 ? "Keyingi →" : "Boshlash →"}
             </button>
           )}
-          <button className="btn btn-ghost btn-xs" style={{ position:"absolute", top:16, right:16, color:"var(--muted)" }} onClick={() => { saveOnboarding(); }}>O'tkazib yuborish</button>
+          <button className="btn btn-ghost btn-xs" style={{ position: "absolute", top: 16, right: 16, color: "var(--muted)" }} onClick={() => { saveOnboarding(); }}>O'tkazib yuborish</button>
         </div>
       </div>
     </div>
@@ -10408,7 +10420,7 @@ function AppContent() {
                   return (
                     <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
                       onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
-                      
+
                       <span>{item.lbl}</span>
                       {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
                     </div>
@@ -10423,7 +10435,7 @@ function AppContent() {
                 <div className="nav-group-label">Boshqaruv</div>
                 <div className="ni" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.15)" }}
                   onClick={() => setAdminMode(true)}>
-                  
+
                   <span>Admin Panel</span>
                   <span className="ni-badge ml-auto warn">{Auth.getUsers().length}</span>
                 </div>
@@ -10467,26 +10479,26 @@ function AppContent() {
             <div className="topbar-right">
               {bgTaskCount > 0 && (
                 <div className="tb-item" onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
-                  style={{ borderColor:"rgba(0,201,190,0.2)", color:"var(--teal)", fontWeight:600, animation:"pulse-voice 2s ease infinite" }}>
-                  <span style={{ width:7, height:7, borderRadius:"50%", background:"var(--teal)", animation:"pulse-voice 1s ease infinite" }}/>
+                  style={{ borderColor: "rgba(0,201,190,0.2)", color: "var(--teal)", fontWeight: 600, animation: "pulse-voice 2s ease infinite" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--teal)", animation: "pulse-voice 1s ease infinite" }} />
                   AI ({bgTaskCount})
                 </div>
               )}
               {unreadAlerts > 0 && (
-                <div className="tb-item" onClick={() => setPage("alerts")} style={{ borderColor:"rgba(212,168,83,0.2)", color:"var(--gold)", fontWeight:600 }}>
+                <div className="tb-item" onClick={() => setPage("alerts")} style={{ borderColor: "rgba(212,168,83,0.2)", color: "var(--gold)", fontWeight: 600 }}>
                   {unreadAlerts}
                 </div>
               )}
               <div className="tb-item" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "20" }}>
                 <span style={{ color: prov.color }}>{prov.icon}</span>
-                <span style={{ color: prov.color, fontWeight:600 }} className="hide-mobile">{prov.name}</span>
+                <span style={{ color: prov.color, fontWeight: 600 }} className="hide-mobile">{prov.name}</span>
                 <span style={{ color: "var(--muted)" }}>·</span>
                 <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
               </div>
               <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
               <LiveClock />
-              <div className="tb-item" onClick={handleLogout} style={{ borderColor:"rgba(248,113,113,0.2)", color:"#FB7185", fontWeight:600 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <div className="tb-item" onClick={handleLogout} style={{ borderColor: "rgba(248,113,113,0.2)", color: "#FB7185", fontWeight: 600 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                 <span className="hide-mobile">Chiqish</span>
               </div>
             </div>
