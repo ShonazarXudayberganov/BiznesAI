@@ -1476,25 +1476,29 @@ select.field{cursor:pointer;-webkit-appearance:none}
 // ─────────────────────────────────────────────────────────────
 function useNotifs() {
   const [notifs, setNotifs] = useState([]);
+  const remove = useCallback((id) => setNotifs(p => p.filter(n => n.id !== id)), []);
   const push = useCallback((msg, type = "info") => {
-    const id = Date.now();
+    const id = Date.now() + Math.random();
     setNotifs(p => [...p, { id, msg, type }]);
-    setTimeout(() => setNotifs(p => p.filter(n => n.id !== id)), 4000);
-  }, []);
-  return { notifs, push };
+    setTimeout(() => remove(id), 3000);
+  }, [remove]);
+  return { notifs, push, remove };
 }
-function NotifBanner({ notifs }) {
+function NotifBanner({ notifs, remove }) {
   const colors = { ok: "var(--green)", error: "var(--red)", info: "var(--text2)", warn: "var(--gold)" };
   return (
     <div className="notif-stack">
       {notifs.map(n => (
-        <div key={n.id} className="notif" style={{ borderLeftColor: colors[n.type] || colors.info, borderLeftWidth: 3 }}>
+        <div key={n.id} className="notif"
+          onClick={() => remove(n.id)}
+          style={{ borderLeftColor: colors[n.type] || colors.info, borderLeftWidth: 3, cursor: "pointer" }}>
           {n.msg}
         </div>
       ))}
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // LANDING PAGE
@@ -4461,7 +4465,10 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
       const allSources = await SourcesAPI.getAll();
       if (Array.isArray(allSources)) {
         const fresh = allSources.find(s => s.id === src.id);
-        if (fresh) onUpdate({ ...src, ...fresh, connected: true, active: true });
+        if (fresh) {
+          onUpdate({ ...src, ...fresh, connected: true, active: true });
+          setTimeout(() => setExpanded(false), 2000); // 2 soniyadan so'ng yopish
+        }
       }
     } catch (e) {
       let msg = e.message;
@@ -4515,7 +4522,7 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
   return (
     <div className={`source-item ${src.active && src.connected ? "active-src" : "inactive-src"}`}>
       {/* Header */}
-      <div className="src-header">
+      <div className="src-header" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
         <div className="src-color-dot" style={{ background: src.color || st.color }} />
         <div className="f1">
           <div className="src-name">{src.name}</div>
@@ -4531,20 +4538,20 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             )}
           </div>
         </div>
-        <div className="src-actions">
+        <div className="src-actions" onClick={e => e.stopPropagation()}>
           {src.connected && (
             <span className="badge b-ok text-xs">{src.data?.length || 0}</span>
           )}
-          {src.connected && ["instagram", "telegram", "sheets", "restapi", "crm"].includes(src.type) && (
-            <button className="btn btn-ghost btn-xs" onClick={handleRefreshData} disabled={loading} title="Yangilash">{loading ? "" : "↻"}</button>
+          {src.connected && ["instagram", "telegram", "sheets", "restapi", "crm", "website"].includes(src.type) && (
+            <button className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); handleRefreshData(); }} disabled={loading} title="Yangilash">{loading ? "" : "↻"}</button>
           )}
           {/* active toggle */}
           <button className="src-toggle" style={{ background: src.active ? "var(--green)" : "var(--s4)" }}
-            onClick={() => onUpdate({ ...src, active: !src.active })}>
+            onClick={(e) => { e.stopPropagation(); onUpdate({ ...src, active: !src.active }); }}>
             <div style={{ width: 13, height: 13, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: src.active ? 18 : 2, transition: "left .2s" }} />
           </button>
-          <button className="btn btn-ghost btn-xs" onClick={() => setExpanded(e => !e)}>{expanded ? "▲" : "▼"}</button>
-          <button className="btn btn-danger btn-xs" onClick={() => onDelete(src.id)}>✕</button>
+          <button className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); setExpanded(e => !e); }}>{expanded ? "▲" : "▼"}</button>
+          <button className="btn btn-danger btn-xs" onClick={(e) => { e.stopPropagation(); onDelete(src.id); }}>✕</button>
         </div>
       </div>
 
@@ -10146,7 +10153,7 @@ function AppContent() {
     };
   });
   const [sources, setSources] = useState(() => loadSources());
-  const { notifs, push } = useNotifs();
+  const { notifs, push, remove } = useNotifs();
   const { theme, setTheme, toggle: toggleTheme } = useTheme();
 
   // ── Global AI Task Manager ──
@@ -10365,7 +10372,7 @@ function AppContent() {
     return (
       <>
         <style>{CSS}</style>
-        <NotifBanner notifs={notifs} />
+        <NotifBanner notifs={notifs} remove={remove} />
         <LandingPage onLogin={() => setAuthPage("login")} onRegister={() => setAuthPage("register")} />
       </>
     );
@@ -10497,7 +10504,7 @@ function AppContent() {
   return (
     <>
       <style>{CSS}</style>
-      <NotifBanner notifs={notifs} />
+      <NotifBanner notifs={notifs} remove={remove} />
       {onboardingModal}
       <div className="app">
         {/* Mobile overlay */}
