@@ -1,13 +1,19 @@
 /**
- * Bot menyusi va asosiy handlerlar (Phase 3).
+ * Bot menyusi va asosiy handlerlar (Phase 3-6).
  *
  * - /menu, /kpi, /sources, /help, /logout
  * - Inline tugmalar: KPI, Manbalar, Tahlil, Sozlamalar
  * - Erkin matn → AI proxy → backend → AI provider
+ * - Voice → Whisper → AI
+ * - Photo/document → AI tahlil
+ * - Grafik so'rovi → QuickChart PNG
  */
 const { Markup } = require('telegraf');
+const pool = require('../db/pool');
 const { findOrgByChatId } = require('../services/linkService');
 const BackendAPI = require('../services/backendApi');
+const { transcribeOgg } = require('../services/transcribe');
+const { renderChart, lineChart } = require('../services/chartImage');
 
 // ── Asosiy menyu (reply keyboard, doimiy) ──
 const mainKeyboard = Markup.keyboard([
@@ -296,12 +302,135 @@ module.exports = function registerMenuHandlers(bot) {
     );
   });
 
-  // Ovozli xabar (Phase 6'da to'liq Whisper qo'shiladi, hozircha placeholder)
+  // Ovozli xabar — Whisper bilan transkripsiya, keyin AI
   bot.on('voice', async (ctx) => {
     const link = await withOrg(ctx);
     if (!link) return;
-    return ctx.reply('🎙 Ovozli xabar qabul qilindi. Whisper integratsiyasi tez orada — hozircha matn bilan yozing.', mainKeyboard);
+    const wait = await ctx.reply('🎙 Ovozni matnga aylantirmoqda...');
+    try {
+      const fileId = ctx.message.voice.file_id;
+      const link_ = await ctx.telegram.getFileLink(fileId);
+      const res = await fetch(link_.href);
+      const buf = Buffer.from(await res.arrayBuffer());
+      const text = await transcribeOgg(buf, 'uz');
+      if (!text || !text.trim()) {
+        await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, '⚠️ Ovozdan matn ajralmadi. Qayta urinib ko\'ring.');
+        return;
+      }
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `🎙 <i>"${text}"</i>\n\n🤔 Tahlil qilmoqda...`, { parse_mode: 'HTML' });
+      const r = await BackendAPI.aiChat({
+        organizationId: link.organization_id,
+        userId: link.user_id,
+        message: text,
+      });
+      await ctx.reply(r.reply || '(bo\'sh javob)', { parse_mode: 'HTML' }).catch(async () => {
+        await ctx.reply(r.reply || '(bo\'sh javob)');
+      });
+    } catch (e) {
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `❌ Ovoz tahlili xato: ${e.message}`);
+    }
   });
+
+  // Hujjat — TXT/markdown matn sifatida o'qib AI ga yuborish
+  bot.on('document', async (ctx) => {
+    const link = await withOrg(ctx);
+    if (!link) return;
+    const doc = ctx.message.document;
+    const name = doc.file_name || 'document';
+    const lower = name.toLowerCase();
+    if (!/(\.txt|\.md|\.csv|\.json)$/.test(lower)) {
+      return ctx.reply('Hozircha faqat TXT/MD/CSV/JSON fayllar qo\'llab-quvvatlanadi.\nPDF/Word fayllarni saytda Data Hub orqali yuklang — bot AI keyin ulardan foydalana oladi.');
+    }
+    if (doc.file_size > 200000) {
+      return ctx.reply('Fayl juda katta (200KB dan oshmasin).');
+    }
+    const wait = await ctx.reply(`📄 ${name} o'qilmoqda...`);
+    try {
+      const link_ = await ctx.telegram.getFileLink(doc.file_id);
+      const res = await fetch(link_.href);
+      const text = await res.text();
+      const caption = ctx.message.caption || 'Ushbu hujjatni qisqa tahlil qil va asosiy xulosalarini yoz.';
+      const prompt = `FOYDALANUVCHI HUJJAT YUBORDI ("${name}"):\n\n${text.slice(0, 30000)}\n\nFOYDALANUVCHI SAVOLI: ${caption}`;
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, '🤔 Hujjat tahlil qilinmoqda...');
+      const r = await BackendAPI.aiChat({
+        organizationId: link.organization_id,
+        userId: link.user_id,
+        message: prompt,
+      });
+      await ctx.reply(r.reply, { parse_mode: 'HTML' }).catch(async () => {
+        await ctx.reply(r.reply);
+      });
+    } catch (e) {
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `❌ Xato: ${e.message}`);
+    }
+  });
+
+  // Rasm — vision bo'lmasa, izoh so'rash
+  bot.on('photo', async (ctx) => {
+    const link = await withOrg(ctx);
+    if (!link) return;
+    const caption = ctx.message.caption;
+    if (!caption) {
+      return ctx.reply('Rasm haqida savolingiz nima? Caption ga yozing yoki keyingi xabarda matn yuboring.');
+    }
+    return aiReply(ctx, link, `[Rasm yuborildi, lekin tasvirni AI ko'ra olmaydi. Faqat caption bo'yicha javob beraman]\n\nSAVOL: ${caption}`);
+  });
+
+  // /grafik <kanal> — kanal a'zolari grafigi
+  bot.command('grafik', async (ctx) => {
+    const link = await withOrg(ctx);
+    if (!link) return;
+
+    const channels = await pool.query(
+      `SELECT id, title FROM telegram_channels WHERE organization_id=$1 AND active=TRUE ORDER BY id`,
+      [link.organization_id]
+    );
+    if (channels.rows.length === 0) {
+      return ctx.reply('Ulangan Telegram kanal yo\'q. Avval saytda kanal ulang.');
+    }
+    if (channels.rows.length === 1) {
+      return sendChannelChart(ctx, channels.rows[0].id, channels.rows[0].title);
+    }
+    return ctx.reply('Qaysi kanal?', Markup.inlineKeyboard(
+      channels.rows.map(c => [Markup.button.callback(c.title, `chart:${c.id}`)])
+    ));
+  });
+
+  bot.action(/^chart:(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const link = await findOrgByChatId(ctx.from.id);
+    if (!link) return;
+    const id = parseInt(ctx.match[1], 10);
+    const r = await pool.query(`SELECT title FROM telegram_channels WHERE id=$1`, [id]);
+    if (r.rows.length === 0) return ctx.reply('Kanal topilmadi');
+    return sendChannelChart(ctx, id, r.rows[0].title);
+  });
+
+  async function sendChannelChart(ctx, channelId, title) {
+    const wait = await ctx.reply('📊 Grafik tayyorlanmoqda...');
+    try {
+      const r = await pool.query(
+        `SELECT date::text, members, views_total
+         FROM telegram_channel_stats_daily
+         WHERE channel_id=$1 AND date >= CURRENT_DATE - INTERVAL '30 days'
+         ORDER BY date`,
+        [channelId]
+      );
+      if (r.rows.length === 0) {
+        await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, 'Statistika ma\'lumoti yo\'q (sync qiling avval).');
+        return;
+      }
+      const labels = r.rows.map(x => x.date.slice(5));
+      const config = lineChart(`${title} — A'zolar (oxirgi ${r.rows.length} kun)`, labels, [
+        { label: "A'zolar", data: r.rows.map(x => x.members || 0), color: '#38BDF8' },
+      ]);
+      const png = await renderChart(config, { width: 900, height: 500 });
+      await ctx.replyWithPhoto({ source: png }, { caption: `📊 ${title}` });
+      await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    } catch (e) {
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `❌ Grafik xato: ${e.message}`);
+    }
+  }
 
   // Erkin matn — eng oxirgi handler bo'lishi kerak
   bot.on('message', async (ctx, next) => {
