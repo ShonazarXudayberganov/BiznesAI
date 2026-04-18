@@ -22,9 +22,11 @@ const storage = multer.diskStorage({
   }
 });
 
+const MAX_UPLOAD_BYTES = parseInt(process.env.MAX_FILE_SIZE || String(10 * 1024 * 1024), 10);
+
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
 // ── POST /api/upload/parse-only ── (source siz — faqat matn ajratish, DB ga saqlamasdan)
@@ -61,7 +63,11 @@ router.post('/parse-only', upload.single('file'), async (req, res) => {
     }
 
     // Temp faylni o'chirish
-    try { fs.unlinkSync(filePath); } catch {}
+    try {
+      fs.unlinkSync(filePath);
+    } catch (e) {
+      console.warn('[PARSE-ONLY] temp file unlink failed:', e.message);
+    }
 
     res.json({
       ok: true,

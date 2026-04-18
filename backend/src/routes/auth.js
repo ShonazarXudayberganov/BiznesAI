@@ -31,7 +31,7 @@ router.post('/register', async (req, res) => {
     );
 
     const user = result.rows[0];
-    const token = signToken(user.id);
+    const token = signToken(user.id, user.role);
 
     res.status(201).json({
       token,
@@ -67,15 +67,18 @@ router.post('/login', async (req, res) => {
     const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.ip || 'Unknown';
 
     if (result.rows.length === 0) {
-      // Login tarixiga yozish (muvaffaqiyatsiz)
-      try { await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES (0,$1,$2,$3)', [device, ip, 'failed']); } catch {}
+      // Noma'lum foydalanuvchi uchun login_history'ga yozmaymiz (user_id FK bo'lishi kerak)
       return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
     }
 
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
-      try { await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES ($1,$2,$3,$4)', [user.id, device, ip, 'failed']); } catch {}
+      try {
+        await pool.query('INSERT INTO login_history (user_id,device,ip,status) VALUES ($1,$2,$3,$4)', [user.id, device, ip, 'failed']);
+      } catch (e) {
+        console.warn('[AUTH] login_history insert failed:', e.message);
+      }
       return res.status(401).json({ error: 'Email yoki parol noto\'g\'ri' });
     }
 
@@ -95,7 +98,7 @@ router.post('/login', async (req, res) => {
     // Update last_login
     await pool.query('UPDATE users SET last_login=NOW() WHERE id=$1', [user.id]);
 
-    const token = signToken(user.id);
+    const token = signToken(user.id, user.role);
 
     res.json({
       token,

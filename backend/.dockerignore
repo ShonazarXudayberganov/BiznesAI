@@ -1,5 +1,10 @@
 node_modules
 npm-debug.log
+.env
 .env.local
+.env.*
 uploads/*
 !uploads/.gitkeep
+*.md
+.git
+.gitignore
