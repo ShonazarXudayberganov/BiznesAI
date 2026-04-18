@@ -24,11 +24,13 @@ function assertApi() {
 }
 
 function newClient(sessionStr = '') {
+  // receiveUpdates: false — biz faqat stats so'roviga ishlatamiz, update loop kerak emas
+  // (TIMEOUT shovqinini oldini oladi)
   return new TelegramClient(
     new StringSession(sessionStr || ''),
     API_ID,
     API_HASH,
-    { connectionRetries: 3, useWSS: false }
+    { connectionRetries: 3, useWSS: false, autoReconnect: false }
   );
 }
 
@@ -59,7 +61,7 @@ async function sendCode(organizationId, phone) {
       }),
     }));
   } catch (e) {
-    await client.disconnect().catch(() => {});
+    await client.destroy().catch(() => {});
     if (e.errorMessage === 'PHONE_NUMBER_INVALID') throw new Error('Telefon raqam noto\'g\'ri');
     if (e.errorMessage === 'AUTH_RESTART') throw new Error('Telegram qayta urinishni so\'radi, biroz kuting');
     if (e.errorMessage === 'PHONE_NUMBER_BANNED') throw new Error('Bu raqam Telegram tomonidan bloklangan');
@@ -69,7 +71,7 @@ async function sendCode(organizationId, phone) {
 
   const phoneCodeHash = result.phoneCodeHash;
   const sessionStr = client.session.save();
-  await client.disconnect().catch(() => {});
+  await client.destroy().catch(() => {});
 
   const expires = new Date(Date.now() + PENDING_TTL_MIN * 60 * 1000);
   await pool.query(
@@ -127,7 +129,7 @@ async function verifyCode(organizationId, code, password) {
     if (e.errorMessage === 'SESSION_PASSWORD_NEEDED') {
       needsPassword = true;
     } else {
-      await client.disconnect().catch(() => {});
+      await client.destroy().catch(() => {});
       if (e.errorMessage === 'PHONE_CODE_INVALID') throw new Error('Kod noto\'g\'ri');
       if (e.errorMessage === 'PHONE_CODE_EXPIRED') throw new Error('Kod muddati tugagan, qaytadan boshlang');
       throw new Error('Kirish xato: ' + (e.errorMessage || e.message));
@@ -138,7 +140,7 @@ async function verifyCode(organizationId, code, password) {
     if (!password) {
       // Sessionni saqlab qoldiramiz, foydalanuvchi parolni kiritsin
       const updated = client.session.save();
-      await client.disconnect().catch(() => {});
+      await client.destroy().catch(() => {});
       await pool.query(
         `UPDATE telegram_mtproto_pending SET session_encrypted=$1 WHERE organization_id=$2`,
         [encrypt(updated), organizationId]
@@ -152,7 +154,7 @@ async function verifyCode(organizationId, code, password) {
       const srp = await computeCheck(pwd, password);
       me = await client.invoke(new Api.auth.CheckPassword({ password: srp }));
     } catch (e) {
-      await client.disconnect().catch(() => {});
+      await client.destroy().catch(() => {});
       if (e.errorMessage === 'PASSWORD_HASH_INVALID') throw new Error('2FA paroli noto\'g\'ri');
       throw new Error('2FA xato: ' + (e.errorMessage || e.message));
     }
@@ -178,7 +180,7 @@ async function verifyCode(organizationId, code, password) {
   );
   await pool.query(`DELETE FROM telegram_mtproto_pending WHERE organization_id=$1`, [organizationId]);
 
-  await client.disconnect().catch(() => {});
+  await client.destroy().catch(() => {});
 
   return { ok: true, sessionId: ins.rows[0].id, accountName, phone: pending.phone };
 }
@@ -224,7 +226,7 @@ async function listAdminChannels(organizationId) {
     );
     return channels;
   } finally {
-    await client.disconnect().catch(() => {});
+    await client.destroy().catch(() => {});
   }
 }
 
@@ -385,7 +387,7 @@ async function getChannelStats(channelDbId) {
       note: statsAvailable ? null : 'Kanal statistikasi mavjud emas (kamida 100 obunachi kerak yoki broadcast emas). Faqat a\'zolar soni yangilandi.',
     };
   } finally {
-    await client.disconnect().catch(() => {});
+    await client.destroy().catch(() => {});
   }
 }
 
@@ -404,7 +406,7 @@ async function disconnectSession(organizationId) {
       const client = newClient(decrypt(row.session_encrypted));
       await client.connect();
       await client.invoke(new Api.auth.LogOut()).catch(() => {});
-      await client.disconnect().catch(() => {});
+      await client.destroy().catch(() => {});
     } catch {}
   }
   await pool.query(

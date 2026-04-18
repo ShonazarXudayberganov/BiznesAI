@@ -113,6 +113,16 @@ async function start() {
   console.log('[BOT] Tayyor — xabarlar kutilmoqda');
 }
 
+// GramJS background update loop ba'zan TIMEOUT promise reject qiladi —
+// stats so'rovlariga ta'sir qilmaydi. Faqat shu xatoni ushlab susaytiramiz.
+process.on('unhandledRejection', (reason) => {
+  const msg = reason && (reason.message || String(reason));
+  if (msg && /TIMEOUT/i.test(msg) && /updates\.js/.test(reason?.stack || '')) {
+    return; // GramJS update loop noise — ignore
+  }
+  console.error('[unhandledRejection]', msg);
+});
+
 // Graceful shutdown
 process.once('SIGINT', () => { bot.stop('SIGINT'); pool.end(); });
 process.once('SIGTERM', () => { bot.stop('SIGTERM'); pool.end(); });
