@@ -3416,6 +3416,176 @@ function AdminPanel({ currentUser, push, sources: adminSources, initialTab, hide
 // ─────────────────────────────────────────────────────────────
 // DATA HUB PAGE (Constructor)
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TELEGRAM KANAL — manba ichida MTProto orqali ulash
+// ─────────────────────────────────────────────────────────────
+function TelegramChannelSource({ src, updateConfig, push, onSyncDone }) {
+  const [status, setStatus] = useState(null);
+  const [admin, setAdmin] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const s = await TelegramAPI.mtprotoStatus();
+      setStatus(s);
+    } catch (e) { /* silent */ }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const linkedChannelId = src.config?.channelDbId;
+  const linkedChannel = status?.channels?.find(c => c.id === linkedChannelId);
+
+  const loadAdmin = async () => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.adminChannels();
+      setAdmin(r.channels || []);
+      setPicking(true);
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const pickChannel = async (ch) => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.connectChannel(ch);
+      // source.config ga channel referensiyasini saqlash
+      updateConfig("mode", "mtproto");
+      updateConfig("channelDbId", r.id);
+      updateConfig("channelId", String(ch.channelId));
+      updateConfig("channelUsername", ch.username || null);
+      updateConfig("channelTitle", ch.title);
+      push(`✓ "${ch.title}" ulandi`, "ok");
+      setPicking(false);
+      // Birinchi sync
+      try {
+        const sync = await TelegramAPI.syncChannel(r.id);
+        if (sync?.note) push(sync.note, "warn");
+      } catch (e) { /* ignore initial sync error */ }
+      await reload();
+      onSyncDone?.();
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const sync = async () => {
+    if (!linkedChannelId) return;
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.syncChannel(linkedChannelId);
+      if (r?.note) push(r.note, "warn");
+      else push(`Yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+      await reload();
+      onSyncDone?.();
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  // ── Render ──
+  // 1. MTProto akkaunt ulanmagan
+  if (!status?.connected) {
+    return (
+      <div style={{ background: "var(--s3)", borderRadius: 10, padding: "14px 16px", border: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 11.5, lineHeight: 1.7, color: "var(--muted)", marginBottom: 10 }}>
+          <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Telegram kanal statistikasi uchun:</div>
+          <div>1. Avval <strong style={{ color: "var(--gold)" }}>Sozlamalar → 📺 Telegram Kanal Statistikasi</strong> bo'limidan akkauntni ulang</div>
+          <div>2. Kanal admining telefoni orqali kirgandan keyin shu yerga qaytib kanalni tanlang</div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={reload} disabled={busy}>↻ Holatni tekshirish</button>
+      </div>
+    );
+  }
+
+  // 2. Akkaunt ulangan, kanal tanlanmagan
+  if (!linkedChannelId) {
+    return (
+      <div>
+        <div style={{ background: "rgba(74,222,128,0.06)", borderRadius: 8, padding: "10px 12px", border: "1px solid rgba(74,222,128,0.2)", marginBottom: 10, fontSize: 11 }}>
+          <span style={{ color: "var(--green)", fontWeight: 600 }}>✓ Akkaunt ulangan:</span>{" "}
+          <span style={{ color: "var(--text)" }}>{status.session?.accountName || status.session?.phone}</span>
+        </div>
+
+        {!picking ? (
+          <button className="btn btn-primary btn-sm" onClick={loadAdmin} disabled={busy}>
+            {busy ? "Yuklanmoqda..." : "📺 Kanal tanlash"}
+          </button>
+        ) : (
+          <div style={{ background: "var(--s2)", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="flex aic jb mb8">
+              <div style={{ fontSize: 11, fontWeight: 600 }}>Admin kanallari ({admin.length})</div>
+              <button className="btn btn-ghost btn-xs" onClick={() => setPicking(false)}>Yopish</button>
+            </div>
+            {admin.length === 0 ? (
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Admin kanallar topilmadi</div>
+            ) : (
+              <div style={{ display: "grid", gap: 4, maxHeight: 300, overflow: "auto" }}>
+                {admin.map(c => {
+                  const already = (status.channels || []).some(x => String(x.channelId) === String(c.channelId));
+                  return (
+                    <div key={c.channelId}
+                      onClick={() => !already && !busy && pickChannel(c)}
+                      style={{ cursor: already || busy ? "default" : "pointer", opacity: already ? 0.5 : 1, padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--s3)", display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 16 }}>📺</div>
+                      <div className="f1">
+                        <div style={{ fontSize: 11, fontWeight: 600 }}>
+                          {c.title} {c.creator && <span style={{ fontSize: 9, color: "var(--gold)" }}>· egasi</span>}
+                        </div>
+                        <div style={{ fontSize: 9, color: "var(--muted)" }}>
+                          {c.username && <>@{c.username} · </>}
+                          {c.memberCount?.toLocaleString() || "?"} a'zo
+                          {already && <> · <span style={{ color: "var(--green)" }}>boshqa manbada ulangan</span></>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 3. Kanal tanlangan
+  return (
+    <div>
+      <div style={{ background: "rgba(56,189,248,0.06)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(56,189,248,0.2)", marginBottom: 10 }}>
+        <div className="flex aic gap8">
+          <div style={{ fontSize: 18 }}>📺</div>
+          <div className="f1">
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8" }}>{src.config?.channelTitle || linkedChannel?.title}</div>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>
+              {src.config?.channelUsername && <>@{src.config.channelUsername} · </>}
+              {(linkedChannel?.memberCount || 0).toLocaleString()} a'zo
+              {linkedChannel?.lastSyncedAt
+                ? <> · Oxirgi: {new Date(linkedChannel.lastSyncedAt).toLocaleString("uz-UZ")}</>
+                : <> · <span style={{ color: "var(--orange)" }}>Hali sinxronlanmagan</span></>}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex aic gap8">
+        <button className="btn btn-primary btn-sm" onClick={sync} disabled={busy}>
+          {busy ? "..." : "↻ Yangilash"}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => {
+          if (!confirm("Kanalni almashtirmoqchimisiz?")) return;
+          updateConfig("channelDbId", null);
+          updateConfig("channelId", null);
+          updateConfig("channelTitle", null);
+          updateConfig("channelUsername", null);
+        }}>Boshqa kanal tanlash</button>
+      </div>
+    </div>
+  );
+}
+
 function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -4501,7 +4671,19 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
   // ── Manba turaga qarab yangilash ──
   const handleRefreshData = async () => {
     if (src.type === "instagram") return handleInstagramFetch();
-    if (src.type === "telegram") return handleTelegramFetch();
+    if (src.type === "telegram") {
+      // Yangi MTProto rejimi
+      if (src.config?.mode === "mtproto" && src.config?.channelDbId) {
+        try {
+          const r = await TelegramAPI.syncChannel(src.config.channelDbId);
+          if (r?.note) push(r.note, "warn");
+          else push(`Yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+        } catch (e) { push(e.message, "error"); }
+        return;
+      }
+      // Eski Bot API (mavjud sourcelar uchun fallback)
+      return handleTelegramFetch();
+    }
     if (src.type === "sheets") return handleSheetsFetch();
     if (src.type === "restapi") return handleAPIFetch();
     if (src.type === "crm") return handleCrmFetch();
@@ -4813,70 +4995,14 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
             </div>
           )}
 
-          {/* TELEGRAM */}
+          {/* TELEGRAM — MTProto orqali rasmiy statistika */}
           {src.type === "telegram" && (
-            <div>
-              <div style={{ background: "var(--s3)", borderRadius: 8, padding: "12px 14px", fontSize: 10.5, lineHeight: 1.9, color: "var(--muted)", marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Telegram Kanal Statistikasi Olish:</div>
-                <div>1. <span style={{ color: "var(--teal)" }}>@BotFather</span> da bot yarating (<span style={{ color: "var(--gold)" }}>/newbot</span>)</div>
-                <div>2. Berilgan <span style={{ color: "var(--text2)" }}>Bot Token</span> ni nusxa oling</div>
-                <div>3. Kanalingiz sozlamalarida botni <strong style={{ color: "var(--gold)" }}>admin</strong> sifatida qo'shing</div>
-                <div>4. Kanal username ni kiriting (masalan: <span style={{ color: "var(--teal)" }}>@kanal_nomi</span>)</div>
-                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(56,189,248,0.08)", borderRadius: 6, border: "1px solid rgba(56,189,248,0.15)" }}>
-                  <span style={{ color: "#38BDF8", fontWeight: 600 }}>Muhim:</span> Bot kanalga admin bo'lishi kerak (hech bo'lmaganda "Post Messages" ruxsati). Shunda kanal obunachilar soni, postlar, ko'rishlar va boshqa statistikani oladi.
-                </div>
-              </div>
-              <div className="g2 mb10">
-                <div>
-                  <label className="field-label">Bot Token</label>
-                  <input className="field" type="password" placeholder="7123456789:AAHbKx8Gz..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">Kanal Username yoki ID</label>
-                  <input className="field" placeholder="@kanal_nomi yoki -100123456789" value={src.config?.channelId || ""} onChange={e => updateConfig("channelId", e.target.value)} />
-                </div>
-              </div>
-              <div className="flex gap8 mb10">
-                <button className="btn btn-primary btn-sm" onClick={handleTelegramFetch} disabled={loading || !src.config?.token || !src.config?.channelId}>
-                  {loading ? " Yuklanmoqda..." : " Ulash va Statistika Olish"}
-                </button>
-                {src.connected && src.data?.length > 0 && (
-                  <button className="btn btn-ghost btn-sm" onClick={handleTelegramFetch} disabled={loading}>↻ Yangilash</button>
-                )}
-              </div>
-              {src.profileName && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "#38BDF8", marginBottom: 8, padding: "8px 12px", background: "rgba(56,189,248,0.06)", borderRadius: 8, border: "1px solid rgba(56,189,248,0.15)" }}>
-                  <span style={{ fontSize: 18 }}></span>
-                  <div className="f1">
-                    <strong>{src.profileName}</strong> ulangan
-                    {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
-                  </div>
-                  {src.data?.find(d => d._type === "KANAL_STATISTIKA") && (
-                    <span style={{ fontSize: 10, color: "var(--green)", fontFamily: "var(--fm)" }}>
-                      {(src.data.find(d => d._type === "KANAL_STATISTIKA").member_count || 0).toLocaleString()} obunachi
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Avtomatik yangilash */}
-              {src.connected && (
-                <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div className="flex aic jb">
-                    <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
-                    <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }} value={src.config?.autoRefresh || 0} onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
-                      <option value={0}>O'chirilgan</option>
-                      <option value={5}>Har 5 daqiqa</option>
-                      <option value={15}>Har 15 daqiqa</option>
-                      <option value={30}>Har 30 daqiqa</option>
-                      <option value={60}>Har 1 soat</option>
-                      <option value={360}>Har 6 soat</option>
-                      <option value={1440}>Har 24 soat</option>
-                    </select>
-                  </div>
-                  {src.config?.autoRefresh > 0 && <div style={{ fontSize: 9.5, color: "var(--teal)", marginTop: 5 }}>⟳ Har {src.config.autoRefresh >= 60 ? Math.round(src.config.autoRefresh / 60) + " soat" : src.config.autoRefresh + " daqiqa"}da avtomatik yangilanadi</div>}
-                </div>
-              )}
-            </div>
+            <TelegramChannelSource
+              src={src}
+              updateConfig={updateConfig}
+              push={push}
+              onSyncDone={() => onUpdate(src)}
+            />
           )}
 
           {/* CRM (LC-UP) */}
