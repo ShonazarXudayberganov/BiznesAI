@@ -10,7 +10,7 @@ import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
-  DepartmentsAPI, EmployeesAPI, SuperAdminAPI
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -8143,6 +8143,244 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 // ─────────────────────────────────────────────────────────────
 // SETTINGS PAGE
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TELEGRAM SETTINGS PANEL — Bot ulash + sozlamalar (Phase 1)
+// ─────────────────────────────────────────────────────────────
+function TelegramSettingsPanel({ push, user }) {
+  const [status, setStatus] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [linkData, setLinkData] = useState(null); // { url, expiresAt }
+  const [busy, setBusy] = useState(false);
+
+  const isCeo = user?.role === "ceo" || user?.role === "super_admin";
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [st, se] = await Promise.all([
+        TelegramAPI.status().catch(() => null),
+        TelegramAPI.getSettings().catch(() => null),
+      ]);
+      setStatus(st);
+      setSettings(se);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const generateLink = async () => {
+    if (!isCeo) { push("Faqat tashkilot egasi botni ulashi mumkin", "warn"); return; }
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.createLinkToken("bot");
+      setLinkData(r);
+      // Avtomatik Telegram'ni ochish
+      window.open(r.url, "_blank", "noopener");
+      push("Havola yaratildi. Telegram oynasida 'START' tugmasini bosing.", "ok");
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async () => {
+    if (!confirm("Botni uzishni tasdiqlaysizmi?")) return;
+    setBusy(true);
+    try {
+      await TelegramAPI.unlinkBot();
+      push("Bot uzildi", "ok");
+      setLinkData(null);
+      await reload();
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSetting = async (patch) => {
+    setSettings(s => ({ ...s, ...patch }));
+    try {
+      await TelegramAPI.updateSettings(patch);
+    } catch (e) {
+      push("Sozlama saqlanmadi: " + e.message, "error");
+      reload();
+    }
+  };
+
+  const toggleModule = (key) => {
+    const mods = { ...(settings?.enabledModules || {}) };
+    mods[key] = !mods[key];
+    updateSetting({ enabledModules: mods });
+  };
+
+  if (loading) {
+    return <div className="card mb14"><div className="text-muted text-sm">Yuklanmoqda...</div></div>;
+  }
+
+  return (
+    <div className="card mb14">
+      <div className="flex aic jb mb12">
+        <div>
+          <div className="card-title" style={{ marginBottom: 3 }}>✈️ Telegram Yordamchi Bot</div>
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>
+            Hisobot, tahlil va ogohlantirishlarni Telegram orqali oling
+          </div>
+        </div>
+        {status?.linked && <span className="badge b-ok">Ulangan</span>}
+      </div>
+
+      {/* ── BOT ULASH HOLATI ── */}
+      {!status?.linked ? (
+        <div style={{ background: "var(--s2)", borderRadius: 12, padding: "16px 18px", marginBottom: 12, border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.7, marginBottom: 12 }}>
+            <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>
+              Qanday ulash:
+            </div>
+            <div>1. <strong>"Telegram bilan ulash"</strong> tugmasini bosing</div>
+            <div>2. Telegram avtomatik ochiladi — <strong style={{ color: "var(--gold)" }}>START</strong> bosing</div>
+            <div>3. Tayyor — bot tashkilotingizga bog'landi</div>
+          </div>
+          {!isCeo && (
+            <div style={{ fontSize: 10, color: "var(--orange)", marginBottom: 10 }}>
+              ⚠️ Faqat tashkilot egasi (CEO) botni ulashi mumkin
+            </div>
+          )}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={generateLink}
+            disabled={busy || !isCeo}
+            style={{ background: "linear-gradient(135deg, #38BDF8, #0EA5E9)", borderColor: "transparent" }}
+          >
+            {busy ? "Yaratilmoqda..." : "✈️ Telegram bilan ulash"}
+          </button>
+          {linkData && (
+            <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(56,189,248,0.06)", borderRadius: 8, fontSize: 10.5, color: "var(--muted)" }}>
+              Telegram ochilmadi? <a href={linkData.url} target="_blank" rel="noopener" style={{ color: "#38BDF8", fontWeight: 600 }}>Bu yerga bosing</a>
+              {" — "} havola 10 daqiqa amal qiladi.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ background: "rgba(74,222,128,0.06)", borderRadius: 12, padding: "14px 16px", marginBottom: 12, border: "1px solid rgba(74,222,128,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 22 }}>✅</div>
+            <div className="f1">
+              <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--green)" }}>
+                Bot ulangan
+                {status.link?.username && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · @{status.link.username}</span>}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                {status.link?.firstName} {status.link?.lastName || ""}
+                {status.link?.linkedAt && <> · {new Date(status.link.linkedAt).toLocaleString("uz-UZ")}</>}
+              </div>
+            </div>
+            {isCeo && (
+              <button className="btn btn-ghost btn-sm" onClick={unlink} disabled={busy}>
+                Uzish
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BOT SOZLAMALARI (faqat ulangan bo'lsa) ── */}
+      {status?.linked && settings && (
+        <>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 14, marginBottom: 8 }}>
+            Avtomatik dayjest
+          </div>
+          <div className="flex aic jb mb10" style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Har kuni hisobot yuborish</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Belgilangan vaqtda barcha bo'limlar bo'yicha qisqa hisobot</div>
+            </div>
+            <input
+              type="time"
+              className="field"
+              style={{ width: 100, marginRight: 10 }}
+              value={settings.digestTime || "09:00"}
+              onChange={e => updateSetting({ digestTime: e.target.value })}
+              disabled={!settings.digestEnabled}
+            />
+            <div
+              style={{ width: 36, height: 20, borderRadius: 10, background: settings.digestEnabled ? "var(--green)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }}
+              onClick={() => updateSetting({ digestEnabled: !settings.digestEnabled })}
+            >
+              <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: settings.digestEnabled ? 19 : 2, transition: "left .2s" }} />
+            </div>
+          </div>
+
+          <div className="flex aic jb mb10" style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Anomaliya ogohlantirishlari</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Muhim o'zgarishlarda darhol xabar</div>
+            </div>
+            <select
+              className="field"
+              style={{ width: 110, marginRight: 10 }}
+              value={settings.anomalySensitivity || "medium"}
+              onChange={e => updateSetting({ anomalySensitivity: e.target.value })}
+              disabled={!settings.anomalyEnabled}
+            >
+              <option value="low">Past</option>
+              <option value="medium">O'rta</option>
+              <option value="high">Yuqori</option>
+            </select>
+            <div
+              style={{ width: 36, height: 20, borderRadius: 10, background: settings.anomalyEnabled ? "var(--gold)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }}
+              onClick={() => updateSetting({ anomalyEnabled: !settings.anomalyEnabled })}
+            >
+              <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: settings.anomalyEnabled ? 19 : 2, transition: "left .2s" }} />
+            </div>
+          </div>
+
+          <div style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Jim soatlar</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8 }}>Bu vaqtda xabar yubormaymiz (faqat critical anomaliya)</div>
+            <div className="flex aic gap8">
+              <input type="time" className="field" style={{ width: 100 }} value={settings.quietHoursStart || "23:00"} onChange={e => updateSetting({ quietHoursStart: e.target.value })} />
+              <span style={{ color: "var(--muted)" }}>—</span>
+              <input type="time" className="field" style={{ width: 100 }} value={settings.quietHoursEnd || "08:00"} onChange={e => updateSetting({ quietHoursEnd: e.target.value })} />
+            </div>
+          </div>
+
+          <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 14, marginBottom: 8 }}>
+            Dayjestga kiritilsin
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6 }}>
+            {[
+              { k: "sales", l: "Savdo", c: "#4ADE80" },
+              { k: "finance", l: "Moliya", c: "#FBBF24" },
+              { k: "crm", l: "CRM", c: "#A78BFA" },
+              { k: "channel", l: "Telegram kanal", c: "#38BDF8" },
+              { k: "instagram", l: "Instagram", c: "#E879F9" },
+            ].map(m => {
+              const on = !!(settings.enabledModules || {})[m.k];
+              return (
+                <div
+                  key={m.k}
+                  onClick={() => toggleModule(m.k)}
+                  style={{ cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `1px solid ${on ? m.c + "60" : "var(--border)"}`, background: on ? m.c + "10" : "var(--s2)", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}
+                >
+                  <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${on ? m.c : "var(--border)"}`, background: on ? m.c : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#000", fontWeight: 800 }}>
+                    {on ? "✓" : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: on ? m.c : "var(--text)", fontWeight: 600 }}>{m.l}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey, hasGlobalAI, user }) {
   const uk = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
   const [keyInput, setKeyInput] = useState(aiConfig.apiKey);
@@ -8335,6 +8573,9 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         </div>
         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>AI javoblari tanlangan tilda keladi. Interfeys hozircha O'zbek tilida.</div>
       </div>
+
+      {/* ── TELEGRAM YORDAMCHI BOT ── */}
+      <TelegramSettingsPanel push={push} user={user} />
 
       {/* ── QANDAY ISHLAYDI (yopiq) ── */}
       <details className="card" style={{ cursor: "pointer" }}>

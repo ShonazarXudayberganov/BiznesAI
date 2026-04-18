@@ -1,27 +1,11 @@
-node_modules/
-dist/
+node_modules
 .env
 .env.local
+.env.production
+dist
 *.log
+npm-debug.log*
 .DS_Store
-backend/uploads/*
-!backend/uploads/.gitkeep
-backend/dev-data/
-backend/dev-server.js
-nul
-
-# Ignore deploy and test scripts
-*.js
-*.json
-*.sh
-*.yml
-
-# Ignore temp folders
-.claude/
-build_temp/
-deploy_temp/
-
-# Ignore archives and diffs
-*.tar.gz
-temp_diff*.txt
-biznesai/
+uploads
+backend/uploads
+*.bak

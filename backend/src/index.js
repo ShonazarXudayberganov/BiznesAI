@@ -74,6 +74,7 @@ app.use('/api/scrape', require('./routes/scrape'));
 app.use('/api/departments', require('./routes/departments'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/super-admin', require('./routes/super-admin'));
+app.use('/api/telegram', require('./routes/telegram'));
 
 // ── Health check ──
 app.get('/api/health', async (req, res) => {

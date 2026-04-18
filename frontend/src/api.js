@@ -398,3 +398,20 @@ export const UploadAPI = {
     return data;
   },
 };
+
+// ── TELEGRAM API ──
+export const TelegramAPI = {
+  status: () => apiFetch('/telegram/status'),
+  createLinkToken: (purpose = 'bot') =>
+    apiFetch('/telegram/link-token', {
+      method: 'POST',
+      body: JSON.stringify({ purpose }),
+    }),
+  unlinkBot: () => apiFetch('/telegram/bot-link', { method: 'DELETE' }),
+  getSettings: () => apiFetch('/telegram/settings'),
+  updateSettings: (patch) =>
+    apiFetch('/telegram/settings', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+};
