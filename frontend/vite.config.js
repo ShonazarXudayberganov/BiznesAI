@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// LOKAL DEV — VITE_LOCAL=1 env bilan lokal backend'ga ulanadi
+// aks holda production serverga (shonazar.uz) proxy qiladi
+const LOCAL = process.env.VITE_LOCAL === '1';
+const API_TARGET = LOCAL ? 'http://localhost:3001' : 'http://188.225.74.65:3011';
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -22,12 +27,12 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://188.225.74.65:3011',
+        target: API_TARGET,
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://188.225.74.65:3011',
+        target: API_TARGET,
         changeOrigin: true,
         secure: false,
       },

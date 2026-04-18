@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, checkPermission } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
 });
 
 // ── POST /api/reports ──
-router.post('/', async (req, res) => {
+router.post('/', checkPermission('can_create_reports'), async (req, res) => {
   try {
     const { label, icon, category, text } = req.body;
     const result = await pool.query(

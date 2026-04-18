@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, checkPermission } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 });
 
 // ── POST /api/chat ── (yangi xabar(lar) qo'shish)
-router.post('/', async (req, res) => {
+router.post('/', checkPermission('can_use_ai'), async (req, res) => {
   try {
     const { messages } = req.body; // [{role, content, srcNames}]
     if (!Array.isArray(messages)) {

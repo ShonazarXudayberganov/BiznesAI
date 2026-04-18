@@ -71,6 +71,9 @@ app.use('/api/payments', require('./routes/payments'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/scrape', require('./routes/scrape'));
+app.use('/api/departments', require('./routes/departments'));
+app.use('/api/employees', require('./routes/employees'));
+app.use('/api/super-admin', require('./routes/super-admin'));
 
 // ── Health check ──
 app.get('/api/health', async (req, res) => {

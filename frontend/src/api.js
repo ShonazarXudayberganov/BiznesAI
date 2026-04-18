@@ -51,10 +51,10 @@ async function apiFetch(path, opts = {}) {
 
 // ── AUTH API ──
 export const AuthAPI = {
-  register: (name, email, password) =>
+  register: (name, email, password, organizationName) =>
     apiFetch('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, organizationName }),
     }),
 
   login: (email, password) =>
@@ -64,6 +64,9 @@ export const AuthAPI = {
     }),
 
   me: () => apiFetch('/auth/me'),
+
+  // To'liq kontekst: user + tashkilot + bo'limlar + ruxsatlar + AI usage
+  context: () => apiFetch('/auth/context'),
 
   updateProfile: (data) =>
     apiFetch('/auth/profile', {
@@ -78,9 +81,121 @@ export const AuthAPI = {
     }),
 };
 
+// ── DEPARTMENTS API (bo'limlar) ──
+export const DepartmentsAPI = {
+  getAll: (departmentId) =>
+    apiFetch('/departments' + (departmentId ? `?department_id=${departmentId}` : '')),
+
+  create: (data) =>
+    apiFetch('/departments', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id, data) =>
+    apiFetch(`/departments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id, force = false) =>
+    apiFetch(`/departments/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
+};
+
+// ── EMPLOYEES API (xodimlar) ──
+export const EmployeesAPI = {
+  getAll: () => apiFetch('/employees'),
+
+  getOne: (id) => apiFetch(`/employees/${id}`),
+
+  getTemplates: () => apiFetch('/employees/permission-templates'),
+
+  create: (data) =>
+    apiFetch('/employees', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id, data) =>
+    apiFetch(`/employees/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  resetPassword: (id, requireChange = false) =>
+    apiFetch(`/employees/${id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ require_change: requireChange }),
+    }),
+
+  block: (id) =>
+    apiFetch(`/employees/${id}/block`, { method: 'POST' }),
+
+  unblock: (id) =>
+    apiFetch(`/employees/${id}/unblock`, { method: 'POST' }),
+
+  delete: (id, force = false) =>
+    apiFetch(`/employees/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
+};
+
+// ── SUPER-ADMIN API (Shonazar — tashkilotlarni boshqarish) ──
+export const SuperAdminAPI = {
+  getOrganizations: (search) =>
+    apiFetch('/super-admin/organizations' + (search ? `?search=${encodeURIComponent(search)}` : '')),
+
+  getOrganization: (id) => apiFetch(`/super-admin/organizations/${id}`),
+
+  createOrganization: (data) =>
+    apiFetch('/super-admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateOrganization: (id, data) =>
+    apiFetch(`/super-admin/organizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  extendSubscription: (id, months) =>
+    apiFetch(`/super-admin/organizations/${id}/extend-subscription`, {
+      method: 'POST',
+      body: JSON.stringify({ months }),
+    }),
+
+  block: (id) => apiFetch(`/super-admin/organizations/${id}/block`, { method: 'POST' }),
+  unblock: (id) => apiFetch(`/super-admin/organizations/${id}/unblock`, { method: 'POST' }),
+
+  resetCeoPassword: (id) =>
+    apiFetch(`/super-admin/organizations/${id}/reset-ceo-password`, { method: 'POST' }),
+
+  impersonate: (id) =>
+    apiFetch(`/super-admin/organizations/${id}/impersonate`, { method: 'POST' }),
+
+  changePlan: (id, plan) =>
+    apiFetch(`/super-admin/organizations/${id}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify({ plan }),
+    }),
+
+  delete: (id, force = false) =>
+    apiFetch(`/super-admin/organizations/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' }),
+
+  getStats: () => apiFetch('/super-admin/stats'),
+
+  getAuditLog: (opts = {}) => {
+    const q = [];
+    if (opts.limit) q.push(`limit=${opts.limit}`);
+    if (opts.offset) q.push(`offset=${opts.offset}`);
+    if (opts.organization_id) q.push(`organization_id=${opts.organization_id}`);
+    if (opts.action) q.push(`action=${encodeURIComponent(opts.action)}`);
+    return apiFetch('/super-admin/audit-log' + (q.length ? '?' + q.join('&') : ''));
+  },
+};
+
 // ── SOURCES API ──
 export const SourcesAPI = {
-  getAll: () => apiFetch('/sources'),
+  getAll: (departmentId) => apiFetch('/sources' + (departmentId ? `?department_id=${departmentId}` : '')),
 
   create: (source) =>
     apiFetch('/sources', {

@@ -9,7 +9,8 @@ import { createPortal } from "react-dom";
 import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
-  ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI
+  ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -191,11 +192,11 @@ async function getAiContextFromAPI(sourceId) {
   } catch { return null; }
 }
 
-// Backend API dan manbalarni yuklash
-async function loadSourcesFromAPI() {
+// Backend API dan manbalarni yuklash (ixtiyoriy bo'lim filter bilan)
+async function loadSourcesFromAPI(departmentId) {
   try {
     if (!Token.get()) return null;
-    const result = await SourcesAPI.getAll();
+    const result = await SourcesAPI.getAll(departmentId);
     return Array.isArray(result) ? result : null;
   } catch { return null; }
 }
@@ -269,9 +270,9 @@ const Auth = {
   },
 
   // ── Register: API ga urinib ko'radi, ishlamasa LS fallback ──
-  register: async (name, email, password) => {
+  register: async (name, email, password, organizationName) => {
     try {
-      const res = await AuthAPI.register(name, email, password);
+      const res = await AuthAPI.register(name, email, password, organizationName);
       Token.set(res.token);
       const users = Auth.getUsers();
       Auth.saveUsers([...users, { ...res.user, password, status: "active" }]);
@@ -310,7 +311,7 @@ const Auth = {
   },
 
   checkLimit: (user, limitKey, sources) => {
-    if (user?.role === "admin") return true; // Admin cheksiz
+    if (user?.role === "admin" || user?.role === "super_admin") return true; // Admin va super-admin cheksiz
     const plan = PLANS[user?.plan || "free"];
     const limit = plan?.limits[limitKey];
     if (limit === -1) return true; // Cheksiz
@@ -341,7 +342,7 @@ const Auth = {
 
   // Limit haqida batafsil ma'lumot
   getLimitInfo: (user, limitKey, sources) => {
-    if (user?.role === "admin") return { allowed: true, used: 0, max: -1, label: "Cheksiz" };
+    if (user?.role === "admin" || user?.role === "super_admin") return { allowed: true, used: 0, max: -1, label: "Cheksiz" };
     const plan = PLANS[user?.plan || "free"];
     const limit = plan?.limits[limitKey];
     let used = 0;
@@ -1288,6 +1289,8 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .chat-send-btn:disabled{opacity:.35;cursor:not-allowed;background:var(--s3)}
 @keyframes pulse-voice{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0.4)}50%{box-shadow:0 0 0 8px rgba(248,113,113,0)}}
 @keyframes dashProg{0%{width:10%;opacity:.7}50%{width:80%;opacity:1}100%{width:10%;opacity:.7}}
+@keyframes aiSweep{0%{left:-30%;width:30%}50%{width:45%}100%{left:100%;width:30%}}
+@keyframes aiPulse{0%,100%{opacity:0.65}50%{opacity:1}}
 .chat-export-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s var(--ease);display:flex;align-items:center;gap:4px;font-family:var(--fh);font-size:10px;font-weight:500;}
 .chat-export-btn:hover{border-color:var(--border-hi);color:var(--text);background:var(--s3)}
 .typing-ind{display:flex;gap:5px;align-items:center}
@@ -1860,6 +1863,7 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
 // ─────────────────────────────────────────────────────────────
 function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
   const [name, setName] = useState("");
+  const [organizationName, setOrganizationName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
@@ -1867,12 +1871,12 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!name || !email || !password) { setError("Hamma maydonlarni to'ldiring"); return; }
+    if (!name || !organizationName || !email || !password) { setError("Hamma maydonlarni to'ldiring"); return; }
     if (password.length < 6) { setError("Parol kamida 6 ta belgi bo'lishi kerak"); return; }
     if (password !== password2) { setError("Parollar mos emas"); return; }
     setLoading(true); setError("");
     try {
-      const res = await Auth.register(name, email, password);
+      const res = await Auth.register(name, email, password, organizationName);
       if (res.error) { setError(res.error); setLoading(false); }
       else onAuth(res.user);
     } catch (e) { setError(e.message || "Xatolik yuz berdi"); setLoading(false); }
@@ -1883,17 +1887,19 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
       <style>{CSS}</style>
       <div className="auth-card">
         <div className="auth-logo">BIZ<span>NES</span>AI</div>
-        <div className="auth-sub">Yangi hisob yarating — bepul</div>
+        <div className="auth-sub">Yangi hisob yarating — bepul tarifda boshlang</div>
         {error && <div className="auth-err">{error}</div>}
         {[
-          { l: "Ism familiya", v: name, s: setName, t: "text", p: "Abdullayev Bobur" },
-          { l: "Email", v: email, s: setEmail, t: "email", p: "email@example.com" },
-          { l: "Parol", v: password, s: setPassword, t: "password", p: "Kamida 6 ta belgi" },
-          { l: "Parolni takrorlang", v: password2, s: setPassword2, t: "password", p: "••••••••" },
+          { l: "Ism familiya", v: name, s: setName, t: "text", p: "Abdullayev Bobur", key: "name" },
+          { l: "Kompaniya / Tashkilot nomi", v: organizationName, s: setOrganizationName, t: "text", p: "Masalan: Abdullayev Trade", key: "org", hint: "Siz CEO bo'lasiz, keyin xodim qo'sha olasiz" },
+          { l: "Email", v: email, s: setEmail, t: "email", p: "email@example.com", key: "email" },
+          { l: "Parol", v: password, s: setPassword, t: "password", p: "Kamida 6 ta belgi", key: "password" },
+          { l: "Parolni takrorlang", v: password2, s: setPassword2, t: "password", p: "••••••••", key: "password2" },
         ].map(f => (
-          <div key={f.l} className="auth-field-wrap">
+          <div key={f.key} className="auth-field-wrap">
             <label className="field-label">{f.l}</label>
             <input className="field" type={f.t} placeholder={f.p} value={f.v} onChange={e => f.s(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+            {f.hint && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>{f.hint}</div>}
           </div>
         ))}
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 4, justifyContent: "center" }} onClick={submit} disabled={loading}>
@@ -2266,8 +2272,14 @@ function ProfilePage({ user, onPlanChange, push, sources }) {
 // ─────────────────────────────────────────────────────────────
 // ADMIN PANEL
 // ─────────────────────────────────────────────────────────────
-function AdminPanel({ currentUser, push, sources: adminSources }) {
-  const [tab, setTab] = useState("overview");
+function AdminPanel({ currentUser, push, sources: adminSources, initialTab, hideTabs }) {
+  const [tab, setTab] = useState(initialTab || "overview");
+
+  // Agar tashqaridan initialTab o'zgarsa (masalan, Super Admin sidebarda tab almashtirilsa) — sinxronlash
+  useEffect(() => {
+    if (initialTab && initialTab !== tab) setTab(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -2604,22 +2616,24 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap6 mb20" style={{ flexWrap: "wrap" }}>
-        {[
-          { id: "overview", l: " Statistika" },
-          { id: "analytics", l: " Analytics" },
-          { id: "users", l: `◐ Foydalanuvchilar (${total})` },
-          { id: "payments", l: `◰ To'lovlar (${allPayments.length})` },
-          { id: "ai_config", l: " AI Sozlama" },
-          { id: "tariffs", l: " Tariflar" },
-          { id: "system", l: " Tizim" },
-        ].map(t => (
-          <button key={t.id} className="btn btn-ghost btn-sm"
-            style={tab === t.id ? { borderColor: "var(--red)", color: "var(--red)", background: "rgba(248,113,133,0.07)" } : {}}
-            onClick={() => setTab(t.id)}>{t.l}</button>
-        ))}
-      </div>
+      {/* Tabs — Super Admin panel ichida hideTabs bilan yashiriladi */}
+      {!hideTabs && (
+        <div className="flex gap6 mb20" style={{ flexWrap: "wrap" }}>
+          {[
+            { id: "overview", l: " Statistika" },
+            { id: "analytics", l: " Analytics" },
+            { id: "users", l: `◐ Foydalanuvchilar (${total})` },
+            { id: "payments", l: `◰ To'lovlar (${allPayments.length})` },
+            { id: "ai_config", l: " AI Sozlama" },
+            { id: "tariffs", l: " Tariflar" },
+            { id: "system", l: " Tizim" },
+          ].map(t => (
+            <button key={t.id} className="btn btn-ghost btn-sm"
+              style={tab === t.id ? { borderColor: "var(--red)", color: "var(--red)", background: "rgba(248,113,133,0.07)" } : {}}
+              onClick={() => setTab(t.id)}>{t.l}</button>
+          ))}
+        </div>
+      )}
 
       {/* ═══ OVERVIEW ═══ */}
       {tab === "overview" && (
@@ -3402,8 +3416,14 @@ function AdminPanel({ currentUser, push, sources: adminSources }) {
 // ─────────────────────────────────────────────────────────────
 // DATA HUB PAGE (Constructor)
 // ─────────────────────────────────────────────────────────────
-function SourceItem({ src, onUpdate, onDelete, push }) {
+function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
   const [expanded, setExpanded] = useState(false);
+
+  // Tashqaridan "Hammasini ochish/yig'ish" bosilsa — sinxronlash
+  useEffect(() => {
+    if (bulkExpand && typeof bulkExpand.v === "boolean") setExpanded(bulkExpand.v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkExpand?.ts]);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(src.name);
   const [drag, setDrag] = useState(false);
@@ -4550,8 +4570,17 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
             onClick={(e) => { e.stopPropagation(); onUpdate({ ...src, active: !src.active }); }}>
             <div style={{ width: 13, height: 13, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: src.active ? 18 : 2, transition: "left .2s" }} />
           </button>
-          <button className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); setExpanded(e => !e); }}>{expanded ? "▲" : "▼"}</button>
-          <button className="btn btn-danger btn-xs" onClick={(e) => { e.stopPropagation(); onDelete(src.id); }}>✕</button>
+          <button className="btn btn-ghost btn-xs"
+            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v); }}
+            title={expanded ? "Yig'ish" : "Kengaytirish"}
+            style={{ padding: "4px 8px", display: "flex", alignItems: "center", gap: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: "transform .2s var(--ease)", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span style={{ fontSize: 10 }}>{expanded ? "Yig'ish" : "Kengaytirish"}</span>
+          </button>
+          <button className="btn btn-danger btn-xs" onClick={(e) => { e.stopPropagation(); onDelete(src.id); }} title="O'chirish">✕</button>
         </div>
       </div>
 
@@ -5188,6 +5217,16 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
               </div>
             );
           })()}
+
+          {/* Yopish tugmasi — body oxirida */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setExpanded(false)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="18 15 12 9 6 15" />
+              </svg>
+              Yopish
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -5198,17 +5237,40 @@ function SourceItem({ src, onUpdate, onDelete, push }) {
 // DATA HUB PAGE (Constructor)
 // ─────────────────────────────────────────────────────────────
 
-function DataHubPage({ sources, setSources, push, user }) {
+function DataHubPage({ sources, setSources, push, user, orgContext, activeDepartmentId }) {
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState(null);
   const [showMoreTypes, setShowMoreTypes] = useState(false);
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState("var(--teal)");
+  // Tanlangan bo'limlar (ko'p tanlash mumkin) — default: faol bo'lim
+  const [newDeptIds, setNewDeptIds] = useState(
+    activeDepartmentId ? [activeDepartmentId] : []
+  );
+  // Hammasini ochish/yig'ish — {v: boolean, ts: timestamp} (ts — useEffect trigger uchun)
+  const [bulkExpand, setBulkExpand] = useState(null);
+
+  // Faol bo'lim o'zgarsa — yangi manba formasida ham default aktiv bo'lsin
+  useEffect(() => {
+    if (activeDepartmentId && !newDeptIds.includes(activeDepartmentId)) {
+      setNewDeptIds([activeDepartmentId]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDepartmentId]);
+
+  const availableDepts = orgContext?.departments || [];
 
   const SOURCE_COLORS = ["var(--teal)", "var(--green)", "#FF6B35", "#FFD166", "#A855F7", "#FF3366", "#4D9DE0", "var(--gold)", "var(--teal)", "#F72585"];
 
+  const toggleDept = (id) => {
+    setNewDeptIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   const addSource = () => {
     if (!newType || !newName.trim()) { push("Nomi va turini tanlang", "warn"); return; }
+    if (availableDepts.length > 0 && newDeptIds.length === 0) {
+      push("Kamida bitta bo'lim tanlang", "warn"); return;
+    }
 
     // ── LIMIT TEKSHIRUV ──
     const isFile = newType === "excel" || newType === "document" || newType === "image";
@@ -5235,12 +5297,18 @@ function DataHubPage({ sources, setSources, push, user }) {
       active: true,
       data: [],
       config: {},
+      department_ids: newDeptIds,
       createdAt: new Date().toLocaleDateString("uz-UZ"),
     };
     const updated = [...sources, src];
     setSources(updated); saveSources(updated, user?.id);
-    SourcesAPI.create({ id: src.id, type: src.type, name: src.name, color: src.color, config: src.config }).catch(() => { });
-    setAdding(false); setNewType(null); setNewName(""); push("✓ Yangi manba qo'shildi", "ok");
+    SourcesAPI.create({
+      id: src.id, type: src.type, name: src.name, color: src.color, config: src.config,
+      department_ids: newDeptIds,
+    }).catch(e => push(e.message || "Manba yaratishda xato", "error"));
+    setAdding(false); setNewType(null); setNewName("");
+    setNewDeptIds(activeDepartmentId ? [activeDepartmentId] : []);
+    push("✓ Yangi manba qo'shildi", "ok");
   };
 
   const updateSource = (updated) => {
@@ -5283,8 +5351,22 @@ function DataHubPage({ sources, setSources, push, user }) {
       {!adding ? (
         <button className="btn btn-primary mb16" onClick={() => setAdding(true)}>+ Yangi Manba Qo'shish</button>
       ) : (
-        <div className="add-panel mb16">
-          <div className="section-hd mb12">Manba Turi Tanlang</div>
+        <div className="add-panel mb16" style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div className="section-hd" style={{ margin: 0 }}>Manba Turi Tanlang</div>
+            <button onClick={() => { setAdding(false); setNewType(null); setNewName(""); }}
+              title="Yopish"
+              style={{
+                background: "var(--s3)", border: "1px solid var(--border)",
+                color: "var(--muted)", cursor: "pointer",
+                width: 28, height: 28, borderRadius: 8,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, transition: "all .15s",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--text)"; e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "var(--muted)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+            >×</button>
+          </div>
           {(() => {
             const primary = ["excel", "sheets", "instagram", "crm", "document", "manual"];
             const secondary = Object.keys(SOURCE_TYPES).filter(k => !primary.includes(k));
@@ -5302,34 +5384,167 @@ function DataHubPage({ sources, setSources, push, user }) {
                   </div>
                 ))}
               </div>
-              {!showMore && secondary.length > 0 && (
-                <button className="btn btn-ghost btn-sm" onClick={() => setShowMoreTypes(true)} style={{ width: "100%", marginTop: 8, fontSize: 11 }}>
-                  + Ko'proq manba turlari ({secondary.length} ta)
+              {secondary.length > 0 && (
+                <button className="btn btn-ghost btn-sm"
+                  onClick={() => setShowMoreTypes(v => !v)}
+                  style={{ width: "100%", marginTop: 8, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ transition: "transform .2s var(--ease)", transform: showMore ? "rotate(180deg)" : "rotate(0deg)" }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                  {showMore ? "Kamroq ko'rsat" : `+ Ko'proq manba turlari (${secondary.length} ta)`}
                 </button>
               )}
             </>);
           })()}
-          {newType && (
-            <div className="flex gap10 aic flex-wrap mt10">
-              <div className="f1">
-                <label className="field-label">Manba Nomi</label>
-                <input className="field" placeholder={`Masalan: "Aprel Savdo", "Filial 1 CRM"...`} value={newName} onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && addSource()} />
-              </div>
-              <div>
-                <label className="field-label">Rang</label>
-                <div className="flex gap4">
-                  {SOURCE_COLORS.map(c => (
-                    <div key={c} style={{ width: 18, height: 18, borderRadius: 4, background: c, cursor: "pointer", border: newColor === c ? "2px solid #fff" : "2px solid transparent", transition: "all .15s" }} onClick={() => setNewColor(c)} />
-                  ))}
+          {newType && (() => {
+            const pickedType = SOURCE_TYPES[newType] || {};
+            return (
+              <div style={{ marginTop: 16, display: "grid", gap: 14 }}>
+                {/* Mini "preview" card — tanlangan manba tipini ko'rsatadi */}
+                <div style={{
+                  padding: "12px 16px", borderRadius: 12,
+                  background: `linear-gradient(135deg, ${newColor}12 0%, ${newColor}04 100%)`,
+                  border: `1px solid ${newColor}25`,
+                  display: "flex", alignItems: "center", gap: 12,
+                }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    background: newColor + "20", border: `1px solid ${newColor}40`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 20,
+                  }}>{pickedType.icon || "📁"}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, color: "var(--text)" }}>
+                      {newName.trim() || pickedType.label || "Yangi manba"}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                      {pickedType.label} · {newDeptIds.length > 0 ? `${newDeptIds.length} bo'lim` : "bo'lim tanlanmagan"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Nom + rang — alohida bloklar */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
+                  <div style={{ padding: 14, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+                    <label className="field-label">Manba nomi</label>
+                    <input className="field"
+                      style={{ fontSize: 13, padding: "10px 14px" }}
+                      placeholder={`Masalan: Aprel savdo, Filial 1 CRM`}
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      onKeyDown={e => e.key === "Enter" && addSource()} />
+                  </div>
+                  <div style={{ padding: 14, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+                    <label className="field-label">Rang</label>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {SOURCE_COLORS.map(c => (
+                        <div key={c}
+                          onClick={() => setNewColor(c)}
+                          title={c}
+                          style={{
+                            width: 26, height: 26, borderRadius: 8,
+                            background: c, cursor: "pointer",
+                            border: newColor === c ? "3px solid var(--text)" : "2px solid transparent",
+                            boxShadow: newColor === c ? `0 0 0 2px var(--bg), 0 2px 8px ${c}` : "none",
+                            transition: "transform .15s",
+                            transform: newColor === c ? "scale(1.05)" : "scale(1)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bo'limlar bloki */}
+                {availableDepts.length > 0 ? (
+                  <div style={{ padding: 14, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <label className="field-label" style={{ marginBottom: 0 }}>
+                        Bo'limlar
+                        <span style={{
+                          marginLeft: 8,
+                          padding: "2px 9px", borderRadius: 10,
+                          background: newDeptIds.length === 0 ? "rgba(248,113,133,0.1)" : "rgba(212,168,83,0.1)",
+                          color: newDeptIds.length === 0 ? "var(--red)" : "var(--gold)",
+                          border: `1px solid ${newDeptIds.length === 0 ? "rgba(248,113,133,0.2)" : "rgba(212,168,83,0.2)"}`,
+                          fontSize: 10, fontWeight: 700, textTransform: "none", letterSpacing: 0,
+                        }}>
+                          {newDeptIds.length} tanlangan
+                        </span>
+                      </label>
+                      {availableDepts.length > 2 && (
+                        <button
+                          onClick={() => setNewDeptIds(newDeptIds.length === availableDepts.length ? [] : availableDepts.map(d => d.id))}
+                          style={{ background: "none", border: "none", color: "var(--teal)", cursor: "pointer", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600 }}
+                        >
+                          {newDeptIds.length === availableDepts.length ? "Hech qaysi" : "Hammasi"}
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+                      {availableDepts.map(d => {
+                        const on = newDeptIds.includes(d.id);
+                        const c = d.color || "#6B7280";
+                        return (
+                          <div key={d.id} onClick={() => toggleDept(d.id)}
+                            style={{
+                              padding: "10px 12px", borderRadius: 10,
+                              border: `1px solid ${on ? c : "var(--border)"}`,
+                              background: on ? c + "12" : "var(--s3)",
+                              cursor: "pointer", transition: "all .15s",
+                              display: "flex", alignItems: "center", gap: 9,
+                              boxShadow: on ? `0 2px 8px ${c}20` : "none",
+                            }}
+                            onMouseEnter={e => { if (!on) e.currentTarget.style.background = c + "08"; }}
+                            onMouseLeave={e => { if (!on) e.currentTarget.style.background = "var(--s3)"; }}
+                          >
+                            <div style={{
+                              width: 28, height: 28, borderRadius: 8,
+                              background: on ? c + "25" : "var(--s2)",
+                              border: `1px solid ${on ? c + "40" : "var(--border)"}`,
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: 15, flexShrink: 0,
+                            }}>{d.icon || "📁"}</div>
+                            <div style={{ flex: 1, minWidth: 0, fontFamily: "var(--fh)", fontSize: 12.5, fontWeight: on ? 700 : 500, color: on ? c : "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {d.name}
+                            </div>
+                            <div style={{
+                              width: 18, height: 18, borderRadius: 5,
+                              border: `1.5px solid ${on ? c : "var(--border)"}`,
+                              background: on ? c : "transparent",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              flexShrink: 0, transition: "all .15s",
+                            }}>
+                              {on && <span style={{ fontSize: 10, color: "#0a0c14", fontWeight: 900 }}>✓</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    padding: 12, borderRadius: 10,
+                    background: "rgba(212,168,83,0.06)", border: "1px solid rgba(212,168,83,0.15)",
+                    fontSize: 12, color: "var(--gold)", textAlign: "center",
+                  }}>
+                    ⚠ Avval Jamoam → Bo'limlar bo'limida kamida bitta bo'lim yarating
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+                  <button className="btn btn-ghost" onClick={() => { setAdding(false); setNewType(null); setNewName(""); }}>
+                    Bekor qilish
+                  </button>
+                  <button className="btn btn-primary" onClick={addSource}
+                    disabled={!newName.trim() || (availableDepts.length > 0 && newDeptIds.length === 0)}>
+                    + Manba qo'shish
+                  </button>
                 </div>
               </div>
-              <div className="flex gap6" style={{ alignSelf: "flex-end" }}>
-                <button className="btn btn-primary btn-sm" onClick={addSource}>Qo'shish</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setAdding(false); setNewType(null); }}>Bekor</button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -5341,9 +5556,39 @@ function DataHubPage({ sources, setSources, push, user }) {
           <div className="text-muted text-sm">"+ Yangi Manba Qo'shish" tugmasini bosing</div>
         </div>
       ) : (
-        sources.map(src => (
-          <SourceItem key={src.id} src={src} onUpdate={updateSource} onDelete={deleteSource} push={push} />
-        ))
+        <>
+          {/* Bulk expand/collapse tugmalari */}
+          {sources.length > 1 && (
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10 }}>
+              <button className="btn btn-ghost btn-xs"
+                onClick={() => setBulkExpand({ v: true, ts: Date.now() })}
+                style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                Hammasini ochish
+              </button>
+              <button className="btn btn-ghost btn-xs"
+                onClick={() => setBulkExpand({ v: false, ts: Date.now() })}
+                style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15" />
+                </svg>
+                Hammasini yig'ish
+              </button>
+            </div>
+          )}
+          {sources.map(src => (
+            <SourceItem
+              key={src.id}
+              src={src}
+              onUpdate={updateSource}
+              onDelete={deleteSource}
+              push={push}
+              bulkExpand={bulkExpand}
+            />
+          ))}
+        </>
       )}
 
       {/* Type summary */}
@@ -6882,7 +7127,7 @@ function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
   const gen = async (mod) => {
     if (!aiConfig.apiKey) { alert("AI ulanmagan. Admin global AI sozlashi yoki AI Sozlamalardan shaxsiy API kalit kiriting."); return; }
     // Hisobot limiti
-    if (!isPersonal && user?.role !== "admin" && !Auth.checkLimit(user, "reports", sources)) {
+    if (!isPersonal && user?.role !== "admin" && user?.role !== "super_admin" && !Auth.checkLimit(user, "reports", sources)) {
       const info = Auth.getLimitInfo(user, "reports", sources);
       alert(`Hisobot limiti tugadi (${info.label}). Eski hisobotlarni o'chiring yoki tarifni yangilang.`);
       return;
@@ -6933,7 +7178,7 @@ HISOBOT QOIDALARI:
 
   // ── Eksport funksiyalari ──
   const checkExportLimit = () => {
-    if (user?.role === "admin") return true;
+    if (user?.role === "admin" || user?.role === "super_admin") return true;
     const plan = PLANS[user?.plan || "free"];
     if (!plan?.limits?.export) {
       alert("Export funksiyasi faqat Boshlang'ich tarifdan boshlab ishlaydi. Tarifni yangilang.");
@@ -7425,7 +7670,7 @@ function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAl
     if (!connectedSources.length) { push("Data Hub da manba ulang", "warn"); return; }
     // AI ogohlantirish limiti (free tarifda taqiqlangan)
     const isPersonalKey = !!aiConfig.isPersonal;
-    if (!isPersonalKey && user?.role !== "admin") {
+    if (!isPersonalKey && user?.role !== "admin" && user?.role !== "super_admin") {
       const plan = PLANS[user?.plan || "free"];
       if (!plan?.limits?.alerts_check) {
         push("AI ogohlantirishlar faqat Boshlang'ich tarifdan boshlab ishlaydi. Tarifni yangilang.", "warn");
@@ -8860,35 +9105,48 @@ const CHART_TYPE_OPTIONS = [
 // AI PROGRESS BAR — bosqichli, animatsiyali
 // ─────────────────────────────────────────────────────────────
 function AiProgressBar({ loading }) {
-  const [step, setStep] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const steps = [
-    { label: "Tayyorlanmoqda", icon: "⚙", pct: 15 },
-    { label: "Yuborilmoqda", icon: "↑", pct: 30 },
-    { label: "Tahlil", icon: "◈", pct: 55 },
-    { label: "Hisoblash", icon: "#", pct: 75 },
-    { label: "Grafik", icon: "▨", pct: 90 },
-    { label: "Yakunlash", icon: "✓", pct: 97 },
+  // Label'ni aylanib ko'rsatish (label faqat vizual — progress bar o'zi cheksiz)
+  const labels = [
+    { label: "AI tayyorlanmoqda", icon: "⚙" },
+    { label: "So'rov yuborilmoqda", icon: "↑" },
+    { label: "AI tahlil qilmoqda", icon: "◈" },
+    { label: "Javob tayyorlanmoqda", icon: "▨" },
   ];
+  const [labelIdx, setLabelIdx] = useState(0);
+  const [startedAt, setStartedAt] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    if (!loading) { setStep(0); setProgress(0); return; }
-    setStep(0); setProgress(5);
-    const timers = steps.map((s, i) => setTimeout(() => {
-      setStep(i); setProgress(s.pct);
-    }, i === 0 ? 300 : i === 1 ? 1200 : i === 2 ? 3000 : i === 3 ? 6000 : i === 4 ? 10000 : 15000));
-    return () => timers.forEach(clearTimeout);
+    if (!loading) {
+      setLabelIdx(0);
+      setStartedAt(null);
+      setElapsed(0);
+      return;
+    }
+    setStartedAt(Date.now());
+    const labelTimer = setInterval(() => {
+      setLabelIdx(i => (i + 1) % labels.length);
+    }, 2000);
+    const elapsedTimer = setInterval(() => {
+      setElapsed(e => e + 1);
+    }, 1000);
+    return () => {
+      clearInterval(labelTimer);
+      clearInterval(elapsedTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   if (!loading) return null;
-  const cur = steps[step] || steps[0];
+  const cur = labels[labelIdx] || labels[0];
+  const secStr = elapsed > 0 ? `${elapsed}s` : "";
 
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "8px 14px", marginBottom: 12,
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "10px 14px", marginBottom: 12,
       background: "rgba(0,201,190,0.06)",
-      border: "1px solid rgba(0,201,190,0.15)",
+      border: "1px solid rgba(0,201,190,0.18)",
       borderRadius: 10,
     }}>
       {/* Spinner */}
@@ -8900,36 +9158,27 @@ function AiProgressBar({ loading }) {
         animation: "spin 0.8s linear infinite",
       }} />
 
-      {/* Label + bar */}
+      {/* Label + indeterminate bar */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontSize: 11, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--teal)", letterSpacing: 0.3 }}>
-            {cur.icon} {cur.label}...
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontSize: 11.5, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--teal)", letterSpacing: 0.3, animation: "aiPulse 1.8s ease infinite" }}>
+            {cur.icon} {cur.label}
+            <span style={{ display: "inline-block", marginLeft: 2, animation: "aiPulse 0.9s ease infinite" }}>...</span>
           </span>
-          <span style={{ fontSize: 10, fontFamily: "var(--fm)", color: "var(--muted)", flexShrink: 0, marginLeft: 8 }}>
-            {progress}%
-          </span>
+          {secStr && (
+            <span style={{ fontSize: 10, fontFamily: "var(--fm)", color: "var(--muted)", flexShrink: 0, marginLeft: 8 }}>
+              {secStr}
+            </span>
+          )}
         </div>
-        {/* Thin progress bar */}
-        <div style={{ height: 3, background: "var(--s3)", borderRadius: 4, overflow: "hidden" }}>
+        {/* Indeterminate progress — cheksiz siljiydi */}
+        <div style={{ height: 3, background: "var(--s3)", borderRadius: 4, overflow: "hidden", position: "relative" }}>
           <div style={{
-            height: "100%", borderRadius: 4,
+            position: "absolute", top: 0, height: "100%", borderRadius: 4,
             background: "linear-gradient(90deg,#00C9BE,#4ADE80)",
-            width: progress + "%",
-            transition: "width 1.5s cubic-bezier(0.4,0,0.2,1)",
+            animation: "aiSweep 1.8s cubic-bezier(0.4,0,0.2,1) infinite",
           }} />
         </div>
-      </div>
-
-      {/* Step dots */}
-      <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-        {steps.map((s, i) => (
-          <div key={i} title={s.label} style={{
-            width: i <= step ? 14 : 5, height: 5, borderRadius: 3,
-            background: i <= step ? "linear-gradient(90deg,#00C9BE,#4ADE80)" : "var(--s3)",
-            transition: "all .4s ease",
-          }} />
-        ))}
       </div>
     </div>
   );
@@ -9631,7 +9880,7 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
 // ─────────────────────────────────────────────────────────────
 // DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────────
-function DashboardPage({ sources, aiConfig, setPage, user }) {
+function DashboardPage({ sources, aiConfig, setPage, user, orgContext, activeDepartmentId, setActiveDepartmentId, setOpenDept }) {
   const [anomalyOpen, setAnomalyOpen] = useState(false);
   const [readAnomalies, setReadAnomalies] = useState(() => {
     try { return LS.get("u_" + (user?.id || "anon") + "_read_anomalies", []); } catch { return []; }
@@ -9806,19 +10055,53 @@ FAQAT JSON.`;
   };
   const clearDashCards = () => { setDashCards([]); LS.del(dashCacheKey); };
 
+  // Yordamchi: salom bo'sh holat uchun
+  const firstName = (user?.name || "").split(" ")[0];
+  const activeDept = activeDepartmentId
+    ? orgContext?.departments?.find(d => d.id === activeDepartmentId)
+    : null;
+
   return (
     <div>
       {/* ── Bo'sh holat — manba ulanmagan ── */}
       {connected.length === 0 && (
-        <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>📊</div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Xush kelibsiz!</div>
-          <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 24, maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.7 }}>
-            Boshlash uchun ma'lumot manbasi ulang — Excel fayl, Google Sheets yoki boshqa manba. AI sizning ma'lumotlaringiz asosida tahlil qiladi.
+        <div className="card" style={{
+          padding: "40px 28px", textAlign: "center",
+          background: "linear-gradient(135deg, rgba(212,168,83,0.04) 0%, rgba(0,212,200,0.02) 100%)",
+          border: "1px dashed rgba(212,168,83,0.25)",
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 20,
+            background: "linear-gradient(135deg, rgba(212,168,83,0.12), rgba(0,212,200,0.08))",
+            border: "1px solid rgba(212,168,83,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 16px", fontSize: 28,
+          }}>📊</div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, marginBottom: 8, color: "var(--text)" }}>
+            Boshlaymiz{firstName ? `, ${firstName}` : ""}!
           </div>
-          <button className="btn btn-primary" onClick={() => setPage("datahub")} style={{ padding: "12px 28px", fontSize: 14 }}>
-            Manba qo'shish →
-          </button>
+          <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20, maxWidth: 440, margin: "0 auto 20px", lineHeight: 1.7 }}>
+            {activeDept
+              ? `"${activeDept.name}" bo'limiga ma'lumot manbasi ulang — Excel, Google Sheets, Instagram yoki boshqa. AI shu bo'lim kontekstida ishlaydi.`
+              : "Ma'lumot manbasi ulang — Excel, Google Sheets, Instagram yoki boshqa. AI sizning ma'lumotlaringiz asosida tahlil, hisobot va maslahat beradi."}
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <button className="btn btn-primary" onClick={() => setPage("datahub")} style={{ padding: "11px 24px", fontSize: 13 }}>
+              + Manba qo'shish
+            </button>
+            <button className="btn btn-ghost" onClick={() => {
+              // Umumiy → CEO uchun "hamma manba" (null filter), xodim uchun o'z Umumiy'i
+              const umumiy = orgContext?.departments?.find(d => d.name === "Umumiy");
+              const isCeo = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
+              if (setActiveDepartmentId) {
+                setActiveDepartmentId(isCeo ? null : (umumiy?.id || null));
+                if (setOpenDept && umumiy) setOpenDept(umumiy.id);
+              }
+              setPage("chat");
+            }} style={{ padding: "11px 24px", fontSize: 13 }}>
+              AI bilan suhbat
+            </button>
+          </div>
         </div>
       )}
 
@@ -9895,28 +10178,64 @@ FAQAT JSON.`;
         )}
       </div>
 
-      {/* ── Tezkor amallar ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10, marginBottom: 20 }}>
-        {[
-          { lbl: "Grafiklar", desc: "Vizualizatsiya", page: "charts", c: "#00C9BE", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg> },
-          { lbl: "AI Maslahat", desc: "Savol bering", page: "chat", c: "#4ADE80", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg> },
-          { lbl: "Tahlil", desc: "Chuqur analitika", page: "analytics", c: "#E8B84B", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg> },
-          { lbl: "Hisobotlar", desc: "PDF eksport", page: "reports", c: "#A78BFA", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg> },
-          { lbl: "Ogohlantirishlar", desc: "AI monitoring", page: "alerts", c: "#F87171", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /></svg> },
-          { lbl: "Data Hub", desc: "Manbalar", page: "datahub", c: "#38BDF8", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg> },
-        ].map((a, i) => (
-          <div key={i} onClick={() => setPage(a.page)}
-            style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", cursor: "pointer", transition: "all .2s", display: "flex", alignItems: "center", gap: 10 }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = a.c + "40"; e.currentTarget.style.background = a.c + "08"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--s1)"; }}>
-            <div style={{ color: a.c }}>{a.icon}</div>
-            <div>
-              <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700, color: "var(--text)" }}>{a.lbl}</div>
-              <div style={{ fontSize: 9, color: "var(--muted)" }}>{a.desc}</div>
-            </div>
+      {/* ── Bo'limlar (tashkilot) ── */}
+      {orgContext?.departments?.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div className="flex aic jb mb10">
+            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Bo'limlar</div>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>Bosing → o'sha bo'limga kirish</div>
           </div>
-        ))}
-      </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
+            {orgContext.departments.map(d => {
+              const c = d.color || "#6B7280";
+              const isActive = activeDepartmentId === d.id;
+              // Shu bo'limga tegishli manbalar soni (source_departments asosida)
+              const deptSourceCount = sources.filter(s =>
+                Array.isArray(s.department_ids) && s.department_ids.includes(d.id)
+              ).length;
+              const isUmumiyForCeo = d.name === "Umumiy" && (user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin");
+              const deptScopeId = isUmumiyForCeo ? null : d.id;
+              const activeForThis = isUmumiyForCeo ? (activeDepartmentId === null) : (activeDepartmentId === d.id);
+              return (
+                <div key={d.id}
+                  onClick={() => {
+                    if (setActiveDepartmentId) setActiveDepartmentId(deptScopeId);
+                    if (setOpenDept) setOpenDept(d.id);
+                  }}
+                  style={{
+                    background: activeForThis ? c + "10" : "var(--s1)",
+                    border: `1px solid ${activeForThis ? c + "40" : "var(--border)"}`,
+                    borderRadius: 12, padding: "14px 16px",
+                    cursor: "pointer", transition: "all .2s",
+                    display: "flex", alignItems: "center", gap: 12,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = c + "40"; e.currentTarget.style.background = c + "08"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = activeForThis ? c + "40" : "var(--border)"; e.currentTarget.style.background = activeForThis ? c + "10" : "var(--s1)"; }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: c + "20", border: `1px solid ${c}40`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 16, flexShrink: 0,
+                  }}>{d.icon || "📁"}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: activeForThis ? c : "var(--text)" }}>
+                      {d.name}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                      {isUmumiyForCeo
+                        ? `Barchasi · ${sources.length} manba`
+                        : `${deptSourceCount} manba · ${d.employee_count || 0} xodim`}
+                    </div>
+                  </div>
+                  {activeForThis && (
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: c, flexShrink: 0 }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Anomaliya Aniqlash (avtomatik, collapse) ── */}
       {(() => {
@@ -10043,23 +10362,1600 @@ FAQAT JSON.`;
         <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_dash"} onDeleteCard={(id) => removeDashCard(id)} />
       )}
 
-      {/* ── Ma'lumot yo'q holat ── */}
-      {connected.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: 48 }}>
-          <div style={{ fontSize: 40, marginBottom: 14 }}></div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Dashboard avtomatik yaratiladi</div>
-          <div className="text-muted text-sm mb16">Data Hub dan manba ulang — Excel, Instagram, Telegram yoki API</div>
-          <button className="btn btn-primary" onClick={() => setPage("datahub")}> Data Hub ga o'tish</button>
+      {/* Dashboard kartalar yo'q holati — manba bor, lekin karta hali yo'q */}
+      {connected.length > 0 && dashCards.length === 0 && (
+        <div className="card" style={{ textAlign: "center", padding: "28px 24px", border: "1px dashed var(--border)" }}>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Dashboard kartalarni sozlang</div>
+          <div className="text-muted text-sm">Yuqorida savol yozing yoki tayyor shablonlardan birini tanlang — AI avtomatik karta yaratadi</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════
+// MULTI-ORGANIZATION — CEO va Super-admin sahifalari
+// ═════════════════════════════════════════════════════════════
+
+// Bo'lim ikonkalar va ranglar (tayyor shablonlar)
+const DEPT_PRESETS = [
+  { icon: "📈", label: "Marketing",       color: "#3B82F6" },
+  { icon: "💰", label: "Sotuv",           color: "#10B981" },
+  { icon: "📊", label: "Moliya",          color: "#F59E0B" },
+  { icon: "👥", label: "HR",              color: "#A78BFA" },
+  { icon: "🏭", label: "Ishlab chiqarish", color: "#6B7280" },
+  { icon: "🚚", label: "Logistika",       color: "#EF4444" },
+  { icon: "🎧", label: "Qo'llab-quvvatlash", color: "#06B6D4" },
+  { icon: "📁", label: "Umumiy",          color: "#6B7280" },
+];
+
+// ─────────────────────────────────────────────────────────────
+// DepartmentsPage — CEO bo'limlarni boshqaradi
+// ─────────────────────────────────────────────────────────────
+function DepartmentsPage({ push, onChange }) {
+  const [depts, setDepts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null); // null | {mode:'create'} | {mode:'edit', dept}
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const list = await DepartmentsAPI.getAll();
+      setDepts(Array.isArray(list) ? list : []);
+    } catch (e) {
+      push(e.message || "Bo'limlar yuklanmadi", "error");
+    } finally { setLoading(false); }
+  }, [push]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const remove = async (d) => {
+    const force = (d.employee_count > 0 || d.source_count > 0);
+    const msg = force
+      ? `"${d.name}" bo'limida ${d.employee_count} xodim, ${d.source_count} manba bor.\nBog'lanishlar uziladi (ma'lumot o'chmaydi). Davom etasizmi?`
+      : `"${d.name}" bo'limi o'chirilsinmi?`;
+    if (!window.confirm(msg)) return;
+    try {
+      await DepartmentsAPI.delete(d.id, force);
+      push(`"${d.name}" o'chirildi`, "ok");
+      load(); if (onChange) onChange();
+    } catch (e) { push(e.message, "error"); }
+  };
+
+  if (loading) return <div className="card"><div className="card-title">Bo'limlar</div><SkeletonList count={3} /></div>;
+
+  return (
+    <>
+      <div className="card">
+        <div className="flex aic" style={{ justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Bo'limlar</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Kompaniyangizning bo'limlari — har bo'limga alohida manba va xodim biriktiriladi
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: "create" })}>+ Yangi bo'lim</button>
+        </div>
+
+        {depts.length === 0 ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+            Hali bo'lim yo'q. Birinchi bo'limni qo'shing.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+            {depts.map(d => (
+              <div key={d.id} style={{
+                padding: 16,
+                borderRadius: "var(--radius-lg)",
+                border: `1px solid ${d.color || "var(--border)"}30`,
+                background: `${d.color || "var(--teal)"}08`,
+                display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: `${d.color || "var(--teal)"}20`,
+                  border: `1px solid ${d.color || "var(--teal)"}40`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 20, flexShrink: 0,
+                }}>{d.icon || "📁"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{d.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                    {d.employee_count || 0} xodim · {d.source_count || 0} manba
+                  </div>
+                </div>
+                {d.name !== "Umumiy" && (
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button className="btn btn-ghost btn-xs" onClick={() => setModal({ mode: "edit", dept: d })}>Tahrir</button>
+                    <button className="btn btn-danger btn-xs" onClick={() => remove(d)}>O'chirish</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <DepartmentModal
+          mode={modal.mode}
+          dept={modal.dept}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); load(); if (onChange) onChange(); }}
+          push={push}
+        />
+      )}
+    </>
+  );
+}
+
+// Emoji va rang shablonlari bo'lim uchun
+const DEPT_ICON_GRID = ["📈","💰","📊","👥","🏭","🚚","🎧","💼","🏢","📁","💻","🎯","🛒","📦","🔧","🎨","📱","⚡","🌟","🚀"];
+const DEPT_COLOR_SWATCHES = [
+  "#3B82F6", "#10B981", "#F59E0B", "#A78BFA",
+  "#EF4444", "#06B6D4", "#EC4899", "#8B5CF6",
+  "#14B8A6", "#F97316", "#6B7280", "#84CC16",
+];
+
+function DepartmentModal({ mode, dept, onClose, onSaved, push }) {
+  const [name, setName] = useState(dept?.name || "");
+  const [icon, setIcon] = useState(dept?.icon || "📁");
+  const [color, setColor] = useState(dept?.color || "#6B7280");
+  const [saving, setSaving] = useState(false);
+
+  const applyPreset = (p) => { setName(p.label); setIcon(p.icon); setColor(p.color); };
+
+  const save = async () => {
+    if (!name.trim()) { push("Bo'lim nomi kerak", "warn"); return; }
+    setSaving(true);
+    try {
+      if (mode === "create") {
+        await DepartmentsAPI.create({ name: name.trim(), icon, color });
+        push(`"${name}" bo'limi yaratildi`, "ok");
+      } else {
+        await DepartmentsAPI.update(dept.id, { name: name.trim(), icon, color });
+        push(`"${name}" yangilandi`, "ok");
+      }
+      onSaved();
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ width: 520, padding: 0, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        {/* Header — gradientli, live preview bilan */}
+        <div style={{
+          padding: "24px 28px 22px",
+          background: `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`,
+          borderBottom: `1px solid ${color}25`,
+          display: "flex", alignItems: "center", gap: 16, position: "relative",
+        }}>
+          <button className="modal-close" style={{ top: 14, right: 14 }} onClick={onClose}>×</button>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: `${color}22`, border: `2px solid ${color}55`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 26, boxShadow: `0 4px 16px ${color}25`,
+          }}>{icon || "📁"}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--fh)", fontSize: 19, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.3px" }}>
+              {mode === "create" ? "Yangi bo'lim" : "Bo'limni tahrirlash"}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              {name.trim() ? `Ko'rinish: ${name}` : "Bo'lim nomi, ikonka va rangini tanlang"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "20px 28px 24px" }}>
+          {mode === "create" && (
+            <div style={{ marginBottom: 18 }}>
+              <div className="field-label" style={{ marginBottom: 8 }}>Tayyor shablonlar</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                {DEPT_PRESETS.map(p => {
+                  const active = name === p.label && icon === p.icon;
+                  return (
+                    <div key={p.label}
+                      onClick={() => applyPreset(p)}
+                      style={{
+                        padding: "8px 6px", borderRadius: 10,
+                        border: `1px solid ${active ? p.color : p.color + "20"}`,
+                        background: active ? `${p.color}15` : "var(--s2)",
+                        fontSize: 11, fontFamily: "var(--fh)", cursor: "pointer",
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                        transition: "all .15s",
+                      }}
+                      onMouseEnter={e => { if (!active) e.currentTarget.style.background = `${p.color}10`; }}
+                      onMouseLeave={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; }}
+                    >
+                      <span style={{ fontSize: 18 }}>{p.icon}</span>
+                      <span style={{ color: active ? p.color : "var(--text2)", fontWeight: active ? 700 : 500 }}>{p.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: 16 }}>
+            <div className="field-label">Bo'lim nomi</div>
+            <input className="field" value={name} onChange={e => setName(e.target.value)}
+              placeholder="Masalan: Marketing" maxLength={100} autoFocus />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div className="field-label">Ikonka</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4, padding: 8,
+              background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>
+              {DEPT_ICON_GRID.map(e => (
+                <div key={e} onClick={() => setIcon(e)}
+                  style={{
+                    padding: 6, textAlign: "center", fontSize: 18, cursor: "pointer",
+                    borderRadius: 6, transition: "all .15s",
+                    background: icon === e ? color + "22" : "transparent",
+                    border: icon === e ? `1px solid ${color}55` : "1px solid transparent",
+                    transform: icon === e ? "scale(1.08)" : "scale(1)",
+                  }}
+                >{e}</div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 22 }}>
+            <div className="field-label">Rang</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {DEPT_COLOR_SWATCHES.map(c => (
+                <div key={c} onClick={() => setColor(c)}
+                  style={{
+                    width: 30, height: 30, borderRadius: 10,
+                    background: c, cursor: "pointer",
+                    border: color === c ? "3px solid var(--text)" : "2px solid transparent",
+                    boxShadow: color === c ? `0 0 0 2px var(--bg), 0 4px 12px ${c}60` : `0 2px 6px ${c}40`,
+                    transition: "all .15s",
+                  }}
+                  title={c}
+                />
+              ))}
+              <input type="color" value={color} onChange={e => setColor(e.target.value)}
+                style={{ width: 30, height: 30, padding: 0, border: "1px dashed var(--border)", borderRadius: 10, background: "var(--s2)", cursor: "pointer" }}
+                title="Maxsus rang" />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? "Saqlanmoqda..." : (mode === "create" ? "Bo'lim yaratish" : "Saqlash")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// EmployeesPage — CEO xodimlarni boshqaradi
+// ─────────────────────────────────────────────────────────────
+function EmployeesPage({ push }) {
+  const [list, setList] = useState([]);
+  const [depts, setDepts] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal] = useState(null);
+  const [createdPassword, setCreatedPassword] = useState(null); // {email, password}
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [emp, dp, tpl] = await Promise.all([
+        EmployeesAPI.getAll(),
+        DepartmentsAPI.getAll(),
+        EmployeesAPI.getTemplates(),
+      ]);
+      setList(Array.isArray(emp) ? emp : []);
+      setDepts(Array.isArray(dp) ? dp : []);
+      setTemplates(tpl?.templates || []);
+    } catch (e) {
+      push(e.message || "Xodimlar yuklanmadi", "error");
+    } finally { setLoading(false); }
+  }, [push]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const block = async (e) => {
+    if (!window.confirm(`"${e.name}" xodimini bloklaysizmi? U tizimga kira olmaydi.`)) return;
+    try { await EmployeesAPI.block(e.id); push("Bloklandi", "ok"); load(); }
+    catch (err) { push(err.message, "error"); }
+  };
+  const unblock = async (e) => {
+    try { await EmployeesAPI.unblock(e.id); push("Aktivlashtirildi", "ok"); load(); }
+    catch (err) { push(err.message, "error"); }
+  };
+  const reset = async (e) => {
+    if (!window.confirm(`"${e.name}" parolini yangilaysizmi? U tizimdan chiqadi va yangi parol bilan kiradi.`)) return;
+    try {
+      const r = await EmployeesAPI.resetPassword(e.id, false);
+      setCreatedPassword({ email: e.email, password: r.new_password });
+    } catch (err) { push(err.message, "error"); }
+  };
+  const remove = async (e) => {
+    const force = (e.source_count > 0 || e.report_count > 0);
+    if (!window.confirm(`"${e.name}" xodimini BUTUNLAY o'chirishga ishonchingiz komilmi? Bu harakatni bekor qilib bo'lmaydi.`)) return;
+    try {
+      await EmployeesAPI.delete(e.id, true);
+      push("O'chirildi", "ok"); load();
+    } catch (err) { push(err.message, "error"); }
+  };
+
+  if (loading) return <div className="card"><div className="card-title">Xodimlar</div><SkeletonList count={4} /></div>;
+
+  return (
+    <>
+      <div className="card">
+        <div className="flex aic" style={{ justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Xodimlar</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Kompaniyangiz xodimlari. Har biriga bo'lim va ruxsat sozlang.
+            </div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: "create" })}
+            disabled={depts.length === 0}>+ Yangi xodim</button>
+        </div>
+
+        {depts.length === 0 && (
+          <div style={{ padding: 14, borderRadius: 10, background: "rgba(212,168,83,0.08)", border: "1px solid rgba(212,168,83,0.2)", color: "var(--gold)", fontSize: 12, marginBottom: 16 }}>
+            Avval kamida bitta bo'lim yarating — xodimni bo'limga biriktirish uchun.
+          </div>
+        )}
+
+        {list.length === 0 ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+            Hali xodim qo'shilmagan. Yuqoridagi tugmadan qo'shing.
+          </div>
+        ) : (
+          <div style={{ overflow: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "var(--fh)" }}>Ism</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "var(--fh)" }}>Bo'limlar</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "var(--fh)" }}>Ruxsatlar</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "var(--fh)" }}>Oxirgi kirish</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontFamily: "var(--fh)" }}>Harakatlar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map(e => (
+                  <tr key={e.id} style={{ borderBottom: "1px solid var(--border)", opacity: e.active ? 1 : 0.5 }}>
+                    <td style={{ padding: "12px" }}>
+                      <div style={{ fontFamily: "var(--fh)", fontWeight: 600, color: "var(--text)" }}>{e.name}</div>
+                      <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{e.email}</div>
+                    </td>
+                    <td style={{ padding: "12px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {(e.department_names || []).map((n, i) => (
+                          <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "var(--s3)", border: "1px solid var(--border)", color: "var(--text2)" }}>{n}</span>
+                        ))}
+                        {(!e.department_names || e.department_names.length === 0) && (
+                          <span style={{ fontSize: 10, color: "var(--muted)" }}>—</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                        {e.permissions?.can_add_sources && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "rgba(0,212,200,0.1)", color: "var(--teal)" }}>+manba</span>}
+                        {e.permissions?.can_use_ai && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "rgba(212,168,83,0.1)", color: "var(--gold)" }}>AI {e.permissions?.ai_monthly_limit > 0 ? `(${e.permissions.ai_monthly_limit}/oy)` : ""}</span>}
+                        {e.permissions?.can_export && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "var(--s3)", color: "var(--text2)" }}>eksport</span>}
+                        {e.permissions?.can_create_reports && <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 4, background: "var(--s3)", color: "var(--text2)" }}>hisobot</span>}
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px", fontSize: 11, color: "var(--muted)" }}>
+                      {e.last_login ? new Date(e.last_login).toLocaleDateString("uz-UZ") : "Hali kirmagan"}
+                    </td>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
+                      <div style={{ display: "inline-flex", gap: 4 }}>
+                        <button className="btn btn-ghost btn-xs" onClick={() => setModal({ mode: "edit", emp: e })}>Tahrir</button>
+                        <button className="btn btn-ghost btn-xs" onClick={() => reset(e)}>Parol</button>
+                        {e.active
+                          ? <button className="btn btn-ghost btn-xs" style={{ color: "var(--gold)" }} onClick={() => block(e)}>Bloklash</button>
+                          : <button className="btn btn-ghost btn-xs" style={{ color: "var(--green)" }} onClick={() => unblock(e)}>Aktivlash</button>
+                        }
+                        <button className="btn btn-danger btn-xs" onClick={() => remove(e)}>×</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <EmployeeModal
+          mode={modal.mode}
+          emp={modal.emp}
+          departments={depts}
+          templates={templates}
+          onClose={() => setModal(null)}
+          onSaved={(data) => {
+            setModal(null); load();
+            if (data?.initial_password) setCreatedPassword({ email: data.email, password: data.initial_password });
+          }}
+          push={push}
+        />
+      )}
+
+      {createdPassword && (
+        <PasswordDisplayModal
+          email={createdPassword.email}
+          password={createdPassword.password}
+          onClose={() => setCreatedPassword(null)}
+          push={push}
+        />
+      )}
+    </>
+  );
+}
+
+function EmployeeModal({ mode, emp, departments, templates, onClose, onSaved, push }) {
+  const [name, setName] = useState(emp?.name || "");
+  const [email, setEmail] = useState(emp?.email || "");
+  const [selectedDepts, setSelectedDepts] = useState(emp?.department_ids || []);
+  const [template, setTemplate] = useState("analyst");
+  const [perms, setPerms] = useState(emp?.permissions || (templates.find(t => t.id === "analyst")?.permissions || {}));
+  const [customPerms, setCustomPerms] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!customPerms) {
+      const t = templates.find(x => x.id === template);
+      if (t) setPerms(t.permissions);
+    }
+  }, [template, customPerms, templates]);
+
+  const toggleDept = (id) => {
+    setSelectedDepts(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const save = async () => {
+    if (!name.trim()) { push("Ism kerak", "warn"); return; }
+    if (mode === "create" && !email.trim()) { push("Email kerak", "warn"); return; }
+    if (selectedDepts.length === 0) { push("Kamida 1 ta bo'lim tanlang", "warn"); return; }
+
+    setSaving(true);
+    try {
+      if (mode === "create") {
+        const res = await EmployeesAPI.create({
+          name: name.trim(),
+          email: email.trim(),
+          department_ids: selectedDepts,
+          permissions: perms,
+          template: customPerms ? undefined : template,
+        });
+        push(`"${name}" qo'shildi`, "ok");
+        onSaved(res);
+      } else {
+        await EmployeesAPI.update(emp.id, {
+          name: name.trim(),
+          department_ids: selectedDepts,
+          permissions: perms,
+        });
+        push("Yangilandi", "ok");
+        onSaved(null);
+      }
+    } catch (e) { push(e.message, "error"); }
+    finally { setSaving(false); }
+  };
+
+  const togglePerm = (key) => setPerms(p => ({ ...p, [key]: !p[key] }));
+
+  const initials = (name.trim() || "?").split(" ").map(x => x.charAt(0)).slice(0, 2).join("").toUpperCase();
+  const PERM_LIST = [
+    { k: "can_add_sources",     l: "Manba qo'shish",        d: "Yangi ma'lumot manbasi ulash", ico: "➕" },
+    { k: "can_delete_sources",  l: "Manba o'chirish",       d: "Mavjud manbani o'chirish",     ico: "🗑" },
+    { k: "can_use_ai",          l: "AI dan foydalanish",    d: "AI chat, analiz, hisobot",     ico: "🤖" },
+    { k: "can_export",          l: "Eksport qilish",        d: "PDF/Excel yuklab olish",       ico: "📤" },
+    { k: "can_create_reports",  l: "Hisobot yaratish",      d: "Saqlangan hisobotlar",          ico: "📄" },
+    { k: "can_invite_employees",l: "Xodim taklif qilish",   d: "Boshqa xodim qo'shish",        ico: "👥" },
+  ];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ width: 600, padding: 0, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        {/* Header — avatar preview bilan */}
+        <div style={{
+          padding: "24px 28px 22px",
+          background: "linear-gradient(135deg, rgba(212,168,83,0.12) 0%, rgba(0,212,200,0.06) 100%)",
+          borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 16, position: "relative",
+        }}>
+          <button className="modal-close" style={{ top: 14, right: 14 }} onClick={onClose}>×</button>
+          <div style={{
+            width: 56, height: 56, borderRadius: 16,
+            background: "linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: "#0a0c14",
+            boxShadow: "0 4px 16px rgba(212,168,83,0.3)",
+          }}>{initials}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--fh)", fontSize: 19, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.3px" }}>
+              {mode === "create" ? "Yangi xodim" : "Xodimni tahrirlash"}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              {name.trim() ? name : "Ism, bo'limlar va ruxsatlarni sozlang"}
+              {mode === "create" && " · Parol avto-yaratiladi"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "20px 28px 24px", maxHeight: "calc(90vh - 100px)", overflowY: "auto" }}>
+          {/* Asosiy ma'lumot */}
+          <div style={{ display: "grid", gridTemplateColumns: mode === "create" ? "1fr 1fr" : "1fr", gap: 12, marginBottom: 18 }}>
+            <div>
+              <div className="field-label">Ism</div>
+              <input className="field" value={name} onChange={e => setName(e.target.value)}
+                placeholder="Azizbek Karimov" autoFocus />
+            </div>
+            {mode === "create" && (
+              <div>
+                <div className="field-label">Email</div>
+                <input className="field" type="email" value={email}
+                  onChange={e => setEmail(e.target.value)} placeholder="azizbek@company.uz" />
+              </div>
+            )}
+          </div>
+
+          {/* Bo'limlar */}
+          <div style={{ marginBottom: 18 }}>
+            <div className="field-label">
+              Bo'limlar <span style={{ color: selectedDepts.length === 0 ? "var(--red)" : "var(--gold)", fontWeight: 700 }}>
+                ({selectedDepts.length} tanlangan)
+              </span>
+            </div>
+            <div style={{ padding: 12, borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)" }}>
+              {departments.length === 0 ? (
+                <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", padding: 16 }}>
+                  Avval bo'lim yarating
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {departments.map(d => {
+                    const on = selectedDepts.includes(d.id);
+                    const c = d.color || "var(--teal)";
+                    return (
+                      <div key={d.id} onClick={() => toggleDept(d.id)}
+                        style={{
+                          padding: "8px 13px", borderRadius: 10,
+                          border: `1px solid ${on ? c : "var(--border)"}`,
+                          background: on ? `${c}15` : "var(--s3)",
+                          cursor: "pointer", fontSize: 12, fontFamily: "var(--fh)",
+                          color: on ? c : "var(--text2)",
+                          transition: "all .15s",
+                          display: "flex", alignItems: "center", gap: 7,
+                          boxShadow: on ? `0 2px 8px ${c}20` : "none",
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>{d.icon || "📁"}</span>
+                        <span style={{ fontWeight: on ? 700 : 500 }}>{d.name}</span>
+                        {on && <span style={{
+                          width: 16, height: 16, borderRadius: "50%", background: c,
+                          color: "#0a0c14", fontSize: 10, fontWeight: 900,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Ruxsatlar shabloni */}
+          <div style={{ marginBottom: 18 }}>
+            <div className="field-label">Ruxsatlar shabloni</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: customPerms ? 12 : 0 }}>
+              {templates.map(t => {
+                const active = template === t.id && !customPerms;
+                const ico = t.id === "viewer" ? "👁" : t.id === "analyst" ? "📊" : "⭐";
+                return (
+                  <div key={t.id}
+                    onClick={() => { setTemplate(t.id); setCustomPerms(false); }}
+                    style={{
+                      padding: "12px 10px", borderRadius: 12,
+                      border: `1px solid ${active ? "var(--gold)" : "var(--border)"}`,
+                      background: active ? "rgba(212,168,83,0.08)" : "var(--s2)",
+                      cursor: "pointer", fontSize: 12, fontFamily: "var(--fh)",
+                      textAlign: "center", transition: "all .15s",
+                      boxShadow: active ? "0 4px 16px rgba(212,168,83,0.15)" : "none",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ fontSize: 20, marginBottom: 6 }}>{ico}</div>
+                    <div style={{ fontWeight: 800, color: active ? "var(--gold)" : "var(--text)", fontSize: 12 }}>{t.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4, lineHeight: 1.4 }}>{t.description}</div>
+                    {active && <div style={{ position: "absolute", top: 6, right: 6, width: 16, height: 16, borderRadius: "50%", background: "var(--gold)", color: "#0a0c14", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</div>}
+                  </div>
+                );
+              })}
+              <div onClick={() => setCustomPerms(true)}
+                style={{
+                  padding: "12px 10px", borderRadius: 12,
+                  border: `1px dashed ${customPerms ? "var(--gold)" : "var(--border)"}`,
+                  background: customPerms ? "rgba(212,168,83,0.08)" : "var(--s2)",
+                  cursor: "pointer", fontSize: 12, fontFamily: "var(--fh)",
+                  textAlign: "center", transition: "all .15s",
+                  position: "relative",
+                }}
+              >
+                <div style={{ fontSize: 20, marginBottom: 6 }}>⚙</div>
+                <div style={{ fontWeight: 800, color: customPerms ? "var(--gold)" : "var(--text)", fontSize: 12 }}>Maxsus</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Qo'lda sozlash</div>
+                {customPerms && <div style={{ position: "absolute", top: 6, right: 6, width: 16, height: 16, borderRadius: "50%", background: "var(--gold)", color: "#0a0c14", fontSize: 10, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "center" }}>✓</div>}
+              </div>
+            </div>
+
+            {customPerms && (
+              <div style={{ padding: 14, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                  {PERM_LIST.map(p => {
+                    const on = !!perms[p.k];
+                    return (
+                      <div key={p.k} onClick={() => togglePerm(p.k)}
+                        style={{
+                          padding: "10px 12px", borderRadius: 10,
+                          border: `1px solid ${on ? "var(--teal)" : "var(--border)"}`,
+                          background: on ? "rgba(0,212,200,0.06)" : "var(--s3)",
+                          cursor: "pointer", transition: "all .15s",
+                          display: "flex", alignItems: "center", gap: 10,
+                        }}
+                      >
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 8,
+                          background: on ? "rgba(0,212,200,0.15)" : "var(--s4)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 14, flexShrink: 0,
+                        }}>{p.ico}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontFamily: "var(--fh)", fontWeight: 600, color: on ? "var(--teal)" : "var(--text)" }}>{p.l}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{p.d}</div>
+                        </div>
+                        <div style={{
+                          width: 32, height: 18, borderRadius: 10, background: on ? "var(--teal)" : "var(--s4)",
+                          border: `1px solid ${on ? "var(--teal)" : "var(--border)"}`,
+                          position: "relative", flexShrink: 0, transition: "all .15s",
+                        }}>
+                          <div style={{
+                            position: "absolute", top: 1, left: on ? 15 : 1,
+                            width: 14, height: 14, borderRadius: "50%",
+                            background: on ? "#0a0c14" : "var(--muted)",
+                            transition: "all .15s",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--s3)", border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ fontSize: 14 }}>🎯</div>
+                  <div style={{ flex: 1, fontSize: 12, fontFamily: "var(--fh)", color: "var(--text)" }}>AI oylik limit</div>
+                  <input type="number" className="field" style={{ width: 100, padding: "4px 10px", fontSize: 12 }}
+                    value={perms.ai_monthly_limit ?? 100}
+                    onChange={e => setPerms(p => ({ ...p, ai_monthly_limit: parseInt(e.target.value) || 0 }))} />
+                  <div style={{ fontSize: 10, color: "var(--muted)" }}>-1 = cheksiz</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? "Saqlanmoqda..." : (mode === "create" ? "Xodim qo'shish" : "Saqlash")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Parol ko'rsatish modali — xodim/CEO yaratilgach yoki reset qilingach
+function PasswordDisplayModal({ email, password, onClose, push }) {
+  const [copied, setCopied] = useState(false);
+  const [passCopied, setPassCopied] = useState(false);
+  const copyAll = () => {
+    navigator.clipboard.writeText(`Login: ${email}\nParol: ${password}`);
+    setCopied(true);
+    push("Login va parol nusxalandi", "ok");
+    setTimeout(() => setCopied(false), 2000);
+  };
+  const copyPass = () => {
+    navigator.clipboard.writeText(password);
+    setPassCopied(true);
+    setTimeout(() => setPassCopied(false), 2000);
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ width: 500, padding: 0, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        {/* Success header */}
+        <div style={{
+          padding: "22px 28px 20px",
+          background: "linear-gradient(135deg, rgba(52,211,153,0.12) 0%, rgba(0,212,200,0.06) 100%)",
+          borderBottom: "1px solid rgba(52,211,153,0.2)",
+          display: "flex", alignItems: "center", gap: 14, position: "relative",
+        }}>
+          <button className="modal-close" style={{ top: 14, right: 14 }} onClick={onClose}>×</button>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%",
+            background: "linear-gradient(135deg, var(--green), #10B981)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 22, color: "#0a0c14", fontWeight: 900,
+            boxShadow: "0 4px 16px rgba(52,211,153,0.3)",
+          }}>✓</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--text)" }}>
+              Parol tayyor
+            </div>
+            <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+              Foydalanuvchiga bir martagina ko'rinadi — <strong style={{ color: "var(--gold)" }}>hozir nusxalang</strong>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "20px 28px 24px" }}>
+          {/* Login row */}
+          <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)", marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,212,200,0.1)", border: "1px solid rgba(0,212,200,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>📧</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>Login (email)</div>
+              <div style={{ fontFamily: "var(--fm)", fontSize: 13, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{email}</div>
+            </div>
+          </div>
+
+          {/* Password row */}
+          <div style={{ padding: "14px 16px", borderRadius: 12,
+            background: "linear-gradient(135deg, rgba(212,168,83,0.08) 0%, rgba(212,168,83,0.03) 100%)",
+            border: "1px solid rgba(212,168,83,0.25)", marginBottom: 18,
+            display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(212,168,83,0.15)", border: "1px solid rgba(212,168,83,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🔐</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 3 }}>Parol</div>
+              <div style={{ fontFamily: "var(--fm)", fontSize: 20, color: "var(--gold)", fontWeight: 800, letterSpacing: 3 }}>{password}</div>
+            </div>
+            <button className="btn btn-ghost btn-xs" onClick={copyPass} style={{ flexShrink: 0 }}>
+              {passCopied ? "✓" : "📋"}
+            </button>
+          </div>
+
+          {/* Warning */}
+          <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(212,168,83,0.06)", border: "1px solid rgba(212,168,83,0.15)", marginBottom: 18,
+            fontSize: 11, color: "var(--text2)", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14 }}>⚠️</span>
+            <span>Modal yopilgandan keyin parol qayta ko'rinmaydi. Xavfsiz joyga saqlang.</span>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Yopish</button>
+            <button className="btn btn-primary" onClick={copyAll}>
+              {copied ? "✓ Nusxalandi" : "Login + Parol nusxalash"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// OrganizationSettingsPage — tashkilot ma'lumotlari (CEO)
+// ─────────────────────────────────────────────────────────────
+function OrganizationSettingsPage({ orgInfo, push, onChange }) {
+  const [name, setName] = useState(orgInfo?.name || "");
+  const [color, setColor] = useState(orgInfo?.color || "#00C9BE");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(orgInfo?.name || "");
+    setColor(orgInfo?.color || "#00C9BE");
+  }, [orgInfo]);
+
+  const save = async () => {
+    if (!name.trim()) { push("Tashkilot nomi kerak", "warn"); return; }
+    setSaving(true);
+    try {
+      // CEO hozir o'z tashkilotini o'zgartira olmaydi (backend yo'q)
+      // Super-admin panelidan o'tkaziladi. Shu sababli uchun tooltip.
+      push("Tashkilot nomini o'zgartirish uchun super-admin bilan bog'laning", "info");
+    } catch (e) { push(e.message, "error"); }
+    finally { setSaving(false); }
+  };
+
+  if (!orgInfo) return null;
+  const subLeft = orgInfo.subscription_until
+    ? Math.max(0, Math.round((new Date(orgInfo.subscription_until) - Date.now()) / (24 * 3600 * 1000)))
+    : null;
+
+  return (
+    <div className="card">
+      <div className="card-title" style={{ marginBottom: 4 }}>Tashkilot</div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>
+        Sizning kompaniyangiz haqida ma'lumot
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+        <div style={{ padding: 16, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 2 }}>Tashkilot nomi</div>
+          <div style={{ fontSize: 16, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--text)" }}>{orgInfo.name}</div>
+        </div>
+        <div style={{ padding: 16, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: 2 }}>Obuna muddati</div>
+          <div style={{ fontSize: 16, fontFamily: "var(--fh)", fontWeight: 700, color: subLeft === null ? "var(--text)" : subLeft < 14 ? "var(--red)" : subLeft < 30 ? "var(--gold)" : "var(--green)" }}>
+            {subLeft === null ? "Cheksiz" : subLeft === 0 ? "Tugagan" : `${subLeft} kun qoldi`}
+          </div>
+          {orgInfo.subscription_until && (
+            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+              {new Date(orgInfo.subscription_until).toLocaleDateString("uz-UZ")}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: "var(--muted)", padding: "12px 14px", background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>
+        💡 Tashkilot nomi, logo yoki obuna muddatini o'zgartirish uchun tizim administratori (Shonazar) bilan bog'laning.
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SidebarDropdown — shadcn-style expand/collapse (chevron bilan)
+//   title: gruh nomi (masalan "Tahlil" yoki bo'lim nomi)
+//   icon:  bo'lim ikonkasi (ixtiyoriy)
+//   color: aktiv rang (bo'lim rangi yoki gold)
+//   open:  ochiq/yopiq
+//   onToggle: toggle callback
+//   active: gruh faol ekanini ko'rsatish (masalan, ichida page aktiv bo'lsa)
+//   children: ichki sub-items
+// ─────────────────────────────────────────────────────────────
+// Shadcn-style dropdown — standart .ni.active uslubini meros qilib oladi
+// Bosish: ochadi/yopadi va onHeaderClick ni chaqiradi (kontekstni belgilash uchun)
+function SidebarDropdown({ title, open, onClick, active, rightBadge, children }) {
+  return (
+    <div>
+      <div
+        className={`ni ${active ? "active" : ""}`}
+        onClick={onClick}
+        style={{ userSelect: "none" }}
+      >
+        <span style={{ flex: 1 }}>{title}</span>
+        {rightBadge}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transition: "transform .2s var(--ease)", transform: open ? "rotate(90deg)" : "rotate(0deg)", opacity: 0.55 }}
+        >
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </div>
+      {open && (
+        <div style={{ padding: "2px 0 4px 0", display: "flex", flexDirection: "column", gap: 1 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sub-item (dropdown ichida) — ni.active standart uslubini ishlatadi
+function SidebarSubItem({ label, active, onClick, badge }) {
+  return (
+    <div onClick={onClick}
+      className={`ni ${active ? "active" : ""}`}
+      style={{ paddingLeft: 26, fontSize: 12.5 }}
+    >
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CeoSettingsPage — Bo'limlar + Xodimlar + Tashkilot bir sahifada (tabs)
+// ─────────────────────────────────────────────────────────────
+function CeoSettingsPage({ push, orgInfo, onChange }) {
+  const [tab, setTab] = useState("departments"); // departments | employees | org
+
+  return (
+    <>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, borderBottom: "1px solid var(--border)" }}>
+        {[
+          { id: "departments", label: "Bo'limlar" },
+          { id: "employees", label: "Xodimlar" },
+          { id: "org", label: "Tashkilot" },
+        ].map(t => (
+          <div key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              padding: "10px 16px", cursor: "pointer",
+              fontFamily: "var(--fh)", fontSize: 13, fontWeight: 600,
+              color: tab === t.id ? "var(--gold)" : "var(--muted)",
+              borderBottom: `2px solid ${tab === t.id ? "var(--gold)" : "transparent"}`,
+              marginBottom: -1,
+              transition: "all .15s",
+            }}
+          >{t.label}</div>
+        ))}
+      </div>
+
+      {tab === "departments" && <DepartmentsPage push={push} onChange={onChange} />}
+      {tab === "employees" && <EmployeesPage push={push} />}
+      {tab === "org" && <OrganizationSettingsPage orgInfo={orgInfo} push={push} onChange={onChange} />}
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SuperAdminPanel — tashkilotlarni boshqarish (Shonazar)
+// ─────────────────────────────────────────────────────────────
+function SuperAdminPanel({ push, currentUser, onEnter }) {
+  const [orgs, setOrgs] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [auditLog, setAuditLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [modal, setModal] = useState(null); // null | {mode:'create'} | {mode:'detail', org}
+  const [createdCeo, setCreatedCeo] = useState(null);
+  const [planModalOrg, setPlanModalOrg] = useState(null);
+  const [expandedOrg, setExpandedOrg] = useState(null); // org id
+  const [orgDetails, setOrgDetails] = useState({}); // cache {orgId: detail}
+  const [sortBy, setSortBy] = useState("recent"); // recent | name | revenue | users
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [o, s, a] = await Promise.all([
+        SuperAdminAPI.getOrganizations(search || null),
+        SuperAdminAPI.getStats(),
+        SuperAdminAPI.getAuditLog({ limit: 20 }).catch(() => ({ rows: [] })),
+      ]);
+      setOrgs(Array.isArray(o) ? o : []);
+      setStats(s);
+      setAuditLog(a?.rows || []);
+    } catch (e) { push(e.message || "Yuklanmadi", "error"); }
+    finally { setLoading(false); }
+  }, [push, search]);
+
+  const toggleOrgExpand = async (orgId) => {
+    if (expandedOrg === orgId) {
+      setExpandedOrg(null);
+      return;
+    }
+    setExpandedOrg(orgId);
+    if (!orgDetails[orgId]) {
+      try {
+        const detail = await SuperAdminAPI.getOrganization(orgId);
+        setOrgDetails(prev => ({ ...prev, [orgId]: detail }));
+      } catch (e) { push(e.message, "error"); }
+    }
+  };
+
+  // Sortlangan tashkilotlar
+  const sortedOrgs = [...orgs].sort((a, b) => {
+    if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
+    if (sortBy === "users") return (b.employee_count || 0) - (a.employee_count || 0);
+    if (sortBy === "sources") return (b.source_count || 0) - (a.source_count || 0);
+    if (sortBy === "rows") return (Number(b.total_rows) || 0) - (Number(a.total_rows) || 0);
+    // recent (default)
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
+  useEffect(() => { load(); }, [load]);
+
+  const extend = async (org, months) => {
+    try {
+      await SuperAdminAPI.extendSubscription(org.id, months);
+      push(`"${org.name}" obunasi ${months} oyga uzaytirildi`, "ok");
+      load();
+    } catch (e) { push(e.message, "error"); }
+  };
+  const block = async (org) => {
+    if (!window.confirm(`"${org.name}" tashkilotini bloklaysizmi? Foydalanuvchilar kira olmaydi.`)) return;
+    try { await SuperAdminAPI.block(org.id); push("Bloklandi", "ok"); load(); }
+    catch (e) { push(e.message, "error"); }
+  };
+  const unblock = async (org) => {
+    try { await SuperAdminAPI.unblock(org.id); push("Aktivlashtirildi", "ok"); load(); }
+    catch (e) { push(e.message, "error"); }
+  };
+  const resetCeoPass = async (org) => {
+    if (!window.confirm(`"${org.name}" CEO parolini yangilaysizmi?`)) return;
+    try {
+      const r = await SuperAdminAPI.resetCeoPassword(org.id);
+      setCreatedCeo({ email: org.ceo?.email, password: r.new_password, org: org.name });
+    } catch (e) { push(e.message, "error"); }
+  };
+  const remove = async (org) => {
+    if (!window.confirm(`"${org.name}" tashkilotini BUTUNLAY o'chirishga ishonchingiz komilmi? Barcha ma'lumot (xodim, manba) yo'qoladi!`)) return;
+    try { await SuperAdminAPI.delete(org.id, true); push("O'chirildi", "ok"); load(); }
+    catch (e) { push(e.message, "error"); }
+  };
+
+  if (loading) return <div style={{ padding: 20 }}><SkeletonCards count={6} height={120} /></div>;
+
+  // Plan taqsimoti (stats'dan)
+  const planStats = stats?.by_plan || {};
+  const totalUsersForPlan = Object.values(planStats).reduce((a, b) => a + b, 0) || 1;
+
+  // Obuna tugash holati
+  const expiringCount = orgs.filter(o => {
+    if (!o.subscription_until) return false;
+    const d = Math.round((new Date(o.subscription_until) - Date.now()) / (24 * 3600 * 1000));
+    return d >= 0 && d < 14;
+  }).length;
+  const expiredCount = orgs.filter(o => {
+    if (!o.subscription_until) return false;
+    return new Date(o.subscription_until) < Date.now();
+  }).length;
+  const blockedCount = orgs.filter(o => !o.active).length;
+
+  return (
+    <>
+      {/* ═════ PLATFORMA STATISTIKASI (kengaytirilgan) ═════ */}
+      {stats && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-title">Platforma holati</div>
+
+          {/* Asosiy KPI'lar */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 14 }}>
+            {[
+              { l: "Tashkilotlar", v: stats.total_organizations, c: "var(--teal)", sub: `${blockedCount} bloklangan` },
+              { l: "Foydalanuvchilar", v: stats.total_users, c: "var(--gold)", sub: `${stats.active_users_7d} aktiv (7k)` },
+              { l: "Manbalar", v: stats.total_sources, c: "var(--green)" },
+              { l: "Jami qatorlar", v: (stats.total_data_rows || 0).toLocaleString(), c: "var(--text)" },
+              { l: "Obuna tugashi", v: expiringCount + expiredCount, c: expiredCount > 0 ? "var(--red)" : "var(--gold)", sub: `${expiredCount} tugadi · ${expiringCount} 14 kun` },
+              { l: "CEO'lar", v: stats.by_role?.ceo || 0, c: "#A78BFA" },
+              { l: "Xodimlar", v: stats.by_role?.employee || 0, c: "#06B6D4" },
+              { l: "Super admin", v: stats.by_role?.super_admin || 0, c: "#EC4899" },
+            ].map((s, i) => (
+              <div key={i} style={{ padding: 12, borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1.5 }}>{s.l}</div>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 800, color: s.c, marginTop: 3 }}>{s.v}</div>
+                {s.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{s.sub}</div>}
+              </div>
+            ))}
+          </div>
+
+          {/* Plan taqsimoti — progress bars */}
+          <div style={{ padding: 12, borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>Tariflar taqsimoti</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {["free", "starter", "pro", "enterprise"].map(p => {
+                const P = PLANS[p];
+                const count = planStats[p] || 0;
+                const pct = Math.round((count / totalUsersForPlan) * 100);
+                return (
+                  <div key={p} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 80, fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, color: P.color }}>{P.nameUz}</div>
+                    <div style={{ flex: 1, height: 8, background: "var(--s3)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: P.color, borderRadius: 4, transition: "width .3s" }} />
+                    </div>
+                    <div style={{ width: 60, textAlign: "right", fontSize: 11, fontFamily: "var(--fm)", color: "var(--text2)" }}>
+                      <strong style={{ color: P.color }}>{count}</strong> <span style={{ color: "var(--muted)" }}>({pct}%)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {connected.length > 0 && dashCards.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>Ma'lumot yuklanmoqda...</div>
-          <div className="text-muted text-sm mt4">Manbani ulab, ma'lumot yuklang</div>
+      {/* ═════ TASHKILOTLAR RO'YXATI (expandable) ═════ */}
+      <div className="card">
+        <div className="flex aic" style={{ justifyContent: "space-between", marginBottom: 16, gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Tashkilotlar ({orgs.length})</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Bosing → xodimlar, bo'limlar, batafsil ma'lumot ko'rinadi
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input className="field" style={{ padding: "6px 12px", fontSize: 12, width: 200 }}
+              placeholder="Qidirish: nom yoki email..."
+              value={search} onChange={e => setSearch(e.target.value)} />
+            <select className="field" style={{ padding: "6px 10px", fontSize: 11, width: 150 }}
+              value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="recent">Eng yangi</option>
+              <option value="name">Alifbo bo'yicha</option>
+              <option value="users">Xodimlar soni</option>
+              <option value="sources">Manbalar soni</option>
+              <option value="rows">Ma'lumot soni</option>
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: "create" })}>+ Yangi tashkilot</button>
+          </div>
+        </div>
+
+        {sortedOrgs.length === 0 ? (
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+            Tashkilot topilmadi
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+            {sortedOrgs.map(org => {
+              const subLeft = org.subscription_until
+                ? Math.max(0, Math.round((new Date(org.subscription_until) - Date.now()) / (24 * 3600 * 1000)))
+                : null;
+              const subColor = subLeft === null ? "var(--text)" : subLeft === 0 ? "var(--red)" : subLeft < 14 ? "var(--red)" : subLeft < 30 ? "var(--gold)" : "var(--green)";
+              const isExpanded = expandedOrg === org.id;
+              const detail = orgDetails[org.id];
+              return (
+                <div key={org.id} style={{
+                  borderRadius: 12,
+                  border: `1px solid ${isExpanded ? (org.color || "var(--teal)") + "40" : org.active ? "var(--border)" : "rgba(248,113,113,0.3)"}`,
+                  background: org.active ? "var(--s2)" : "rgba(248,113,113,0.05)",
+                  overflow: "hidden", transition: "all .15s",
+                }}>
+                  {/* HEADER (doim ko'rinadi) */}
+                  <div style={{
+                    padding: 14, display: "grid",
+                    gridTemplateColumns: "20px 44px 1fr auto auto", gap: 12, alignItems: "center",
+                    cursor: "pointer",
+                  }} onClick={() => toggleOrgExpand(org.id)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2.5" strokeLinecap="round"
+                      style={{ transition: "transform .2s", transform: isExpanded ? "rotate(90deg)" : "rotate(0)" }}>
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 10,
+                      background: `${org.color || "var(--teal)"}20`,
+                      border: `1px solid ${org.color || "var(--teal)"}40`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: org.color || "var(--teal)",
+                    }}>{org.name?.charAt(0).toUpperCase() || "?"}</div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{org.name}</div>
+                        {org.ceo?.plan && (() => {
+                          const P = PLANS[org.ceo.plan] || PLANS.free;
+                          return (
+                            <span onClick={(e) => { e.stopPropagation(); setPlanModalOrg(org); }}
+                              style={{
+                                fontSize: 10, padding: "2px 9px", borderRadius: 10,
+                                background: P.color + "15", color: P.color, border: `1px solid ${P.color}30`,
+                                fontWeight: 700, cursor: "pointer",
+                              }}
+                              title="Tarifni o'zgartirish"
+                            >{P.nameUz || P.name}</span>
+                          );
+                        })()}
+                        {!org.active && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 10, background: "rgba(248,113,113,0.15)", color: "var(--red)", fontWeight: 600 }}>BLOKLANGAN</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>
+                        {org.ceo?.email || "—"} · {org.employee_count || 0} xodim · {org.source_count || 0} manba · {(Number(org.total_rows) || 0).toLocaleString()} qator
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right", fontSize: 11, fontFamily: "var(--fm)" }}>
+                      <div style={{ color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, fontSize: 9 }}>Obuna</div>
+                      <div style={{ color: subColor, fontWeight: 700, marginTop: 2 }}>
+                        {subLeft === null ? "Cheksiz" : subLeft === 0 ? "Tugagan" : `${subLeft} kun`}
+                      </div>
+                    </div>
+
+                    <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <button className="btn btn-primary btn-xs" onClick={() => onEnter && onEnter(org.id, org.name)} title="Bu tashkilotga CEO sifatida kirish">
+                        Kirish
+                      </button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => setPlanModalOrg(org)}>Tarif</button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => extend(org, 1)}>+1 oy</button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => extend(org, 12)}>+1 yil</button>
+                      <button className="btn btn-ghost btn-xs" onClick={() => resetCeoPass(org)}>Parol</button>
+                      {org.active
+                        ? <button className="btn btn-ghost btn-xs" style={{ color: "var(--gold)" }} onClick={() => block(org)}>Block</button>
+                        : <button className="btn btn-ghost btn-xs" style={{ color: "var(--green)" }} onClick={() => unblock(org)}>Aktiv</button>
+                      }
+                      <button className="btn btn-danger btn-xs" onClick={() => remove(org)}>×</button>
+                    </div>
+                  </div>
+
+                  {/* KENGAYGAN QISM — xodimlar va bo'limlar */}
+                  {isExpanded && (
+                    <div style={{ padding: "0 14px 14px 44px", borderTop: "1px solid var(--border)", background: "var(--s1)" }}>
+                      {!detail ? (
+                        <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: "var(--muted)" }}>Yuklanmoqda...</div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, paddingTop: 14 }}>
+                          {/* Xodimlar */}
+                          <div>
+                            <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
+                              Foydalanuvchilar ({detail.members?.length || 0})
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {(detail.members || []).map(m => {
+                                const roleColor = m.role === "ceo" ? "var(--gold)" : m.role === "super_admin" ? "#EC4899" : m.role === "employee" ? "var(--teal)" : "var(--muted)";
+                                return (
+                                  <div key={m.id} style={{
+                                    padding: "8px 10px", borderRadius: 8,
+                                    background: "var(--s2)", border: "1px solid var(--border)",
+                                    display: "flex", alignItems: "center", gap: 10,
+                                    opacity: m.active ? 1 : 0.55,
+                                  }}>
+                                    <div style={{
+                                      width: 28, height: 28, borderRadius: 7,
+                                      background: roleColor + "15", border: `1px solid ${roleColor}30`,
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontFamily: "var(--fh)", fontSize: 11, fontWeight: 800, color: roleColor,
+                                    }}>{(m.name || "?").charAt(0).toUpperCase()}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {m.name}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.email}</div>
+                                    </div>
+                                    <span style={{
+                                      fontSize: 9, padding: "1px 7px", borderRadius: 10,
+                                      background: roleColor + "15", color: roleColor, border: `1px solid ${roleColor}30`,
+                                      fontFamily: "var(--fh)", fontWeight: 600, textTransform: "uppercase",
+                                    }}>{m.role}</span>
+                                    {!m.active && <span style={{ fontSize: 9, color: "var(--red)" }}>✕</span>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Bo'limlar */}
+                          <div>
+                            <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 8 }}>
+                              Bo'limlar ({detail.departments?.length || 0})
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                              {(detail.departments || []).map(d => (
+                                <div key={d.id} style={{
+                                  padding: "8px 10px", borderRadius: 8,
+                                  background: "var(--s2)", border: "1px solid var(--border)",
+                                  display: "flex", alignItems: "center", gap: 10,
+                                }}>
+                                  <div style={{
+                                    width: 28, height: 28, borderRadius: 7,
+                                    background: (d.color || "var(--teal)") + "15", border: `1px solid ${d.color || "var(--teal)"}30`,
+                                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13,
+                                  }}>{d.icon || "📁"}</div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{d.name}</div>
+                                    <div style={{ fontSize: 10, color: "var(--muted)" }}>{d.emp_count || 0} xodim · {d.src_count || 0} manba</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ═════ AUDIT LOG (oxirgi harakatlar) ═════ */}
+      {auditLog.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="flex aic jb mb10">
+            <div>
+              <div className="card-title" style={{ marginBottom: 4 }}>Oxirgi harakatlar</div>
+              <div style={{ fontSize: 11, color: "var(--muted)" }}>Platforma bo'ylab so'nggi {auditLog.length} ta harakat</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {auditLog.slice(0, 10).map(a => {
+              const colors = {
+                create_organization: "var(--green)", delete_organization: "var(--red)",
+                block_organization: "var(--gold)", unblock_organization: "var(--green)",
+                extend_subscription: "var(--teal)", change_plan: "var(--gold)",
+                reset_ceo_password: "#EC4899", update_organization: "var(--teal)",
+                create_department: "var(--teal)", delete_department: "var(--red)",
+                create_employee: "var(--green)", delete_employee: "var(--red)",
+                reset_password: "#EC4899", block_employee: "var(--gold)", unblock_employee: "var(--green)",
+              };
+              const c = colors[a.action] || "var(--muted)";
+              const when = a.created_at ? new Date(a.created_at) : null;
+              const minAgo = when ? Math.round((Date.now() - when.getTime()) / 60000) : 0;
+              const timeStr = minAgo < 60 ? `${minAgo} daq oldin` : minAgo < 1440 ? `${Math.round(minAgo / 60)} soat oldin` : `${Math.round(minAgo / 1440)} kun oldin`;
+              return (
+                <div key={a.id} style={{
+                  padding: "8px 12px", borderRadius: 8, background: "var(--s2)", border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", gap: 10,
+                }}>
+                  <div style={{ width: 3, height: 22, borderRadius: 2, background: c }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: "var(--text)" }}>
+                      <span style={{ fontFamily: "var(--fh)", fontWeight: 600, color: c }}>{a.action}</span>
+                      {a.organization_name && <span style={{ color: "var(--muted)" }}> · {a.organization_name}</span>}
+                      {a.user_name && <span style={{ color: "var(--muted)" }}> · {a.user_name}</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)" }}>{timeStr}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {modal?.mode === "create" && (
+        <CreateOrganizationModal
+          onClose={() => setModal(null)}
+          onSaved={(res) => { setModal(null); load(); setCreatedCeo({ email: res.ceo.email, password: res.initial_password, org: res.name }); }}
+          push={push}
+        />
+      )}
+
+      {createdCeo && (
+        <PasswordDisplayModal
+          email={createdCeo.email}
+          password={createdCeo.password}
+          onClose={() => setCreatedCeo(null)}
+          push={push}
+        />
+      )}
+
+      {planModalOrg && (
+        <PlanChangeModal
+          org={planModalOrg}
+          onClose={() => setPlanModalOrg(null)}
+          onSaved={() => { setPlanModalOrg(null); load(); }}
+          push={push}
+        />
+      )}
+    </>
+  );
+}
+
+// Tarif o'zgartirish modali
+function PlanChangeModal({ org, onClose, onSaved, push }) {
+  const [plan, setPlan] = useState(org?.ceo?.plan || "free");
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await SuperAdminAPI.changePlan(org.id, plan);
+      push(`"${org.name}" tarifi: ${PLANS[plan].nameUz || PLANS[plan].name}`, "ok");
+      onSaved();
+    } catch (e) { push(e.message, "error"); }
+    finally { setSaving(false); }
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ width: 480, padding: 0, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        <div style={{
+          padding: "22px 28px 20px",
+          background: "linear-gradient(135deg, rgba(212,168,83,0.1) 0%, rgba(212,168,83,0.03) 100%)",
+          borderBottom: "1px solid var(--border)",
+          position: "relative",
+        }}>
+          <button className="modal-close" style={{ top: 14, right: 14 }} onClick={onClose}>×</button>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: "var(--text)" }}>
+            Tarifni o'zgartirish
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+            "{org.name}" — tashkilotning hamma xodimlariga amal qiladi
+          </div>
+        </div>
+        <div style={{ padding: "16px 22px 20px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {["free", "starter", "pro", "enterprise"].map(p => {
+              const P = PLANS[p];
+              const active = plan === p;
+              return (
+                <div key={p} onClick={() => setPlan(p)}
+                  style={{
+                    padding: "12px 14px", borderRadius: 10,
+                    border: `1px solid ${active ? P.color : "var(--border)"}`,
+                    background: active ? P.color + "10" : "var(--s2)",
+                    cursor: "pointer", transition: "all .15s",
+                    display: "flex", alignItems: "center", gap: 12,
+                  }}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: "50%",
+                    border: `2px solid ${active ? P.color : "var(--border)"}`,
+                    background: active ? P.color : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {active && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0a0c14" }} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: active ? P.color : "var(--text)" }}>
+                      {P.nameUz || P.name}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                      {P.limits.ai_requests === -1 ? "Cheksiz AI" : `${P.limits.ai_requests} AI/oy`}
+                      {" · "}
+                      {P.limits.connectors === -1 ? "Cheksiz manba" : `${P.limits.connectors} manba`}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800, color: active ? P.color : "var(--text2)" }}>
+                    {P.price_monthly === 0 ? "Bepul" : `${(P.price_monthly / 1000).toFixed(0)}K/oy`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? "Saqlanmoqda..." : "O'zgartirish"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreateOrganizationModal({ onClose, onSaved, push }) {
+  const [name, setName] = useState("");
+  const [color, setColor] = useState("#00C9BE");
+  const [ceoName, setCeoName] = useState("");
+  const [ceoEmail, setCeoEmail] = useState("");
+  const [ceoPassword, setCeoPassword] = useState("");
+  const [months, setMonths] = useState(12);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim() || !ceoName.trim() || !ceoEmail.trim()) {
+      push("Tashkilot nomi, CEO ism va email kerak", "warn"); return;
+    }
+    setSaving(true);
+    try {
+      const res = await SuperAdminAPI.createOrganization({
+        name: name.trim(),
+        color,
+        ceo_name: ceoName.trim(),
+        ceo_email: ceoEmail.trim().toLowerCase(),
+        ceo_password: ceoPassword || undefined,
+        subscription_months: months,
+      });
+      push(`"${name}" yaratildi`, "ok");
+      onSaved(res);
+    } catch (e) { push(e.message, "error"); }
+    finally { setSaving(false); }
+  };
+
+  const ORG_SWATCHES = ["#00C9BE", "#3B82F6", "#10B981", "#F59E0B", "#A78BFA", "#EC4899", "#EF4444", "#06B6D4", "#8B5CF6", "#14B8A6"];
+  const orgInitial = (name.trim() || "?").charAt(0).toUpperCase();
+  const monthPresets = [3, 6, 12, 24];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ width: 560, padding: 0, overflow: "hidden" }} onClick={e => e.stopPropagation()}>
+        {/* Header — org preview bilan */}
+        <div style={{
+          padding: "24px 28px 22px",
+          background: `linear-gradient(135deg, ${color}15 0%, ${color}05 100%)`,
+          borderBottom: `1px solid ${color}25`,
+          display: "flex", alignItems: "center", gap: 16, position: "relative",
+        }}>
+          <button className="modal-close" style={{ top: 14, right: 14 }} onClick={onClose}>×</button>
+          <div style={{
+            width: 56, height: 56, borderRadius: 14,
+            background: `linear-gradient(135deg, ${color} 0%, ${color}aa 100%)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "var(--fh)", fontSize: 24, fontWeight: 900, color: "#0a0c14",
+            boxShadow: `0 4px 20px ${color}55`,
+          }}>{orgInitial}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--fh)", fontSize: 19, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.3px" }}>
+              Yangi tashkilot
+            </div>
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              {name.trim() ? <>Mijoz: <strong style={{ color: "var(--text2)" }}>{name}</strong></> : "Mijoz kompaniyasi yaratish"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "20px 28px 24px", maxHeight: "calc(90vh - 100px)", overflowY: "auto" }}>
+          {/* Tashkilot bloki */}
+          <div style={{ marginBottom: 20, padding: 16, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(212,168,83,0.15)", border: "1px solid rgba(212,168,83,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>🏢</div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>Tashkilot ma'lumotlari</div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <div className="field-label">Tashkilot nomi</div>
+              <input className="field" value={name} onChange={e => setName(e.target.value)} placeholder="Shonazar Group" autoFocus />
+            </div>
+
+            <div>
+              <div className="field-label">Brend rangi</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {ORG_SWATCHES.map(c => (
+                  <div key={c} onClick={() => setColor(c)}
+                    style={{
+                      width: 32, height: 32, borderRadius: 10,
+                      background: c, cursor: "pointer",
+                      border: color === c ? "3px solid var(--text)" : "2px solid transparent",
+                      boxShadow: color === c ? `0 0 0 2px var(--bg), 0 4px 12px ${c}60` : `0 2px 6px ${c}40`,
+                      transition: "all .15s",
+                    }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* CEO bloki */}
+          <div style={{ marginBottom: 20, padding: 16, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(0,212,200,0.15)", border: "1px solid rgba(0,212,200,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>👤</div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>CEO (Rahbar)</div>
+              <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: "auto" }}>to'liq huquqli foydalanuvchi</span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div>
+                <div className="field-label">Ism</div>
+                <input className="field" value={ceoName} onChange={e => setCeoName(e.target.value)} placeholder="Azizbek Karimov" />
+              </div>
+              <div>
+                <div className="field-label">Email</div>
+                <input className="field" type="email" value={ceoEmail} onChange={e => setCeoEmail(e.target.value)} placeholder="ceo@company.uz" />
+              </div>
+            </div>
+
+            <div>
+              <div className="field-label">Parol (ixtiyoriy — bo'sh qoldirsangiz avto yaratiladi)</div>
+              <input className="field" value={ceoPassword} onChange={e => setCeoPassword(e.target.value)} placeholder="Avto-generatsiya uchun bo'sh qoldiring" />
+            </div>
+          </div>
+
+          {/* Obuna muddati */}
+          <div style={{ marginBottom: 20, padding: 16, borderRadius: 12, background: "var(--s2)", border: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>📅</div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>Obuna muddati</div>
+              <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: "auto" }}>{months} oy · {new Date(Date.now() + months * 30 * 24 * 3600 * 1000).toLocaleDateString("uz-UZ")} gacha</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              {monthPresets.map(m => (
+                <div key={m} onClick={() => setMonths(m)}
+                  style={{
+                    flex: 1, padding: "10px 8px", borderRadius: 10,
+                    border: `1px solid ${months === m ? "var(--green)" : "var(--border)"}`,
+                    background: months === m ? "rgba(52,211,153,0.08)" : "var(--s3)",
+                    cursor: "pointer", textAlign: "center",
+                    fontFamily: "var(--fh)", fontSize: 12, fontWeight: 700,
+                    color: months === m ? "var(--green)" : "var(--text2)",
+                    transition: "all .15s",
+                  }}
+                >{m} oy</div>
+              ))}
+            </div>
+
+            <input type="number" min={1} max={120} className="field" style={{ fontSize: 12 }}
+              value={months} onChange={e => setMonths(Math.max(1, Math.min(120, parseInt(e.target.value) || 12)))}
+              placeholder="Maxsus (oy)" />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Bekor qilish</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? "Yaratilmoqda..." : "Tashkilot yaratish"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -10067,15 +11963,24 @@ FAQAT JSON.`;
 // ─────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────
+// Sidebar top (doim ko'rinadi, iconkasiz)
+const TOP_ITEMS = [
+  { id: "dashboard", lbl: "Bosh sahifa" },
+  { id: "datahub",   lbl: "Manbalar", badge: "sources" },
+];
+
+// Har dropdown (CEO, bo'limlar) ichidagi sub-sahifalar (iconkasiz)
+const WORKSPACE_ITEMS = [
+  { id: "chat",      lbl: "AI Maslahat" },
+  { id: "charts",    lbl: "Grafiklar" },
+  { id: "analytics", lbl: "Tahlil" },
+  { id: "reports",   lbl: "Hisobotlar" },
+  { id: "alerts",    lbl: "Ogohlantirishlar", badge: "alerts" },
+];
+
+// Boshqaruv (pastda) — ceoOnly: faqat CEO/super_admin ko'radi
 const NAV = [
-  { id: "dashboard", ico: "", lbl: "Bosh Sahifa", group: "asosiy" },
-  { id: "datahub", ico: "", lbl: "Manbalar", group: "asosiy", badge: "sources" },
-  { id: "chat", ico: "", lbl: "AI Maslahat", group: "asosiy" },
-  { id: "charts", ico: "", lbl: "Grafiklar", group: "tahlil" },
-  { id: "analytics", ico: "", lbl: "Tahlil", group: "tahlil" },
-  { id: "reports", ico: "", lbl: "Hisobotlar", group: "tahlil" },
-  { id: "alerts", ico: "", lbl: "Ogohlantirishlar", group: "tahlil", badge: "alerts" },
-  { id: "settings", ico: "", lbl: "Sozlamalar", group: "boshqaruv" },
+  { id: "settings", lbl: "Sozlamalar", group: "boshqaruv", ceoOnly: true },
 ];
 
 // ── SKELETON LOADER — yuklash animatsiyasi ──
@@ -10140,6 +12045,20 @@ function AppContent() {
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [adminMode, setAdminMode] = useState(false);
+  const [superAdminMode, setSuperAdminMode] = useState(false);
+  // platform | users | payments | ai_config | tariffs | system
+  const [superAdminTab, setSuperAdminTab] = useState("platform");
+  // Impersonation: super admin tashkilotga kirgan vaqtda — eski token saqlanadi
+  const [impersonation, setImpersonation] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("bai_impersonation") || "null"); } catch { return null; }
+  });
+  // Multi-org kontekst: /api/auth/context dan keladi
+  const [orgContext, setOrgContext] = useState(null); // { organization, departments, permissions, ai_usage }
+  // Faol bo'lim filtri — null = hamma bo'lim (CEO), aks holda bo'lim IDsi
+  const [activeDepartmentId, setActiveDepartmentId] = useState(null);
+  // Ochiq dropdown — bir vaqtda faqat bittasi (accordion)
+  // null | deptId
+  const [openDept, setOpenDept] = useState(null);
   const [alerts, setAlerts] = useState(() => LS.get("u_" + (Auth.getSession()?.id || "anon") + "_alerts", []));
   const [aiConfig, setAiConfig] = useState(() => {
     const uid = Auth.getSession()?.id || "anon";
@@ -10205,19 +12124,37 @@ function AppContent() {
 
     // Backend API dan yangilash (background, xato bo'lsa jimgina)
     if (Token.get()) {
-      loadSourcesFromAPI().then(apiSources => {
-        if (Array.isArray(apiSources) && apiSources.length > 0) {
+      loadSourcesFromAPI(activeDepartmentId).then(apiSources => {
+        if (Array.isArray(apiSources)) {
           setSources(apiSources);
-          saveSources(apiSources, uid);
+          if (!activeDepartmentId && apiSources.length > 0) saveSources(apiSources, uid);
         }
       }).catch(() => { });
       AlertsAPI.getAll().then(a => { if (Array.isArray(a)) setAlerts(a); }).catch(() => { });
+      // Multi-org kontekst: tashkilot, bo'limlar, ruxsatlar
+      AuthAPI.context().then(ctx => {
+        if (!ctx) return;
+        setOrgContext(ctx);
+        // Xodim uchun: tegishli bo'limining birinchisini avto-aktiv qilish
+        const isElevated = ctx.user?.role === "ceo" || ctx.user?.role === "super_admin" || ctx.user?.role === "admin";
+        if (!isElevated && ctx.my_department_ids?.length > 0 && activeDepartmentId === null) {
+          setActiveDepartmentId(ctx.my_department_ids[0]);
+        }
+      }).catch(() => { });
       AiAPI.getConfig().then(cfg => {
         if (cfg && cfg.provider) setAiConfig({ provider: cfg.provider, model: cfg.model || "deepseek-chat", apiKey: cfg.apiKey || "" });
       }).catch(() => { });
       GlobalAI.load().catch(() => { });
     }
   }, [user?.id]);
+
+  // Faol bo'lim o'zgarsa — manbalarni qayta yuklash (faqat filter)
+  useEffect(() => {
+    if (!user || !Token.get()) return;
+    loadSourcesFromAPI(activeDepartmentId).then(apiSources => {
+      if (Array.isArray(apiSources)) setSources(apiSources);
+    }).catch(() => { });
+  }, [activeDepartmentId, user?.id]);
 
   // ── Derived ──
   // effectiveAI: agar shaxsiy kalit bor → uni ishlatadi (cheksiz), aks holda global AI
@@ -10285,10 +12222,60 @@ function AppContent() {
 
   const handleLogout = () => {
     Auth.clearSession();
+    localStorage.removeItem("bai_impersonation");
+    setImpersonation(null);
     setUser(null);
     setAuthPage("landing");
     setAdminMode(false);
+    setSuperAdminMode(false);
     push("Chiqildi", "info");
+  };
+
+  // Super-admin tashkilotga kirib ko'rish (impersonation)
+  const enterOrganization = async (orgId, orgName) => {
+    try {
+      const res = await SuperAdminAPI.impersonate(orgId);
+      if (!res?.token) throw new Error("Token olinmadi");
+      // Eski super-admin token'ni saqlaymiz
+      const originalToken = Token.get();
+      const originalUser = Auth.getSession();
+      const impData = {
+        originalToken,
+        originalUser,
+        orgId, orgName,
+        ceo: res.ceo,
+      };
+      localStorage.setItem("bai_impersonation", JSON.stringify(impData));
+      setImpersonation(impData);
+      // CEO token'iga o'tamiz
+      Token.set(res.token);
+      // /me chaqirib user'ni yangilaymiz
+      const me = await AuthAPI.me();
+      Auth.setSession(me);
+      setUser(me);
+      setSuperAdminMode(false);
+      setActiveDepartmentId(null);
+      setPage("dashboard");
+      // Context qayta yuklansin
+      setOrgContext(null);
+      push(`"${orgName}" tashkilotiga kirildi`, "info");
+    } catch (e) {
+      push(e.message || "Kirib bo'lmadi", "error");
+    }
+  };
+
+  // Super-admin rejimiga qaytish
+  const exitImpersonation = async () => {
+    if (!impersonation?.originalToken) return;
+    Token.set(impersonation.originalToken);
+    Auth.setSession(impersonation.originalUser);
+    setUser(impersonation.originalUser);
+    localStorage.removeItem("bai_impersonation");
+    setImpersonation(null);
+    setSuperAdminMode(true);
+    setActiveDepartmentId(null);
+    setOrgContext(null);
+    push("Super Admin rejimiga qaytdingiz", "ok");
   };
 
   const handlePlanChange = (updatedUser) => {
@@ -10428,47 +12415,68 @@ function AppContent() {
     </div>
   );
 
-  // ── Admin mode ──
-  if (adminMode && user.role === "admin") {
+  // ── Super-admin mode (Shonazar — barcha platforma bitta sahifada) ──
+  if (superAdminMode && (user.role === "super_admin" || user.role === "admin" || orgContext?.permissions?.is_super_admin)) {
     return (
       <>
         <style>{CSS}</style>
-        <NotifBanner notifs={notifs} />
+        <NotifBanner notifs={notifs} remove={remove} />
         <div className="app">
-          {/* Admin Sidebar */}
           <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
             <div className="logo-wrap">
               <div className="logo-main">BIZ<span>NES</span>AI</div>
-              <div className="logo-sub" style={{ color: "var(--red)" }}>Admin Panel</div>
+              <div className="logo-sub" style={{ color: "var(--gold)" }}>Super Admin</div>
               <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
             </div>
             <div className="nav" style={{ paddingTop: 14 }}>
-              <div className="ni active" onClick={() => setAdminMode(true)}>
-                <span>Admin Panel</span>
-              </div>
+              {[
+                { id: "platform", lbl: "⭐ Platforma" },
+                { id: "users", lbl: "Foydalanuvchilar" },
+                { id: "payments", lbl: "To'lovlar" },
+                { id: "ai_config", lbl: "AI Sozlama" },
+                { id: "tariffs", lbl: "Tariflar" },
+                { id: "system", lbl: "Tizim" },
+              ].map(t => (
+                <div key={t.id}
+                  className={`ni ${superAdminTab === t.id ? "active" : ""}`}
+                  onClick={() => setSuperAdminTab(t.id)}>
+                  <span>{t.lbl}</span>
+                </div>
+              ))}
               <div style={{ height: 12 }} />
-              <div className="ni" onClick={() => { setAdminMode(false); setPage("dashboard"); }}>
-                <span>Dashboard ga qaytish</span>
+              <div className="ni" onClick={() => { setSuperAdminMode(false); setPage("dashboard"); }}>
+                <span>← Dashboard ga qaytish</span>
               </div>
             </div>
             <div className="sidebar-footer">
-              <span style={{ color: "var(--red)" }}> Admin</span> · {user.name}
+              <span style={{ color: "var(--gold)" }}>⭐ Super-admin</span> · {user.name}
             </div>
           </div>
           <div className="main">
             <div className="topbar">
               <div className="flex aic gap10">
                 <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
-                <div className="page-title" style={{ color: "var(--red)" }}> Admin Panel</div>
+                <div className="page-title" style={{ color: "var(--gold)" }}>
+                  ⭐ Super Admin — {({
+                    platform: "Platforma",
+                    users: "Foydalanuvchilar",
+                    payments: "To'lovlar",
+                    ai_config: "AI Sozlama",
+                    tariffs: "Tariflar",
+                    system: "Tizim",
+                  })[superAdminTab] || superAdminTab}
+                </div>
               </div>
               <div className="topbar-right">
-                <span className="badge b-red" style={{ fontFamily: "var(--fh)" }}>Admin: {user.name}</span>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setAdminMode(false); setPage("dashboard"); }}>← Dashboard</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setSuperAdminMode(false); setPage("dashboard"); }}>← Dashboard</button>
                 <button className="btn btn-danger btn-sm" onClick={handleLogout}>Chiqish</button>
               </div>
             </div>
             <div className="content">
-              <AdminPanel currentUser={user} push={push} sources={sources} />
+              {superAdminTab === "platform"
+                ? <SuperAdminPanel push={push} currentUser={user} onEnter={enterOrganization} />
+                : <AdminPanel currentUser={user} push={push} sources={sources} initialTab={superAdminTab} hideTabs />
+              }
             </div>
           </div>
         </div>
@@ -10476,30 +12484,50 @@ function AppContent() {
     );
   }
 
+  // Eski adminMode olib tashlandi — hammasi Super Admin ichiga birlashtirildi
+
   // ── Page titles ──
   const PAGE_TITLES = {
     settings: "AI Sozlamalar", dashboard: "Bosh Sahifa", datahub: "Data Hub — Konstruktor",
     charts: "Grafiklar", chat: "AI Maslahat", analytics: "Tahlil",
-    reports: "Hisobotlar", alerts: "AI Ogohlantirishlar", profile: "Profil & Tarif"
+    reports: "Hisobotlar", alerts: "AI Ogohlantirishlar", profile: "Profil & Tarif",
+    team: "Jamoam",
   };
+
+  // CEO yoki super_admin uchun Jamoam sahifasini ochish
+  const isCeoOrAbove = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
+  const refreshOrgContext = () => AuthAPI.context().then(ctx => { if (ctx) setOrgContext(ctx); }).catch(() => {});
 
   // ── Page components ──
   const pages = {
     settings: <SettingsPage aiConfig={aiConfig} setAiConfig={setAiConfig} push={push} effectiveAI={effectiveAI} hasPersonalKey={hasPersonalKey} hasGlobalAI={hasGlobalAI} user={user} />,
-    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} />,
-    datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} />,
+    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} orgContext={orgContext} activeDepartmentId={activeDepartmentId} setActiveDepartmentId={setActiveDepartmentId} setOpenDept={setOpenDept} />,
+    datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} orgContext={orgContext} activeDepartmentId={activeDepartmentId} />,
     charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} runBackgroundAI={runBackgroundAI} />,
     chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
     analytics: <AnalyticsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
     reports: <ReportsPage aiConfig={effectiveAI} sources={sources} user={user} onAiUsed={onAiUsed} />,
     alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} user={user} onAiUsed={onAiUsed} />,
     profile: <ProfilePage user={user} onPlanChange={handlePlanChange} push={push} sources={sources} />,
+    team: <CeoSettingsPage push={push} orgInfo={orgContext?.organization} onChange={refreshOrgContext} />,
   };
 
   const groupedNav = NAV.reduce((acc, item) => {
     if (!acc[item.group]) acc[item.group] = [];
     acc[item.group].push(item); return acc;
   }, {});
+
+  // CEO/super_admin uchun "Jamoam" sahifasi (dinamik qo'shamiz)
+  if (isCeoOrAbove) {
+    if (!groupedNav["boshqaruv"]) groupedNav["boshqaruv"] = [];
+    // "settings" navgacha "team"ni ko'rsatish uchun oldiga qo'shamiz
+    const settingsIdx = groupedNav["boshqaruv"].findIndex(x => x.id === "settings");
+    const teamItem = { id: "team", lbl: "Jamoam", group: "boshqaruv" };
+    if (!groupedNav["boshqaruv"].some(x => x.id === "team")) {
+      if (settingsIdx >= 0) groupedNav["boshqaruv"].splice(settingsIdx, 0, teamItem);
+      else groupedNav["boshqaruv"].unshift(teamItem);
+    }
+  }
 
   return (
     <>
@@ -10518,6 +12546,37 @@ function AppContent() {
             <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
           </div>
 
+          {/* Tashkilot ma'lumoti */}
+          {orgContext?.organization && (
+            <div style={{
+              margin: "10px 10px 4px", padding: "9px 12px",
+              borderRadius: 10,
+              background: (orgContext.organization.color || "var(--teal)") + "12",
+              border: `1px solid ${(orgContext.organization.color || "var(--teal)")}25`,
+              display: "flex", alignItems: "center", gap: 9,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: (orgContext.organization.color || "var(--teal)") + "20",
+                border: `1px solid ${(orgContext.organization.color || "var(--teal)")}30`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "var(--fh)", fontSize: 12, fontWeight: 800,
+                color: orgContext.organization.color || "var(--teal)", flexShrink: 0,
+              }}>{orgContext.organization.name?.charAt(0).toUpperCase() || "?"}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 11.5, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {orgContext.organization.name}
+                </div>
+                <div style={{ fontSize: 9.5, color: "var(--muted)", marginTop: 1, textTransform: "uppercase", letterSpacing: 1.5 }}>
+                  {user.role === "super_admin" ? "⭐ Super-admin" : user.role === "ceo" ? "CEO" : user.role === "employee" ? "Xodim" : user.role}
+                  {orgContext.my_department_ids?.length > 0 && orgContext.departments?.length > 0 && user.role === "employee" && (
+                    <> · {orgContext.departments.filter(d => orgContext.my_department_ids.includes(d.id)).map(d => d.name).join(", ")}</>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="nav">
             {/* Plan badge in sidebar */}
             <div style={{ margin: "6px 4px 4px", padding: "8px 10px", borderRadius: 8, background: currentPlan.color + "10", border: `1px solid ${currentPlan.color}25`, display: "flex", alignItems: "center", gap: 8 }}>
@@ -10526,46 +12585,128 @@ function AppContent() {
               {user.plan === "free" && <span style={{ fontSize: 9, color: "var(--muted)", cursor: "pointer" }} onClick={() => setPage("profile")}> Yangilash</span>}
             </div>
 
-            {Object.entries(groupedNav).map(([group, items]) => (
-              <div key={group}>
-                <div className="nav-group-label">{group}</div>
-                {items.map(item => {
-                  const count = item.badge === "sources" ? connCount : item.badge === "alerts" ? unreadAlerts : null;
-                  return (
-                    <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
-                      onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
+            {/* ═════ TOP: Bosh sahifa, Manbalar (iconkasiz) ═════ */}
+            {TOP_ITEMS.map(item => {
+              const count = item.badge === "sources" ? connCount : null;
+              const isActive = page === item.id && !WORKSPACE_ITEMS.some(w => w.id === page);
+              return (
+                <div key={item.id}
+                  className={`ni ${isActive ? "active" : ""}`}
+                  onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
+                  <span>{item.lbl}</span>
+                  {count != null && count > 0 && <span className="ni-badge ml-auto">{count}</span>}
+                </div>
+              );
+            })}
 
-                      <span>{item.lbl}</span>
-                      {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
+            {/* ═════ BO'LIMLAR (dropdown'lar — accordion: bitta ochiq, faqat sub-item active) ═════ */}
+            {orgContext?.departments?.length > 0 && orgContext.departments.map(d => {
+              // CEO uchun "Umumiy" — hamma manbalar (null filter)
+              const isUmumiyForCeo = isCeoOrAbove && d.name === "Umumiy";
+              const deptScopeId = isUmumiyForCeo ? null : d.id;
+              const isActiveDept = isUmumiyForCeo
+                ? (activeDepartmentId === null)
+                : (activeDepartmentId === d.id);
+              const isOpen = openDept === d.id;
+              return (
+                <SidebarDropdown
+                  key={d.id}
+                  title={d.name}
+                  active={false}
+                  open={isOpen}
+                  onClick={() => {
+                    if (isOpen) {
+                      setOpenDept(null);
+                    } else {
+                      setActiveDepartmentId(deptScopeId);
+                      setOpenDept(d.id);
+                    }
+                    if (window.innerWidth < 768) setSidebarOpen(false);
+                  }}
+                  rightBadge={isActiveDept ? (
+                    <span style={{
+                      width: 6, height: 6, borderRadius: "50%",
+                      background: "var(--gold)", marginRight: 2,
+                    }} />
+                  ) : null}
+                >
+                  {isUmumiyForCeo && (
+                    <div style={{
+                      padding: "4px 10px 6px 26px",
+                      fontSize: 10, color: "var(--gold)", fontFamily: "var(--fh)",
+                      fontWeight: 600, letterSpacing: 0.5, opacity: 0.8,
+                    }}>
+                      barcha bo'limlar bo'yicha
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  )}
+                  {WORKSPACE_ITEMS.map(item => {
+                    const count = item.badge === "alerts" ? unreadAlerts : null;
+                    const isActive = isActiveDept && page === item.id;
+                    return (
+                      <SidebarSubItem
+                        key={item.id}
+                        label={item.lbl}
+                        active={isActive}
+                        onClick={() => {
+                          setActiveDepartmentId(deptScopeId);
+                          setOpenDept(d.id);
+                          setPage(item.id);
+                          if (window.innerWidth < 768) setSidebarOpen(false);
+                        }}
+                        badge={count != null && count > 0 ? (
+                          <span className={`ni-badge ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>
+                        ) : null}
+                      />
+                    );
+                  })}
+                </SidebarDropdown>
+              );
+            })}
 
-            {/* Admin link */}
-            {user.role === "admin" && (
+            {/* ═════ BOSHQARUV (Sozlamalar, Jamoam) — ceoOnly filtrlanadi ═════ */}
+            {Object.entries(groupedNav).map(([group, items]) => {
+              const visibleItems = items.filter(item => !item.ceoOnly || isCeoOrAbove);
+              if (visibleItems.length === 0) return null;
+              return (
+                <div key={group} style={{ marginTop: 10 }}>
+                  <div className="nav-group-label">{group}</div>
+                  {visibleItems.map(item => {
+                    const count = item.badge === "sources" ? connCount : item.badge === "alerts" ? unreadAlerts : null;
+                    return (
+                      <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
+                        onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
+                        <span>{item.lbl}</span>
+                        {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+
+            {/* Super-admin tugmasi — Shonazar uchun (birlashtirilgan panel) */}
+            {(user.role === "super_admin" || user.role === "admin" || orgContext?.permissions?.is_super_admin) && (
               <>
-                <div className="nav-group-label">Boshqaruv</div>
-                <div className="ni" style={{ color: "var(--red)", borderColor: "rgba(248,113,113,0.15)" }}
-                  onClick={() => setAdminMode(true)}>
-
-                  <span>Admin Panel</span>
-                  <span className="ni-badge ml-auto warn">{Auth.getUsers().length}</span>
+                <div className="nav-group-label">Tizim</div>
+                <div className="ni" style={{ color: "var(--gold)", borderColor: "rgba(212,168,83,0.2)", background: "rgba(212,168,83,0.04)" }}
+                  onClick={() => setSuperAdminMode(true)}>
+                  <span>⭐ Super Admin</span>
                 </div>
               </>
             )}
           </div>
 
-          {/* Provider pill */}
-          <div className="prov-pill" onClick={() => setPage("settings")}>
-            <div className="pulse-dot" style={{ background: prov.color }} />
-            <div className="f1">
-              <div style={{ fontSize: 11, fontWeight: 600, color: prov.color, fontFamily: "var(--fh)" }}>{prov.name}</div>
-              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{aiConfig.apiKey ? "✓ Ulangan" : " Kalit kerak"}</div>
+          {/* Provider pill — faqat CEO/super_admin uchun (AI sozlamalari) */}
+          {isCeoOrAbove && (
+            <div className="prov-pill" onClick={() => setPage("settings")}>
+              <div className="pulse-dot" style={{ background: prov.color }} />
+              <div className="f1">
+                <div style={{ fontSize: 11, fontWeight: 600, color: prov.color, fontFamily: "var(--fh)" }}>{prov.name}</div>
+                <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{aiConfig.apiKey ? "✓ Ulangan" : " Kalit kerak"}</div>
+              </div>
+              <span style={{ fontSize: 11, color: prov.color }}></span>
             </div>
-            <span style={{ fontSize: 11, color: prov.color }}></span>
-          </div>
+          )}
 
           {/* User footer */}
           <div className="sidebar-footer" style={{ cursor: "pointer" }} onClick={() => setPage("profile")}>
@@ -10588,6 +12729,28 @@ function AppContent() {
             <div className="flex aic gap10">
               <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
               <div className="page-title">{PAGE_TITLES[page] || page}</div>
+              {/* Faol bo'lim chip */}
+              {activeDepartmentId && orgContext?.departments && (() => {
+                const d = orgContext.departments.find(x => x.id === activeDepartmentId);
+                if (!d) return null;
+                const c = d.color || "var(--teal)";
+                return (
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "4px 10px 4px 8px", borderRadius: 8,
+                    background: c + "12", border: `1px solid ${c}30`,
+                    fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, color: c,
+                  }} className="hide-mobile">
+                    <span style={{ fontSize: 13 }}>{d.icon || "📁"}</span>
+                    <span>{d.name}</span>
+                    {isCeoOrAbove && (
+                      <span onClick={() => setActiveDepartmentId(null)}
+                        style={{ marginLeft: 4, cursor: "pointer", opacity: 0.6, fontSize: 12 }}
+                        title="Filterni olib tashlash">×</span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="topbar-right">
@@ -10603,12 +12766,14 @@ function AppContent() {
                   {unreadAlerts}
                 </div>
               )}
-              <div className="tb-item" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "20" }}>
-                <span style={{ color: prov.color }}>{prov.icon}</span>
-                <span style={{ color: prov.color, fontWeight: 600 }} className="hide-mobile">{prov.name}</span>
-                <span style={{ color: "var(--muted)" }}>·</span>
-                <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
-              </div>
+              {isCeoOrAbove && (
+                <div className="tb-item" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "20" }}>
+                  <span style={{ color: prov.color }}>{prov.icon}</span>
+                  <span style={{ color: prov.color, fontWeight: 600 }} className="hide-mobile">{prov.name}</span>
+                  <span style={{ color: "var(--muted)" }}>·</span>
+                  <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
+                </div>
+              )}
               <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
               <LiveClock />
               <div className="tb-item" onClick={handleLogout} style={{ borderColor: "rgba(248,113,113,0.2)", color: "#FB7185", fontWeight: 600 }}>
@@ -10617,6 +12782,28 @@ function AppContent() {
               </div>
             </div>
           </div>
+
+          {/* IMPERSONATION BANNER — super-admin tashkilotga kirganda */}
+          {impersonation && (
+            <div style={{
+              background: "linear-gradient(90deg, rgba(212,168,83,0.18) 0%, rgba(212,168,83,0.08) 100%)",
+              borderBottom: "1px solid rgba(212,168,83,0.35)",
+              padding: "10px 24px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: 12, flexShrink: 0,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--text)" }}>
+                <span style={{ fontSize: 14 }}>⭐</span>
+                <span>
+                  Siz <strong style={{ color: "var(--gold)" }}>"{impersonation.orgName}"</strong> tashkilotiga
+                  <strong> {impersonation.ceo?.name}</strong> ({impersonation.ceo?.email}) sifatida kirdingiz
+                </span>
+              </div>
+              <button className="btn btn-primary btn-xs" onClick={exitImpersonation}>
+                ← Super Admin'ga qaytish
+              </button>
+            </div>
+          )}
 
           {/* FREE PLAN WARNING */}
           {user.plan === "free" && page !== "profile" && (() => {
