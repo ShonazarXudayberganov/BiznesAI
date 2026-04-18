@@ -14,6 +14,9 @@ RUN npm run build
 # ── Stage 2: Serve ──────────────────────────────────────────
 FROM nginx:alpine AS runner
 
+# wget — Docker healthcheck uchun kerak
+RUN apk add --no-cache wget
+
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
