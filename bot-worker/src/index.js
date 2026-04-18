@@ -9,6 +9,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const pool = require('./db/pool');
 const registerStartHandler = require('./handlers/start');
+const registerMenuHandlers = require('./handlers/menu');
 const { findOrgByChatId, touchChat } = require('./services/linkService');
 const { startInternalApi } = require('./internalApi');
 const { startSyncScheduler } = require('./services/scheduler');
@@ -45,24 +46,13 @@ bot.command('help', async (ctx) => {
     `<b>${link.org_name}</b> — yordamchi bot`,
     '',
     '/menu — asosiy menyu',
-    '/kpi — bugungi KPI (tez orada)',
+    '/kpi — tezkor holat',
+    '/sources — ulangan manbalar',
     '/help — yordam',
     '/logout — bog\'lanishni uzish',
     '',
-    'Yoki erkin matn yozing — AI javob beradi (tez orada).',
+    'Yoki to\'g\'ridan-to\'g\'ri savol yozing — AI javob beradi.',
   ].join('\n'), { parse_mode: 'HTML' });
-});
-
-// ── /menu (Phase 1 placeholder, Phase 3'da to'liq menyu) ──
-bot.command('menu', async (ctx) => {
-  const link = await findOrgByChatId(ctx.from.id);
-  if (!link) {
-    return ctx.reply('Bog\'lanmagansiz. Avval /start orqali ulaning.');
-  }
-  return ctx.reply(
-    `<b>${link.org_name}</b>\n\nMenyu hali tayyorlanmoqda. Tez orada bu yerda hisobot, tahlil va sozlamalar tugmalari paydo bo'ladi.`,
-    { parse_mode: 'HTML' }
-  );
 });
 
 // ── /logout ──
@@ -78,21 +68,8 @@ bot.command('logout', async (ctx) => {
   return ctx.reply(`✓ ${link.org_name} bilan bog'lanish uzildi. Saytdan qayta ulanishingiz mumkin.`);
 });
 
-// ── Erkin matn (Phase 3'da AI route bo'ladi) ──
-bot.on('message', async (ctx) => {
-  // Komanda emas va text bor bo'lsa
-  if (!ctx.message || !ctx.message.text || ctx.message.text.startsWith('/')) return;
-
-  const link = await findOrgByChatId(ctx.from.id);
-  if (!link) {
-    return ctx.reply('Bot bilan gaplashish uchun avval saytdan ulaning: https://analix.uz', {
-      disable_web_page_preview: true,
-    });
-  }
-  return ctx.reply(
-    'AI javob berish funksiyasi tez orada qo\'shiladi. Hozircha /menu ni ko\'rib turing.'
-  );
-});
+// ── Asosiy menyu va AI handlerlar ──
+registerMenuHandlers(bot);
 
 // ── Xato handler ──
 bot.catch((err, ctx) => {

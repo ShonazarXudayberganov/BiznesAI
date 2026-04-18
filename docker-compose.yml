@@ -87,6 +87,7 @@ services:
       TELEGRAM_SESSION_ENC_KEY: ${TELEGRAM_SESSION_ENC_KEY:?TELEGRAM_SESSION_ENC_KEY .env'da bo'lishi kerak (32 bayt base64)}
       BOT_WORKER_PORT: 3002
       BOT_WORKER_INTERNAL_SECRET: ${BOT_WORKER_INTERNAL_SECRET:?BOT_WORKER_INTERNAL_SECRET .env'da bo'lishi kerak}
+      BACKEND_URL: http://backend:3001
       CHANNEL_SYNC_CRON: ${CHANNEL_SYNC_CRON:-0 4 * * *}
     networks:
       - biznesai_net
