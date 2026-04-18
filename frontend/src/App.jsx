@@ -10,7 +10,7 @@ import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
-  DepartmentsAPI, EmployeesAPI, SuperAdminAPI
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -903,12 +903,12 @@ const CSS = `
 :root,[data-theme="obsidian"]{
   --bg:#05060C;--s1:#0A0C15;--s2:#0E1019;--s3:#12141F;--s4:#181B28;
   --glass:rgba(10,12,21,0.92);
-  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.03);--border-hi:rgba(255,255,255,0.12);
+  --border:rgba(255,255,255,0.10);--border2:rgba(255,255,255,0.06);--border-hi:rgba(255,255,255,0.22);
   --gold:#D4A853;--gold2:#E8C47A;--gold-glow:rgba(212,168,83,0.15);
   --teal:#00D4C8;--teal2:#00F5E5;--teal-glow:rgba(0,212,200,0.12);
   --green:#34D399;--red:#FB7185;--purple:#A78BFA;--blue:#60A5FA;--orange:#FB923C;
   --accent1:#D4A853;--accent2:#00D4C8;
-  --text:#E8ECF4;--text2:#94A3B8;--muted:#475569;--muted2:#334155;
+  --text:#F1F5FA;--text2:#C5D2E3;--muted:#8493AC;--muted2:#4A5772;
   --fh:'Inter',system-ui,-apple-system,sans-serif;
   --fm:'JetBrains Mono','Fira Code',monospace;
   --fs:'Space Grotesk',sans-serif;
@@ -1064,7 +1064,7 @@ body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none)
 .card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:visible;margin-bottom:16px;transition:all .25s var(--ease);}
 .card:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
 .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 10%,rgba(212,168,83,0.12) 35%,rgba(0,212,200,0.08) 65%,transparent 90%);pointer-events:none;}
-.card-title{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:14px;}
+.card-title{font-family:var(--fh);font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:14px;}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
@@ -1077,8 +1077,8 @@ body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none)
 .btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none;filter:none}
 .btn-teal{background:linear-gradient(135deg,var(--teal) 0%,#009990 100%);color:#0a0c14;box-shadow:0 2px 16px rgba(0,212,200,0.2),inset 0 1px 0 rgba(255,255,255,0.12);}
 .btn-teal:hover{transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 6px 24px rgba(0,212,200,0.3)}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2);}
-.btn-ghost:hover{border-color:var(--border-hi);color:var(--text);background:var(--s3);box-shadow:var(--shadow-sm)}
+.btn-ghost{background:var(--s3);border:1.5px solid var(--border-hi);color:var(--text);font-weight:600;}
+.btn-ghost:hover{border-color:var(--gold);color:var(--gold);background:var(--s2);box-shadow:0 0 0 3px rgba(212,168,83,0.10)}
 .btn-danger{background:transparent;border:1px solid rgba(251,113,133,0.2);color:var(--red);}
 .btn-danger:hover{background:rgba(251,113,133,0.06);border-color:rgba(251,113,133,0.35);box-shadow:0 0 12px rgba(251,113,133,0.08)}
 .btn-sm{padding:6px 14px;font-size:11.5px;border-radius:8px}
@@ -1086,10 +1086,11 @@ body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none)
 .btn-lg{padding:13px 30px;font-size:14.5px;border-radius:12px}
 
 /* ═══ FORMS ═══ */
-.field{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:var(--fm);font-size:12.5px;outline:none;transition:all .25s var(--ease);}
-.field:focus{border-color:rgba(212,168,83,0.35);box-shadow:0 0 0 4px rgba(212,168,83,0.05),var(--shadow-sm);background:var(--s3);}
-.field::placeholder{color:var(--muted);font-weight:300}
-.field-label{font-family:var(--fh);font-size:10.5px;font-weight:600;color:var(--muted);margin-bottom:7px;display:block;text-transform:uppercase;letter-spacing:1.5px;}
+.field{width:100%;background:var(--s3);border:1.5px solid var(--border-hi);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--fm);font-size:13px;outline:none;transition:all .25s var(--ease);}
+.field:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,168,83,0.12);background:var(--s2);}
+.field:hover{border-color:rgba(255,255,255,0.32);}
+.field::placeholder{color:var(--muted);font-weight:400}
+.field-label{font-family:var(--fh);font-size:11px;font-weight:800;color:var(--text);margin-bottom:8px;display:block;text-transform:uppercase;letter-spacing:1.8px;}
 textarea.field{resize:vertical;min-height:90px;line-height:1.7}
 select.field{cursor:pointer;-webkit-appearance:none}
 
@@ -1102,8 +1103,8 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .b-red{background:rgba(251,113,133,0.08);color:var(--red);border:1px solid rgba(251,113,133,0.18)}
 
 /* ═══ SECTION HEADER ═══ */
-.section-hd{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:3.5px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
-.section-hd::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border),transparent 80%);}
+.section-hd{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:3.5px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+.section-hd::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border-hi),transparent 80%);}
 .divider{height:1px;background:var(--border);margin:16px 0}
 
 /* ═══ LANDING PAGE ═══ */
@@ -3416,6 +3417,176 @@ function AdminPanel({ currentUser, push, sources: adminSources, initialTab, hide
 // ─────────────────────────────────────────────────────────────
 // DATA HUB PAGE (Constructor)
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TELEGRAM KANAL — manba ichida MTProto orqali ulash
+// ─────────────────────────────────────────────────────────────
+function TelegramChannelSource({ src, updateConfig, push, onSyncDone }) {
+  const [status, setStatus] = useState(null);
+  const [admin, setAdmin] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+
+  const reload = useCallback(async () => {
+    try {
+      const s = await TelegramAPI.mtprotoStatus();
+      setStatus(s);
+    } catch (e) { /* silent */ }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const linkedChannelId = src.config?.channelDbId;
+  const linkedChannel = status?.channels?.find(c => c.id === linkedChannelId);
+
+  const loadAdmin = async () => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.adminChannels();
+      setAdmin(r.channels || []);
+      setPicking(true);
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const pickChannel = async (ch) => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.connectChannel(ch);
+      // source.config ga channel referensiyasini saqlash
+      updateConfig("mode", "mtproto");
+      updateConfig("channelDbId", r.id);
+      updateConfig("channelId", String(ch.channelId));
+      updateConfig("channelUsername", ch.username || null);
+      updateConfig("channelTitle", ch.title);
+      push(`✓ "${ch.title}" ulandi`, "ok");
+      setPicking(false);
+      // Birinchi sync
+      try {
+        const sync = await TelegramAPI.syncChannel(r.id);
+        if (sync?.note) push(sync.note, "warn");
+      } catch (e) { /* ignore initial sync error */ }
+      await reload();
+      onSyncDone?.();
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const sync = async () => {
+    if (!linkedChannelId) return;
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.syncChannel(linkedChannelId);
+      if (r?.note) push(r.note, "warn");
+      else push(`Yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+      await reload();
+      onSyncDone?.();
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  // ── Render ──
+  // 1. MTProto akkaunt ulanmagan
+  if (!status?.connected) {
+    return (
+      <div style={{ background: "var(--s3)", borderRadius: 10, padding: "14px 16px", border: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 11.5, lineHeight: 1.7, color: "var(--muted)", marginBottom: 10 }}>
+          <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Telegram kanal statistikasi uchun:</div>
+          <div>1. Avval <strong style={{ color: "var(--gold)" }}>Sozlamalar → 📺 Telegram Kanal Statistikasi</strong> bo'limidan akkauntni ulang</div>
+          <div>2. Kanal admining telefoni orqali kirgandan keyin shu yerga qaytib kanalni tanlang</div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={reload} disabled={busy}>↻ Holatni tekshirish</button>
+      </div>
+    );
+  }
+
+  // 2. Akkaunt ulangan, kanal tanlanmagan
+  if (!linkedChannelId) {
+    return (
+      <div>
+        <div style={{ background: "rgba(74,222,128,0.06)", borderRadius: 8, padding: "10px 12px", border: "1px solid rgba(74,222,128,0.2)", marginBottom: 10, fontSize: 11 }}>
+          <span style={{ color: "var(--green)", fontWeight: 600 }}>✓ Akkaunt ulangan:</span>{" "}
+          <span style={{ color: "var(--text)" }}>{status.session?.accountName || status.session?.phone}</span>
+        </div>
+
+        {!picking ? (
+          <button className="btn btn-primary btn-sm" onClick={loadAdmin} disabled={busy}>
+            {busy ? "Yuklanmoqda..." : "📺 Kanal tanlash"}
+          </button>
+        ) : (
+          <div style={{ background: "var(--s2)", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="flex aic jb mb8">
+              <div style={{ fontSize: 11, fontWeight: 600 }}>Admin kanallari ({admin.length})</div>
+              <button className="btn btn-ghost btn-xs" onClick={() => setPicking(false)}>Yopish</button>
+            </div>
+            {admin.length === 0 ? (
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Admin kanallar topilmadi</div>
+            ) : (
+              <div style={{ display: "grid", gap: 4, maxHeight: 300, overflow: "auto" }}>
+                {admin.map(c => {
+                  const already = (status.channels || []).some(x => String(x.channelId) === String(c.channelId));
+                  return (
+                    <div key={c.channelId}
+                      onClick={() => !already && !busy && pickChannel(c)}
+                      style={{ cursor: already || busy ? "default" : "pointer", opacity: already ? 0.5 : 1, padding: "8px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--s3)", display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 16 }}>📺</div>
+                      <div className="f1">
+                        <div style={{ fontSize: 11, fontWeight: 600 }}>
+                          {c.title} {c.creator && <span style={{ fontSize: 9, color: "var(--gold)" }}>· egasi</span>}
+                        </div>
+                        <div style={{ fontSize: 9, color: "var(--muted)" }}>
+                          {c.username && <>@{c.username} · </>}
+                          {c.memberCount?.toLocaleString() || "?"} a'zo
+                          {already && <> · <span style={{ color: "var(--green)" }}>boshqa manbada ulangan</span></>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // 3. Kanal tanlangan
+  return (
+    <div>
+      <div style={{ background: "rgba(56,189,248,0.06)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(56,189,248,0.2)", marginBottom: 10 }}>
+        <div className="flex aic gap8">
+          <div style={{ fontSize: 18 }}>📺</div>
+          <div className="f1">
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#38BDF8" }}>{src.config?.channelTitle || linkedChannel?.title}</div>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>
+              {src.config?.channelUsername && <>@{src.config.channelUsername} · </>}
+              {(linkedChannel?.memberCount || 0).toLocaleString()} a'zo
+              {linkedChannel?.lastSyncedAt
+                ? <> · Oxirgi: {new Date(linkedChannel.lastSyncedAt).toLocaleString("uz-UZ")}</>
+                : <> · <span style={{ color: "var(--orange)" }}>Hali sinxronlanmagan</span></>}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex aic gap8">
+        <button className="btn btn-primary btn-sm" onClick={sync} disabled={busy}>
+          {busy ? "..." : "↻ Yangilash"}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={() => {
+          if (!confirm("Kanalni almashtirmoqchimisiz?")) return;
+          updateConfig("channelDbId", null);
+          updateConfig("channelId", null);
+          updateConfig("channelTitle", null);
+          updateConfig("channelUsername", null);
+        }}>Boshqa kanal tanlash</button>
+      </div>
+    </div>
+  );
+}
+
 function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -4501,7 +4672,19 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
   // ── Manba turaga qarab yangilash ──
   const handleRefreshData = async () => {
     if (src.type === "instagram") return handleInstagramFetch();
-    if (src.type === "telegram") return handleTelegramFetch();
+    if (src.type === "telegram") {
+      // Yangi MTProto rejimi
+      if (src.config?.mode === "mtproto" && src.config?.channelDbId) {
+        try {
+          const r = await TelegramAPI.syncChannel(src.config.channelDbId);
+          if (r?.note) push(r.note, "warn");
+          else push(`Yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+        } catch (e) { push(e.message, "error"); }
+        return;
+      }
+      // Eski Bot API (mavjud sourcelar uchun fallback)
+      return handleTelegramFetch();
+    }
     if (src.type === "sheets") return handleSheetsFetch();
     if (src.type === "restapi") return handleAPIFetch();
     if (src.type === "crm") return handleCrmFetch();
@@ -4813,70 +4996,14 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
             </div>
           )}
 
-          {/* TELEGRAM */}
+          {/* TELEGRAM — MTProto orqali rasmiy statistika */}
           {src.type === "telegram" && (
-            <div>
-              <div style={{ background: "var(--s3)", borderRadius: 8, padding: "12px 14px", fontSize: 10.5, lineHeight: 1.9, color: "var(--muted)", marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Telegram Kanal Statistikasi Olish:</div>
-                <div>1. <span style={{ color: "var(--teal)" }}>@BotFather</span> da bot yarating (<span style={{ color: "var(--gold)" }}>/newbot</span>)</div>
-                <div>2. Berilgan <span style={{ color: "var(--text2)" }}>Bot Token</span> ni nusxa oling</div>
-                <div>3. Kanalingiz sozlamalarida botni <strong style={{ color: "var(--gold)" }}>admin</strong> sifatida qo'shing</div>
-                <div>4. Kanal username ni kiriting (masalan: <span style={{ color: "var(--teal)" }}>@kanal_nomi</span>)</div>
-                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(56,189,248,0.08)", borderRadius: 6, border: "1px solid rgba(56,189,248,0.15)" }}>
-                  <span style={{ color: "#38BDF8", fontWeight: 600 }}>Muhim:</span> Bot kanalga admin bo'lishi kerak (hech bo'lmaganda "Post Messages" ruxsati). Shunda kanal obunachilar soni, postlar, ko'rishlar va boshqa statistikani oladi.
-                </div>
-              </div>
-              <div className="g2 mb10">
-                <div>
-                  <label className="field-label">Bot Token</label>
-                  <input className="field" type="password" placeholder="7123456789:AAHbKx8Gz..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
-                </div>
-                <div>
-                  <label className="field-label">Kanal Username yoki ID</label>
-                  <input className="field" placeholder="@kanal_nomi yoki -100123456789" value={src.config?.channelId || ""} onChange={e => updateConfig("channelId", e.target.value)} />
-                </div>
-              </div>
-              <div className="flex gap8 mb10">
-                <button className="btn btn-primary btn-sm" onClick={handleTelegramFetch} disabled={loading || !src.config?.token || !src.config?.channelId}>
-                  {loading ? " Yuklanmoqda..." : " Ulash va Statistika Olish"}
-                </button>
-                {src.connected && src.data?.length > 0 && (
-                  <button className="btn btn-ghost btn-sm" onClick={handleTelegramFetch} disabled={loading}>↻ Yangilash</button>
-                )}
-              </div>
-              {src.profileName && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "#38BDF8", marginBottom: 8, padding: "8px 12px", background: "rgba(56,189,248,0.06)", borderRadius: 8, border: "1px solid rgba(56,189,248,0.15)" }}>
-                  <span style={{ fontSize: 18 }}></span>
-                  <div className="f1">
-                    <strong>{src.profileName}</strong> ulangan
-                    {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
-                  </div>
-                  {src.data?.find(d => d._type === "KANAL_STATISTIKA") && (
-                    <span style={{ fontSize: 10, color: "var(--green)", fontFamily: "var(--fm)" }}>
-                      {(src.data.find(d => d._type === "KANAL_STATISTIKA").member_count || 0).toLocaleString()} obunachi
-                    </span>
-                  )}
-                </div>
-              )}
-              {/* Avtomatik yangilash */}
-              {src.connected && (
-                <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div className="flex aic jb">
-                    <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
-                    <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }} value={src.config?.autoRefresh || 0} onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
-                      <option value={0}>O'chirilgan</option>
-                      <option value={5}>Har 5 daqiqa</option>
-                      <option value={15}>Har 15 daqiqa</option>
-                      <option value={30}>Har 30 daqiqa</option>
-                      <option value={60}>Har 1 soat</option>
-                      <option value={360}>Har 6 soat</option>
-                      <option value={1440}>Har 24 soat</option>
-                    </select>
-                  </div>
-                  {src.config?.autoRefresh > 0 && <div style={{ fontSize: 9.5, color: "var(--teal)", marginTop: 5 }}>⟳ Har {src.config.autoRefresh >= 60 ? Math.round(src.config.autoRefresh / 60) + " soat" : src.config.autoRefresh + " daqiqa"}da avtomatik yangilanadi</div>}
-                </div>
-              )}
-            </div>
+            <TelegramChannelSource
+              src={src}
+              updateConfig={updateConfig}
+              push={push}
+              onSyncDone={() => onUpdate(src)}
+            />
           )}
 
           {/* CRM (LC-UP) */}
@@ -8143,6 +8270,588 @@ Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'r
 // ─────────────────────────────────────────────────────────────
 // SETTINGS PAGE
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// TELEGRAM SETTINGS PANEL — Bot ulash + sozlamalar (Phase 1)
+// ─────────────────────────────────────────────────────────────
+function TelegramSettingsPanel({ push, user }) {
+  const [status, setStatus] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [linkData, setLinkData] = useState(null); // { url, expiresAt }
+  const [busy, setBusy] = useState(false);
+
+  const isCeo = user?.role === "ceo" || user?.role === "super_admin";
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [st, se] = await Promise.all([
+        TelegramAPI.status().catch(() => null),
+        TelegramAPI.getSettings().catch(() => null),
+      ]);
+      setStatus(st);
+      setSettings(se);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const generateLink = async () => {
+    if (!isCeo) { push("Faqat tashkilot egasi botni ulashi mumkin", "warn"); return; }
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.createLinkToken("bot");
+      setLinkData(r);
+      // Avtomatik Telegram'ni ochish
+      window.open(r.url, "_blank", "noopener");
+      push("Havola yaratildi. Telegram oynasida 'START' tugmasini bosing.", "ok");
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unlink = async () => {
+    if (!confirm("Botni uzishni tasdiqlaysizmi?")) return;
+    setBusy(true);
+    try {
+      await TelegramAPI.unlinkBot();
+      push("Bot uzildi", "ok");
+      setLinkData(null);
+      await reload();
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSetting = async (patch) => {
+    setSettings(s => ({ ...s, ...patch }));
+    try {
+      await TelegramAPI.updateSettings(patch);
+    } catch (e) {
+      push("Sozlama saqlanmadi: " + e.message, "error");
+      reload();
+    }
+  };
+
+  const toggleModule = (key) => {
+    const mods = { ...(settings?.enabledModules || {}) };
+    mods[key] = !mods[key];
+    updateSetting({ enabledModules: mods });
+  };
+
+  if (loading) {
+    return <div className="card mb14"><div className="text-muted text-sm">Yuklanmoqda...</div></div>;
+  }
+
+  return (
+    <div className="card mb14">
+      <div className="flex aic jb mb12">
+        <div>
+          <div className="card-title" style={{ marginBottom: 3 }}>✈️ Telegram Yordamchi Bot</div>
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>
+            Hisobot, tahlil va ogohlantirishlarni Telegram orqali oling
+          </div>
+        </div>
+        {status?.linked && <span className="badge b-ok">Ulangan</span>}
+      </div>
+
+      {/* ── BOT ULASH HOLATI ── */}
+      {!status?.linked ? (
+        <div style={{ background: "var(--s2)", borderRadius: 12, padding: "16px 18px", marginBottom: 12, border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.7, marginBottom: 12 }}>
+            <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>
+              Qanday ulash:
+            </div>
+            <div>1. <strong>"Telegram bilan ulash"</strong> tugmasini bosing</div>
+            <div>2. Telegram avtomatik ochiladi — <strong style={{ color: "var(--gold)" }}>START</strong> bosing</div>
+            <div>3. Tayyor — bot tashkilotingizga bog'landi</div>
+          </div>
+          {!isCeo && (
+            <div style={{ fontSize: 10, color: "var(--orange)", marginBottom: 10 }}>
+              ⚠️ Faqat tashkilot egasi (CEO) botni ulashi mumkin
+            </div>
+          )}
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={generateLink}
+            disabled={busy || !isCeo}
+            style={{ background: "linear-gradient(135deg, #38BDF8, #0EA5E9)", borderColor: "transparent" }}
+          >
+            {busy ? "Yaratilmoqda..." : "✈️ Telegram bilan ulash"}
+          </button>
+          {linkData && (
+            <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(56,189,248,0.06)", borderRadius: 8, fontSize: 10.5, color: "var(--muted)" }}>
+              Telegram ochilmadi? <a href={linkData.url} target="_blank" rel="noopener" style={{ color: "#38BDF8", fontWeight: 600 }}>Bu yerga bosing</a>
+              {" — "} havola 10 daqiqa amal qiladi.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ background: "rgba(74,222,128,0.06)", borderRadius: 12, padding: "14px 16px", marginBottom: 12, border: "1px solid rgba(74,222,128,0.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 22 }}>✅</div>
+            <div className="f1">
+              <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--green)" }}>
+                Bot ulangan
+                {status.link?.username && <span style={{ color: "var(--muted)", fontWeight: 400 }}> · @{status.link.username}</span>}
+              </div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                {status.link?.firstName} {status.link?.lastName || ""}
+                {status.link?.linkedAt && <> · {new Date(status.link.linkedAt).toLocaleString("uz-UZ")}</>}
+              </div>
+            </div>
+            {isCeo && (
+              <button className="btn btn-ghost btn-sm" onClick={unlink} disabled={busy}>
+                Uzish
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BOT SOZLAMALARI (faqat ulangan bo'lsa) ── */}
+      {status?.linked && settings && (
+        <>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 14, marginBottom: 8 }}>
+            Avtomatik dayjest
+          </div>
+          <div className="flex aic jb mb10" style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Har kuni hisobot yuborish</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Belgilangan vaqtda barcha bo'limlar bo'yicha qisqa hisobot</div>
+            </div>
+            <input
+              type="time"
+              className="field"
+              style={{ width: 100, marginRight: 10 }}
+              value={settings.digestTime || "09:00"}
+              onChange={e => updateSetting({ digestTime: e.target.value })}
+              disabled={!settings.digestEnabled}
+            />
+            <div
+              style={{ width: 36, height: 20, borderRadius: 10, background: settings.digestEnabled ? "var(--green)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }}
+              onClick={() => updateSetting({ digestEnabled: !settings.digestEnabled })}
+            >
+              <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: settings.digestEnabled ? 19 : 2, transition: "left .2s" }} />
+            </div>
+          </div>
+
+          <div className="flex aic jb mb10" style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 600 }}>Anomaliya ogohlantirishlari</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>Muhim o'zgarishlarda darhol xabar</div>
+            </div>
+            <select
+              className="field"
+              style={{ width: 110, marginRight: 10 }}
+              value={settings.anomalySensitivity || "medium"}
+              onChange={e => updateSetting({ anomalySensitivity: e.target.value })}
+              disabled={!settings.anomalyEnabled}
+            >
+              <option value="low">Past</option>
+              <option value="medium">O'rta</option>
+              <option value="high">Yuqori</option>
+            </select>
+            <div
+              style={{ width: 36, height: 20, borderRadius: 10, background: settings.anomalyEnabled ? "var(--gold)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }}
+              onClick={() => updateSetting({ anomalyEnabled: !settings.anomalyEnabled })}
+            >
+              <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: settings.anomalyEnabled ? 19 : 2, transition: "left .2s" }} />
+            </div>
+          </div>
+
+          <div style={{ background: "var(--s2)", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)", marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Jim soatlar</div>
+            <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8 }}>Bu vaqtda xabar yubormaymiz (faqat critical anomaliya)</div>
+            <div className="flex aic gap8">
+              <input type="time" className="field" style={{ width: 100 }} value={settings.quietHoursStart || "23:00"} onChange={e => updateSetting({ quietHoursStart: e.target.value })} />
+              <span style={{ color: "var(--muted)" }}>—</span>
+              <input type="time" className="field" style={{ width: 100 }} value={settings.quietHoursEnd || "08:00"} onChange={e => updateSetting({ quietHoursEnd: e.target.value })} />
+            </div>
+          </div>
+
+          <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 14, marginBottom: 8 }}>
+            Dayjestga kiritilsin
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 6 }}>
+            {[
+              { k: "sales", l: "Savdo", c: "#4ADE80" },
+              { k: "finance", l: "Moliya", c: "#FBBF24" },
+              { k: "crm", l: "CRM", c: "#A78BFA" },
+              { k: "channel", l: "Telegram kanal", c: "#38BDF8" },
+              { k: "instagram", l: "Instagram", c: "#E879F9" },
+            ].map(m => {
+              const on = !!(settings.enabledModules || {})[m.k];
+              return (
+                <div
+                  key={m.k}
+                  onClick={() => toggleModule(m.k)}
+                  style={{ cursor: "pointer", padding: "8px 10px", borderRadius: 8, border: `1px solid ${on ? m.c + "60" : "var(--border)"}`, background: on ? m.c + "10" : "var(--s2)", display: "flex", alignItems: "center", gap: 8, transition: "all .15s" }}
+                >
+                  <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${on ? m.c : "var(--border)"}`, background: on ? m.c : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#000", fontWeight: 800 }}>
+                    {on ? "✓" : ""}
+                  </div>
+                  <div style={{ fontSize: 11, color: on ? m.c : "var(--text)", fontWeight: 600 }}>{m.l}</div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// MTPROTO KANAL PANEL — Telegram kanal statistika (Phase 2)
+// ─────────────────────────────────────────────────────────────
+function MtprotoChannelPanel({ push, user }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [step, setStep] = useState("idle");  // idle | code | password | listing
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [adminChannels, setAdminChannels] = useState([]);
+  const [selected, setSelected] = useState({});
+
+  const isCeo = user?.role === "ceo" || user?.role === "super_admin";
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const s = await TelegramAPI.mtprotoStatus();
+      setStatus(s);
+      if (s?.connected) setStep("idle");
+    } catch (e) {
+      console.warn("[mtproto/status]", e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const sendCode = async () => {
+    if (!phone.trim()) { push("Telefon raqamini kiriting", "warn"); return; }
+    setBusy(true);
+    try {
+      await TelegramAPI.sendCode(phone.trim());
+      push("Telegram orqali kod yuborildi", "ok");
+      setStep("code");
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyCode = async () => {
+    if (!code.trim()) { push("Kodni kiriting", "warn"); return; }
+    setBusy(true);
+    try {
+      await TelegramAPI.verifyCode(code.trim());
+      push("Kirildi! Endi kanallarni tanlang", "ok");
+      setStep("idle"); setCode(""); setPassword("");
+      await reload();
+      await loadAdmin();
+    } catch (e) {
+      if (e.message === "PASSWORD_REQUIRED" || (e.message || "").includes("PASSWORD_REQUIRED")) {
+        setStep("password");
+        push("2FA paroli kerak", "warn");
+      } else {
+        push(e.message, "error");
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyPassword = async () => {
+    if (!password) { push("Parolni kiriting", "warn"); return; }
+    setBusy(true);
+    try {
+      await TelegramAPI.verifyCode(code.trim(), password);
+      push("Kirildi! Endi kanallarni tanlang", "ok");
+      setStep("idle"); setCode(""); setPassword("");
+      await reload();
+      await loadAdmin();
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const loadAdmin = async () => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.adminChannels();
+      setAdminChannels(r.channels || []);
+      setStep("listing");
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connectSelected = async () => {
+    const chs = adminChannels.filter(c => selected[c.channelId]);
+    if (chs.length === 0) { push("Kamida bitta kanal tanlang", "warn"); return; }
+    setBusy(true);
+    let ok = 0, fail = 0;
+    for (const c of chs) {
+      try { await TelegramAPI.connectChannel(c); ok++; }
+      catch (e) { fail++; console.warn(e); }
+    }
+    push(`✓ ${ok} kanal ulandi${fail ? `, ✗ ${fail} xato` : ""}`, ok ? "ok" : "error");
+    setSelected({}); setStep("idle");
+    await reload();
+    setBusy(false);
+  };
+
+  const syncChannel = async (id) => {
+    setBusy(true);
+    try {
+      const r = await TelegramAPI.syncChannel(id);
+      if (r?.note) {
+        push(r.note, "warn");
+      } else {
+        push(`Statistika yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+      }
+      await reload();
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeChannel = async (id, title) => {
+    if (!confirm(`"${title}" kanalini o'chirasizmi?`)) return;
+    try {
+      await TelegramAPI.removeChannel(id);
+      push("Kanal o'chirildi", "ok");
+      await reload();
+    } catch (e) {
+      push(e.message, "error");
+    }
+  };
+
+  const disconnectAll = async () => {
+    if (!confirm("Telegram akkauntni va barcha kanallarni uzasizmi?")) return;
+    setBusy(true);
+    try {
+      await TelegramAPI.disconnectMtproto();
+      push("Akkaunt uzildi", "ok");
+      await reload();
+    } catch (e) {
+      push(e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="card mb14"><div className="text-muted text-sm">Yuklanmoqda...</div></div>;
+  }
+
+  return (
+    <div className="card mb14">
+      <div className="flex aic jb mb12">
+        <div>
+          <div className="card-title" style={{ marginBottom: 3 }}>📺 Telegram Kanal Statistikasi</div>
+          <div style={{ fontSize: 10, color: "var(--muted)" }}>
+            Rasmiy Telegram statistikasi (a'zolar tarixi, ko'rishlar, ERR) — kanal admin akkaunti orqali
+          </div>
+        </div>
+        {status?.connected && <span className="badge b-ok">Ulangan</span>}
+      </div>
+
+      {/* AKKAUNT — ulangan holati */}
+      {status?.connected ? (
+        <div style={{ background: "rgba(74,222,128,0.06)", borderRadius: 12, padding: "12px 14px", marginBottom: 12, border: "1px solid rgba(74,222,128,0.2)" }}>
+          <div className="flex aic gap8">
+            <div style={{ fontSize: 18 }}>✅</div>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>{status.session?.accountName || status.session?.phone}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                Telefon: {status.session?.phone}
+                {status.session?.lastUsedAt && <> · Oxirgi: {new Date(status.session.lastUsedAt).toLocaleString("uz-UZ")}</>}
+              </div>
+            </div>
+            {isCeo && (
+              <button className="btn btn-ghost btn-xs" onClick={disconnectAll} disabled={busy}>Uzish</button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: "var(--s2)", borderRadius: 12, padding: "14px 16px", marginBottom: 12, border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.7, marginBottom: 12 }}>
+            <div style={{ color: "#38BDF8", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Qanday ishlaydi:</div>
+            <div>1. <strong>Kanal admining</strong> Telegram akkaunti telefonini kiriting (CEO bo'lishi shart emas)</div>
+            <div>2. Telegram'ga kelgan kodni tasdiqlang (agar 2FA bor — parolni ham)</div>
+            <div>3. Admin kanallari ro'yxati chiqadi — qaysilarini tanlang</div>
+            <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(56,189,248,0.08)", borderRadius: 6, border: "1px solid rgba(56,189,248,0.15)" }}>
+              <span style={{ color: "#38BDF8", fontWeight: 600 }}>Xavfsizlik:</span> akkaunt ma'lumotlari faqat <strong>o'qish</strong> uchun ishlatiladi (xabar yubormaymiz, kontaktlarni ko'rmaymiz). Session shifrlanib saqlanadi.
+            </div>
+          </div>
+
+          {!isCeo && (
+            <div style={{ fontSize: 10, color: "var(--orange)", marginBottom: 10 }}>
+              ⚠️ Faqat tashkilot egasi (CEO) bu sozlamani o'zgartira oladi
+            </div>
+          )}
+
+          {step === "idle" && (
+            <div className="flex aic gap8">
+              <input className="field f1" type="tel" placeholder="+998 90 123 45 67"
+                value={phone} onChange={e => setPhone(e.target.value)}
+                disabled={!isCeo || busy} onKeyDown={e => e.key === "Enter" && sendCode()} />
+              <button className="btn btn-primary btn-sm" onClick={sendCode} disabled={busy || !isCeo}>
+                {busy ? "..." : "Kod yuborish"}
+              </button>
+            </div>
+          )}
+
+          {step === "code" && (
+            <div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 6 }}>
+                Kod Telegram ilovangizga yuborildi. <strong style={{ color: "var(--gold)" }}>{phone}</strong>
+              </div>
+              <div className="flex aic gap8">
+                <input className="field f1" type="text" inputMode="numeric" placeholder="12345"
+                  value={code} onChange={e => setCode(e.target.value)}
+                  disabled={busy} autoFocus onKeyDown={e => e.key === "Enter" && verifyCode()} />
+                <button className="btn btn-primary btn-sm" onClick={verifyCode} disabled={busy}>
+                  {busy ? "..." : "Tasdiqlash"}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setStep("idle"); setCode(""); }} disabled={busy}>
+                  ← Boshqa raqam
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === "password" && (
+            <div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 6 }}>
+                Akkauntda 2-bosqichli tasdiq bor. Parolni kiriting:
+              </div>
+              <div className="flex aic gap8">
+                <input className="field f1" type="password" placeholder="2FA parol"
+                  value={password} onChange={e => setPassword(e.target.value)}
+                  disabled={busy} autoFocus onKeyDown={e => e.key === "Enter" && verifyPassword()} />
+                <button className="btn btn-primary btn-sm" onClick={verifyPassword} disabled={busy}>
+                  {busy ? "..." : "Davom etish"}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setStep("idle"); setCode(""); setPassword(""); }} disabled={busy}>
+                  ← Bekor
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ULANGAN KANALLAR */}
+      {status?.connected && status.channels && status.channels.length > 0 && (
+        <>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginTop: 14, marginBottom: 8 }}>
+            Ulangan kanallar
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {status.channels.map(c => (
+              <div key={c.id} style={{ background: "var(--s2)", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 16 }}>📺</div>
+                <div className="f1">
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{c.title}</div>
+                  <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                    {c.username && <>@{c.username} · </>}
+                    {c.memberCount?.toLocaleString() || "?"} a'zo
+                    {c.lastSyncedAt
+                      ? <> · Oxirgi: {new Date(c.lastSyncedAt).toLocaleString("uz-UZ")}</>
+                      : <> · <span style={{ color: "var(--orange)" }}>Hali sinxronlanmagan</span></>}
+                  </div>
+                </div>
+                <button className="btn btn-ghost btn-xs" onClick={() => syncChannel(c.id)} disabled={busy}>↻ Yangilash</button>
+                {isCeo && (
+                  <button className="btn btn-ghost btn-xs" onClick={() => removeChannel(c.id, c.title)} disabled={busy}>O'chirish</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* YANGI KANAL TANLASH */}
+      {status?.connected && (
+        <div style={{ marginTop: 12 }}>
+          {step !== "listing" ? (
+            <button className="btn btn-ghost btn-sm" onClick={loadAdmin} disabled={busy || !isCeo}>
+              {busy ? "Yuklanmoqda..." : "+ Kanal qo'shish"}
+            </button>
+          ) : (
+            <div style={{ background: "var(--s2)", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)" }}>
+              <div className="flex aic jb mb8">
+                <div style={{ fontSize: 11, fontWeight: 600 }}>Admin kanallari ({adminChannels.length})</div>
+                <button className="btn btn-ghost btn-xs" onClick={() => setStep("idle")}>Yopish</button>
+              </div>
+              {adminChannels.length === 0 ? (
+                <div style={{ fontSize: 10, color: "var(--muted)" }}>Admin kanallar topilmadi</div>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gap: 4, maxHeight: 280, overflow: "auto" }}>
+                    {adminChannels.map(c => {
+                      const already = (status.channels || []).some(x => String(x.channelId) === String(c.channelId));
+                      const on = !!selected[c.channelId];
+                      return (
+                        <div key={c.channelId}
+                          onClick={() => !already && setSelected(s => ({ ...s, [c.channelId]: !s[c.channelId] }))}
+                          style={{ cursor: already ? "default" : "pointer", opacity: already ? 0.5 : 1, padding: "8px 10px", borderRadius: 6, border: `1px solid ${on ? "var(--teal)" : "var(--border)"}`, background: on ? "rgba(0,201,190,0.06)" : "var(--s3)", display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 14, height: 14, borderRadius: 4, border: `1px solid ${on ? "var(--teal)" : "var(--border)"}`, background: on ? "var(--teal)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, color: "#000", fontWeight: 800 }}>
+                            {on ? "✓" : ""}
+                          </div>
+                          <div className="f1">
+                            <div style={{ fontSize: 11, fontWeight: 600 }}>
+                              {c.title} {c.creator && <span style={{ fontSize: 9, color: "var(--gold)" }}>· egasi</span>}
+                            </div>
+                            <div style={{ fontSize: 9, color: "var(--muted)" }}>
+                              {c.username && <>@{c.username} · </>}
+                              {c.memberCount?.toLocaleString() || "?"} a'zo
+                              {already && <> · <span style={{ color: "var(--green)" }}>allaqachon ulangan</span></>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex aic jb mt10">
+                    <div style={{ fontSize: 10, color: "var(--muted)" }}>
+                      {Object.values(selected).filter(Boolean).length} ta tanlangan
+                    </div>
+                    <button className="btn btn-primary btn-sm" onClick={connectSelected} disabled={busy || Object.values(selected).filter(Boolean).length === 0}>
+                      Tanlanganlarni ulash
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey, hasGlobalAI, user }) {
   const uk = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
   const [keyInput, setKeyInput] = useState(aiConfig.apiKey);
@@ -8335,6 +9044,12 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         </div>
         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>AI javoblari tanlangan tilda keladi. Interfeys hozircha O'zbek tilida.</div>
       </div>
+
+      {/* ── TELEGRAM YORDAMCHI BOT ── */}
+      <TelegramSettingsPanel push={push} user={user} />
+
+      {/* ── TELEGRAM KANAL STATISTIKA (MTProto) ── */}
+      <MtprotoChannelPanel push={push} user={user} />
 
       {/* ── QANDAY ISHLAYDI (yopiq) ── */}
       <details className="card" style={{ cursor: "pointer" }}>

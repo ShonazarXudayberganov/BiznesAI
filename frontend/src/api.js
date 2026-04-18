@@ -398,3 +398,47 @@ export const UploadAPI = {
     return data;
   },
 };
+
+// ── TELEGRAM API ──
+export const TelegramAPI = {
+  status: () => apiFetch('/telegram/status'),
+  createLinkToken: (purpose = 'bot') =>
+    apiFetch('/telegram/link-token', {
+      method: 'POST',
+      body: JSON.stringify({ purpose }),
+    }),
+  unlinkBot: () => apiFetch('/telegram/bot-link', { method: 'DELETE' }),
+  getSettings: () => apiFetch('/telegram/settings'),
+  updateSettings: (patch) =>
+    apiFetch('/telegram/settings', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+
+  // ── MTProto (kanal statistikasi) ──
+  mtprotoStatus: () => apiFetch('/telegram/mtproto/status'),
+  sendCode: (phone) =>
+    apiFetch('/telegram/mtproto/send-code', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
+  verifyCode: (code, password) =>
+    apiFetch('/telegram/mtproto/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code, password }),
+    }),
+  adminChannels: () => apiFetch('/telegram/mtproto/admin-channels'),
+  connectChannel: (channel) =>
+    apiFetch('/telegram/mtproto/connect-channel', {
+      method: 'POST',
+      body: JSON.stringify({ channel }),
+    }),
+  syncChannel: (id) =>
+    apiFetch(`/telegram/mtproto/sync/${id}`, { method: 'POST' }),
+  disconnectMtproto: () =>
+    apiFetch('/telegram/mtproto', { method: 'DELETE' }),
+  removeChannel: (id) =>
+    apiFetch(`/telegram/mtproto/channel/${id}`, { method: 'DELETE' }),
+  channelStats: (id) =>
+    apiFetch(`/telegram/mtproto/channel/${id}/stats`),
+};

@@ -288,6 +288,152 @@ CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_log(organization_id, created_a
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_source_data_updated ON source_data(updated_at DESC);
+
+-- ══════════════════════════════════════════════
+-- TELEGRAM BOT INTEGRATSIYASI
+-- ══════════════════════════════════════════════
+
+-- Deep-link tokenlar (saytdan generatsiya, botda /start orqali iste'mol)
+CREATE TABLE IF NOT EXISTS telegram_pending_links (
+  token            VARCHAR(64) PRIMARY KEY,
+  organization_id  INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id          INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose          VARCHAR(20) NOT NULL DEFAULT 'bot',  -- 'bot' | 'channel'
+  expires_at       TIMESTAMPTZ NOT NULL,
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_pending_org ON telegram_pending_links(organization_id);
+CREATE INDEX IF NOT EXISTS idx_tg_pending_expires ON telegram_pending_links(expires_at);
+
+-- CEO bot chat (bitta org → bitta chat_id)
+CREATE TABLE IF NOT EXISTS telegram_bot_links (
+  id               SERIAL PRIMARY KEY,
+  organization_id  INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id          INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  chat_id          BIGINT NOT NULL UNIQUE,
+  username         VARCHAR(64),
+  first_name       VARCHAR(128),
+  last_name        VARCHAR(128),
+  language_code    VARCHAR(10),
+  active           BOOLEAN DEFAULT TRUE,
+  linked_at        TIMESTAMPTZ DEFAULT NOW(),
+  last_active_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_bot_org ON telegram_bot_links(organization_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tg_bot_org_active ON telegram_bot_links(organization_id) WHERE active = TRUE;
+
+-- MTProto vaqtincha login state (sendCode → verify orasida)
+CREATE TABLE IF NOT EXISTS telegram_mtproto_pending (
+  organization_id    INT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  phone              VARCHAR(20) NOT NULL,
+  phone_code_hash    VARCHAR(64) NOT NULL,
+  session_encrypted  TEXT NOT NULL,
+  expires_at         TIMESTAMPTZ NOT NULL,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_mtproto_pending_expires ON telegram_mtproto_pending(expires_at);
+
+-- MTProto (GramJS) sessionlari — kanal statistikasi uchun
+CREATE TABLE IF NOT EXISTS telegram_mtproto_sessions (
+  id                 SERIAL PRIMARY KEY,
+  organization_id    INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  phone              VARCHAR(20) NOT NULL,
+  session_encrypted  TEXT NOT NULL,           -- AES-256-GCM(base64)
+  account_name       VARCHAR(128),            -- @username yoki ism
+  status             VARCHAR(20) DEFAULT 'active',  -- 'active' | 'expired' | 'revoked'
+  last_used_at       TIMESTAMPTZ,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_mtproto_org ON telegram_mtproto_sessions(organization_id);
+
+-- Ulangan kanallar
+CREATE TABLE IF NOT EXISTS telegram_channels (
+  id                    SERIAL PRIMARY KEY,
+  organization_id       INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  mtproto_session_id    INT REFERENCES telegram_mtproto_sessions(id) ON DELETE SET NULL,
+  channel_id            BIGINT NOT NULL,
+  access_hash           BIGINT,
+  username              VARCHAR(128),
+  title                 VARCHAR(255),
+  member_count          INT,
+  active                BOOLEAN DEFAULT TRUE,
+  first_synced_at       TIMESTAMPTZ DEFAULT NOW(),
+  last_synced_at        TIMESTAMPTZ,
+  UNIQUE (organization_id, channel_id)
+);
+
+ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS access_hash BIGINT;
+
+CREATE INDEX IF NOT EXISTS idx_tg_channels_org ON telegram_channels(organization_id);
+CREATE INDEX IF NOT EXISTS idx_tg_channels_active ON telegram_channels(active);
+
+-- Kunlik kanal statistika (timeseries)
+CREATE TABLE IF NOT EXISTS telegram_channel_stats_daily (
+  channel_id        INT NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+  date              DATE NOT NULL,
+  members           INT,
+  joined_count      INT,
+  left_count        INT,
+  views_total       BIGINT,
+  shares_total      BIGINT,
+  reactions_total   BIGINT,
+  raw               JSONB,
+  PRIMARY KEY (channel_id, date)
+);
+
+-- Postlar (har post haqida)
+CREATE TABLE IF NOT EXISTS telegram_channel_posts (
+  id                SERIAL PRIMARY KEY,
+  channel_id        INT NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
+  message_id        BIGINT NOT NULL,
+  posted_at         TIMESTAMPTZ,
+  text              TEXT,
+  media_type        VARCHAR(30),            -- text | photo | video | document | poll
+  views             INT,
+  forwards          INT,
+  reactions         JSONB,                  -- {"👍": 12, "❤️": 5}
+  last_updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (channel_id, message_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_posts_channel_date ON telegram_channel_posts(channel_id, posted_at DESC);
+
+-- Bot sozlamalari (har org uchun bitta)
+CREATE TABLE IF NOT EXISTS telegram_bot_settings (
+  organization_id      INT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  digest_enabled       BOOLEAN DEFAULT TRUE,
+  digest_time          VARCHAR(5) DEFAULT '09:00',  -- 'HH:MM' (org timezone)
+  timezone             VARCHAR(64) DEFAULT 'Asia/Tashkent',
+  quiet_hours_start    VARCHAR(5) DEFAULT '23:00',
+  quiet_hours_end      VARCHAR(5) DEFAULT '08:00',
+  enabled_modules      JSONB DEFAULT '{"sales":true,"finance":true,"crm":true,"channel":true,"instagram":true}',
+  anomaly_enabled      BOOLEAN DEFAULT TRUE,
+  anomaly_sensitivity  VARCHAR(10) DEFAULT 'medium',  -- 'low' | 'medium' | 'high'
+  language             VARCHAR(5) DEFAULT 'uz',
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Aniqlangan anomaliyalar
+CREATE TABLE IF NOT EXISTS telegram_anomalies (
+  id               SERIAL PRIMARY KEY,
+  organization_id  INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  source_id        VARCHAR(64) REFERENCES sources(id) ON DELETE SET NULL,
+  type             VARCHAR(64),
+  severity         VARCHAR(10),     -- 'info' | 'warning' | 'critical'
+  metric           VARCHAR(64),
+  value            DOUBLE PRECISION,
+  baseline         DOUBLE PRECISION,
+  details          JSONB,
+  detected_at      TIMESTAMPTZ DEFAULT NOW(),
+  notified_at      TIMESTAMPTZ,
+  acknowledged_at  TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_anomalies_org_detected ON telegram_anomalies(organization_id, detected_at DESC);
 `;
 
 // ═══════════════════════════════════════════════════════════════
