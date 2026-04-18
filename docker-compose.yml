@@ -13,7 +13,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     networks:
       - biznesai_net
     healthcheck:
@@ -47,6 +47,9 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       UPLOAD_DIR: /app/uploads
       MAX_FILE_SIZE: ${MAX_FILE_SIZE:-10485760}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-AnalixBot}
+      BOT_WORKER_URL: http://bot-worker:3002
+      BOT_WORKER_INTERNAL_SECRET: ${BOT_WORKER_INTERNAL_SECRET:?BOT_WORKER_INTERNAL_SECRET .env'da bo'lishi kerak}
     volumes:
       - uploads:/app/uploads
     ports:
@@ -79,6 +82,12 @@ services:
       DB_PASS: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env faylda o‘rnatilishi kerak}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-AnalixBot}
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_SESSION_ENC_KEY: ${TELEGRAM_SESSION_ENC_KEY:?TELEGRAM_SESSION_ENC_KEY .env'da bo'lishi kerak (32 bayt base64)}
+      BOT_WORKER_PORT: 3002
+      BOT_WORKER_INTERNAL_SECRET: ${BOT_WORKER_INTERNAL_SECRET:?BOT_WORKER_INTERNAL_SECRET .env'da bo'lishi kerak}
+      CHANNEL_SYNC_CRON: ${CHANNEL_SYNC_CRON:-0 4 * * *}
     networks:
       - biznesai_net
 

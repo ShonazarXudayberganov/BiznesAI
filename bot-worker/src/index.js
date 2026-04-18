@@ -10,6 +10,8 @@ const { Telegraf } = require('telegraf');
 const pool = require('./db/pool');
 const registerStartHandler = require('./handlers/start');
 const { findOrgByChatId, touchChat } = require('./services/linkService');
+const { startInternalApi } = require('./internalApi');
+const { startSyncScheduler } = require('./services/scheduler');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -108,13 +110,23 @@ async function start() {
     process.exit(1);
   }
 
-  // Bot ishga tushirish — long polling rejimi (webhook'siz, oddiyroq)
-  await bot.launch({
-    dropPendingUpdates: true,
-  });
-
+  // Telegraf 4.x'da bot.launch() faqat bot to'xtaganda return qiladi
+  // shuning uchun getMe() ni avval chaqiramiz
   const me = await bot.telegram.getMe();
-  console.log(`[BOT] Ishga tushdi: @${me.username} (id=${me.id})`);
+  console.log(`[BOT] Ishga tushmoqda: @${me.username} (id=${me.id})`);
+
+  // Long polling — webhook'siz, oddiyroq local dev uchun
+  bot.launch({ dropPendingUpdates: true })
+    .then(() => console.log('[BOT] To\'xtatildi'))
+    .catch(err => console.error('[BOT] launch error:', err.message));
+
+  // Internal HTTP API (backend → bot-worker)
+  startInternalApi();
+
+  // Kanal stats sync cron
+  startSyncScheduler();
+
+  console.log('[BOT] Tayyor — xabarlar kutilmoqda');
 }
 
 // Graceful shutdown

@@ -324,6 +324,18 @@ CREATE TABLE IF NOT EXISTS telegram_bot_links (
 CREATE INDEX IF NOT EXISTS idx_tg_bot_org ON telegram_bot_links(organization_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_tg_bot_org_active ON telegram_bot_links(organization_id) WHERE active = TRUE;
 
+-- MTProto vaqtincha login state (sendCode → verify orasida)
+CREATE TABLE IF NOT EXISTS telegram_mtproto_pending (
+  organization_id    INT PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  phone              VARCHAR(20) NOT NULL,
+  phone_code_hash    VARCHAR(64) NOT NULL,
+  session_encrypted  TEXT NOT NULL,
+  expires_at         TIMESTAMPTZ NOT NULL,
+  created_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tg_mtproto_pending_expires ON telegram_mtproto_pending(expires_at);
+
 -- MTProto (GramJS) sessionlari — kanal statistikasi uchun
 CREATE TABLE IF NOT EXISTS telegram_mtproto_sessions (
   id                 SERIAL PRIMARY KEY,
@@ -361,8 +373,8 @@ CREATE TABLE IF NOT EXISTS telegram_channel_stats_daily (
   channel_id        INT NOT NULL REFERENCES telegram_channels(id) ON DELETE CASCADE,
   date              DATE NOT NULL,
   members           INT,
-  joined            INT,
-  left              INT,
+  joined_count      INT,
+  left_count        INT,
   views_total       BIGINT,
   shares_total      BIGINT,
   reactions_total   BIGINT,
