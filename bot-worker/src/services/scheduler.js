@@ -1,10 +1,13 @@
 /**
- * Cron scheduler — kanal statistikasini avtomatik yangilash.
- * Phase 4'da kunlik dayjest va anomaliya ham shu yerga qo'shiladi.
+ * Cron scheduler:
+ *  - Kanal statistikasi sync (kunlik 04:00)
+ *  - Kunlik dayjest yuborish (har 5 daqiqada tekshirib, vaqti kelgan org'larga)
+ *  - Phase 5: anomaliya kuzatuvi
  */
 const cron = require('node-cron');
 const pool = require('../db/pool');
 const { getChannelStats } = require('./mtproto');
+const BackendAPI = require('./backendApi');
 
 // Har kunlik soat 04:00 (Asia/Tashkent) — barcha faol kanallar uchun
 const SYNC_CRON = process.env.CHANNEL_SYNC_CRON || '0 4 * * *';
@@ -55,4 +58,82 @@ function startSyncScheduler() {
   console.log(`[SYNC] Cron faol: "${SYNC_CRON}" (Asia/Tashkent)`);
 }
 
-module.exports = { startSyncScheduler, syncAllChannels };
+// ─────────────────────────────────────────────
+// Dayjest scheduler — har 5 daqiqada tekshirib, vaqti kelgan org'larga yuboradi
+// ─────────────────────────────────────────────
+let _botInstance = null;
+function setBotForDigest(bot) { _botInstance = bot; }
+
+function inQuietHours(timeStr, qStart, qEnd) {
+  if (!qStart || !qEnd) return false;
+  const t = timeStr; // "HH:MM"
+  if (qStart < qEnd) return t >= qStart && t < qEnd;
+  // overnight (e.g. 23:00 - 08:00)
+  return t >= qStart || t < qEnd;
+}
+
+async function buildDigestText(orgId) {
+  const sum = await BackendAPI.orgSummary(orgId);
+  const lines = [];
+  const today = new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' });
+  lines.push(`🌅 <b>Tongki dayjest</b> — ${today}`);
+  lines.push('');
+  if (sum.sources.length > 0) {
+    lines.push(`📁 <b>${sum.sources.length}</b> manba ulangan`);
+  }
+  if (sum.channels.length > 0) {
+    lines.push('');
+    lines.push(`📺 <b>Telegram kanallar:</b>`);
+    for (const c of sum.channels) {
+      lines.push(`  • ${c.title} — ${(c.member_count || 0).toLocaleString()} a'zo`);
+    }
+  }
+  if (sum.unreadAlerts > 0) {
+    lines.push('');
+    lines.push(`🔔 <b>${sum.unreadAlerts}</b> ta o'qilmagan ogohlantirish`);
+  }
+  if (sum.sources.length === 0 && sum.channels.length === 0) {
+    lines.push('Hozircha manbalar ulanmagan. Saytda Data Hub orqali manba qo\'shing.');
+  }
+  return lines.join('\n');
+}
+
+async function tickDigest() {
+  if (!_botInstance) return;
+  let targets;
+  try {
+    const r = await BackendAPI.digestTargets();
+    targets = r.targets || [];
+  } catch (e) {
+    console.warn('[DIGEST] targets fetch xato:', e.message);
+    return;
+  }
+  if (targets.length === 0) return;
+
+  const nowTime = new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Tashkent', hour12: false }).slice(0, 5);
+
+  for (const t of targets) {
+    if (inQuietHours(nowTime, t.quiet_hours_start, t.quiet_hours_end)) {
+      console.log(`[DIGEST] org=${t.organization_id} jim soatda — o'tkazib yuborildi`);
+      continue;
+    }
+    try {
+      const text = await buildDigestText(t.organization_id);
+      await _botInstance.telegram.sendMessage(String(t.chat_id), text, { parse_mode: 'HTML' });
+      console.log(`[DIGEST] ✓ ${t.org_name} → chat=${t.chat_id}`);
+    } catch (e) {
+      console.warn(`[DIGEST] ✗ org=${t.organization_id}: ${e.message}`);
+    }
+  }
+}
+
+function startDigestScheduler(bot) {
+  setBotForDigest(bot);
+  // Har 5 daqiqada tekshirish (digest_time minutes 5 ning karralisi bo'lishi tavsiya etiladi)
+  cron.schedule('*/5 * * * *', () => {
+    tickDigest().catch(e => console.error('[DIGEST] tick xato:', e.message));
+  }, { timezone: 'Asia/Tashkent' });
+  console.log('[DIGEST] Scheduler faol: har 5 daqiqada tekshirish');
+}
+
+module.exports = { startSyncScheduler, syncAllChannels, startDigestScheduler, tickDigest };

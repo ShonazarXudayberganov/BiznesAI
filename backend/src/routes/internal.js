@@ -6,6 +6,7 @@ const express = require('express');
 const pool = require('../db/pool');
 const { chatComplete } = require('../services/aiProviders');
 const { buildOrgContext } = require('../services/contextBuilder');
+const { buildReport } = require('../services/reportBuilder');
 
 const router = express.Router();
 
@@ -108,6 +109,64 @@ router.get('/org-summary', async (req, res) => {
     });
   } catch (e) {
     console.error('[internal/org-summary]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/internal/build-report
+// Body: { organizationId, format, title?, prompt?, userId? }
+// Agar `prompt` berilsa — AI matn ham generatsiya qilinadi va hisobotga qo'shiladi.
+router.post('/build-report', async (req, res) => {
+  try {
+    const { organizationId, format, title, prompt, userId } = req.body || {};
+    if (!organizationId || !format) return res.status(400).json({ error: 'organizationId va format kerak' });
+
+    let aiText = null;
+    if (prompt) {
+      try {
+        const ctx = await buildOrgContext(organizationId);
+        const r = await chatComplete({
+          userId: userId || null,
+          systemPrompt: ctx.systemPrompt,
+          message: prompt,
+          maxTokens: 1800,
+        });
+        aiText = r.reply;
+      } catch (e) {
+        aiText = `[AI tahlil tayyorlanmadi: ${e.message}]`;
+      }
+    }
+
+    const { buffer, mime, ext } = await buildReport({ format, organizationId, title, aiText });
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `attachment; filename="analix_report.${ext}"`);
+    res.send(buffer);
+  } catch (e) {
+    console.error('[internal/build-report]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/internal/digest-targets — kim uchun dayjest yuborish vaqti keldi (har 5 daq cron tomonidan chaqiriladi)
+// Query: nowMin (HH:MM, optional — default server time)
+router.get('/digest-targets', async (req, res) => {
+  try {
+    // Hozirgi soat (Asia/Tashkent default — bot worker scheduler shu zonada)
+    const now = req.query.nowMin || new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Tashkent', hour12: false }).slice(0, 5);
+    // Targetlar: digest_enabled = TRUE, digest_time ±5 daq (asosiy cron 5 daqiqada bir marta ishlaydi)
+    const r = await pool.query(
+      `SELECT bs.organization_id, bs.digest_time, bs.timezone, bs.quiet_hours_start, bs.quiet_hours_end, bs.enabled_modules,
+              bl.chat_id, o.name AS org_name
+       FROM telegram_bot_settings bs
+       JOIN telegram_bot_links bl ON bl.organization_id = bs.organization_id AND bl.active=TRUE
+       JOIN organizations o ON o.id = bs.organization_id
+       WHERE bs.digest_enabled = TRUE
+         AND bs.digest_time = $1`,
+      [now]
+    );
+    res.json({ now, targets: r.rows });
+  } catch (e) {
+    console.error('[internal/digest-targets]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

@@ -12,7 +12,7 @@ const registerStartHandler = require('./handlers/start');
 const registerMenuHandlers = require('./handlers/menu');
 const { findOrgByChatId, touchChat } = require('./services/linkService');
 const { startInternalApi } = require('./internalApi');
-const { startSyncScheduler } = require('./services/scheduler');
+const { startSyncScheduler, startDigestScheduler } = require('./services/scheduler');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -102,6 +102,9 @@ async function start() {
 
   // Kanal stats sync cron
   startSyncScheduler();
+
+  // Kunlik dayjest scheduler (har 5 daqiqada tekshirib, vaqti kelganlarga yuboradi)
+  startDigestScheduler(bot);
 
   console.log('[BOT] Tayyor — xabarlar kutilmoqda');
 }

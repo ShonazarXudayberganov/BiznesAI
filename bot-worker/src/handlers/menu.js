@@ -32,6 +32,45 @@ const analysisInline = Markup.inlineKeyboard([
   ],
 ]);
 
+// ── Hisobot turi va format tanlash ──
+const reportTypeInline = Markup.inlineKeyboard([
+  [
+    Markup.button.callback('Kunlik hisobot', 'report-type:daily'),
+    Markup.button.callback('Haftalik hisobot', 'report-type:weekly'),
+  ],
+  [
+    Markup.button.callback('Oylik hisobot', 'report-type:monthly'),
+    Markup.button.callback('Maxsus tahlil', 'report-type:custom'),
+  ],
+]);
+
+function reportFormatInline(reportType) {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('💬 Chat', `report-fmt:${reportType}:chat`),
+      Markup.button.callback('📄 PDF', `report-fmt:${reportType}:pdf`),
+    ],
+    [
+      Markup.button.callback('📊 Excel', `report-fmt:${reportType}:xlsx`),
+      Markup.button.callback('📝 TXT', `report-fmt:${reportType}:txt`),
+    ],
+  ]);
+}
+
+const REPORT_PROMPTS = {
+  daily: 'Bugungi va kechagi tezkor biznes hisobotini tayyorla. Asosiy KPI raqamlar, eng muhim 3-5 xulosa, qisqa tavsiyalar bilan. Aniq raqamlar va trendlar.',
+  weekly: 'So\'nggi 7 kunlik to\'liq tahlil tayyorla — kunlik o\'zgarishlar, trend yo\'nalishi, eng yaxshi va eng yomon kunlar, sabablari, keyingi haftaga tavsiyalar.',
+  monthly: 'So\'nggi 30 kunlik chuqur tahlil — oylik dinamika, asosiy yutuqlar, muammolar, raqobat sharhi, keyingi oy strategiyasi.',
+  custom: 'Tashkilot ma\'lumotlarini chuqur tahlil qil — eng muhim insightlarni top, kutilmagan trendlarni izohla, aniq harakat tavsiyalarini ber.',
+};
+
+const REPORT_TITLES = {
+  daily: 'Kunlik hisobot',
+  weekly: 'Haftalik hisobot',
+  monthly: 'Oylik hisobot',
+  custom: 'Maxsus tahlil',
+};
+
 // ── Universal: foydalanuvchi bog'langanmi tekshiradi ──
 async function withOrg(ctx) {
   const link = await findOrgByChatId(ctx.from.id);
@@ -166,7 +205,55 @@ module.exports = function registerMenuHandlers(bot) {
   bot.hears('📊 Hisobot', async (ctx) => {
     const link = await withOrg(ctx);
     if (!link) return;
-    return aiReply(ctx, link, 'Bugungi tezkor hisobot tayyorla. Asosiy raqamlar, eng muhim 3-5 ta xulosa, tavsiyalar bilan.');
+    return ctx.reply('Qaysi hisobot turi kerak?', reportTypeInline);
+  });
+
+  // Hisobot turi tanlangan → format so'rash
+  bot.action(/^report-type:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const link = await findOrgByChatId(ctx.from.id);
+    if (!link) return;
+    const type = ctx.match[1];
+    return ctx.reply(`<b>${REPORT_TITLES[type] || 'Hisobot'}</b> — qaysi formatda?`, {
+      parse_mode: 'HTML',
+      ...reportFormatInline(type),
+    });
+  });
+
+  // Format tanlangan → AI matn + fayl tayyorlash va yuborish
+  bot.action(/^report-fmt:([^:]+):(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    const link = await findOrgByChatId(ctx.from.id);
+    if (!link) return;
+    const [, type, fmt] = ctx.match;
+    const prompt = REPORT_PROMPTS[type] || REPORT_PROMPTS.daily;
+    const title = REPORT_TITLES[type] || 'Hisobot';
+
+    if (fmt === 'chat') {
+      return aiReply(ctx, link, prompt);
+    }
+
+    const wait = await ctx.reply(`📄 ${fmt.toUpperCase()} tayyorlanmoqda...`);
+    try {
+      const buffer = await BackendAPI.buildReport({
+        organizationId: link.organization_id,
+        userId: link.user_id,
+        format: fmt,
+        title,
+        prompt,
+      });
+      const filename = `analix_${type}_${new Date().toISOString().slice(0, 10)}.${fmt === 'xlsx' ? 'xlsx' : fmt}`;
+      await ctx.replyWithDocument(
+        { source: buffer, filename },
+        { caption: `✓ ${title} (${fmt.toUpperCase()})` }
+      );
+      await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    } catch (e) {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id, wait.message_id, undefined,
+        `❌ Hisobot tayyorlanmadi: ${e.message}`
+      );
+    }
   });
 
   bot.hears('📈 Tahlil', async (ctx) => {
