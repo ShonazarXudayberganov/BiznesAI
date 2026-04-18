@@ -9,3 +9,4 @@ npm-debug.log*
 uploads
 backend/uploads
 *.bak
+docker-compose.override.yml
