@@ -1544,12 +1544,12 @@ function LandingPage({ onLogin, onRegister }) {
     { title: "Raqamlarga asoslaning", desc: "Sezgi bilan emas, aniq raqamlar bilan qaror qabul qiling. Qayerda pul yo'qolayotganini, qayerda o'sayotganini real-vaqtda ko'ring.", ico: I(<><line x1="18" y1="20" x2="18" y2="10" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="12" y1="20" x2="12" y2="4" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /><line x1="6" y1="20" x2="6" y2="14" stroke={`url(#wc1)`} strokeWidth="2.5" strokeLinecap="round" /></>, "#4ADE80", "#22C55E", "wc1"), c: "#4ADE80" },
     { title: "Muammolarni oldindan ko'ring", desc: "AI sizning ma'lumotlaringizda anomaliyalarni avtomatik topadi. Savdo tushayotganini siz bilmasdan — tizim ogohlantiradi.", ico: I(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke={`url(#wc2)`} strokeWidth="1.8" /><line x1="12" y1="9" x2="12" y2="13" stroke={`url(#wc2)`} strokeWidth="2" strokeLinecap="round" /><circle cx="12" cy="16.5" r="1" fill={`url(#wc2)`} /></>, "#F87171", "#EF4444", "wc2"), c: "#F87171" },
     { title: "Barcha ma'lumot bir joyda", desc: "Excel, CRM, Instagram, Telegram — turli joylardagi ma'lumotlar bitta ekranda. Boshqa tab almashish, fayl qidirish yo'q.", ico: I(<><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={`url(#wc3)`} strokeWidth="1.8" /></>, "#00C9BE", "#00A89E", "wc3"), c: "#00C9BE" },
-    { title: "Xodimga to'lamang — AI qiladi", desc: "Tahlilchi yollash oyiga 5-10 mln so'm. BiznesAI bilan professional tahlilni 99 ming so'mdan oling. 50 barobar arzon.", ico: I(<><line x1="12" y1="1" x2="12" y2="23" stroke={`url(#wc4)`} strokeWidth="1.8" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={`url(#wc4)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#A78BFA", "#7C3AED", "wc4"), c: "#A78BFA" },
+    { title: "Xodimga to'lamang — AI qiladi", desc: "Tahlilchi yollash oyiga 5-10 mln so'm. Analix bilan professional tahlilni 99 ming so'mdan oling. 50 barobar arzon.", ico: I(<><line x1="12" y1="1" x2="12" y2="23" stroke={`url(#wc4)`} strokeWidth="1.8" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke={`url(#wc4)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#A78BFA", "#7C3AED", "wc4"), c: "#A78BFA" },
     { title: "Ovozingiz bilan so'rang", desc: "Yozishga vaqt yo'qmi? Mikrofon bosing va savol bering. AI O'zbek tilida tushunadi va javob beradi. Mashina haydab ketayotganda ham ishlaydi.", ico: I(<><rect x="9" y="2" width="6" height="11" rx="3" stroke={`url(#wc5)`} strokeWidth="1.8" /><path d="M5 10a7 7 0 0 0 14 0" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="12" y1="17" x2="12" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /><line x1="8" y1="22" x2="16" y2="22" stroke={`url(#wc5)`} strokeWidth="1.8" strokeLinecap="round" /></>, "#EC4899", "#DB2777", "wc5"), c: "#EC4899" },
   ];
 
   const faqs = [
-    { q: "BiznesAI qanday ishlaydi?", a: "Siz ma'lumot manbangizni (Excel, CRM, Instagram va h.k.) ulaysiz. AI shu ma'lumotlar asosida savollaringizga javob beradi, grafiklar yaratadi, hisobotlar yozadi va anomaliyalarni aniqlaydi." },
+    { q: "Analix qanday ishlaydi?", a: "Siz ma'lumot manbangizni (Excel, CRM, Instagram va h.k.) ulaysiz. AI shu ma'lumotlar asosida savollaringizga javob beradi, grafiklar yaratadi, hisobotlar yozadi va anomaliyalarni aniqlaydi." },
     { q: "Qaysi AI provayderlarni qo'llab-quvvatlaydi?", a: "Claude (Anthropic), ChatGPT (OpenAI), DeepSeek va Gemini (Google). Admin bitta global kalit o'rnatadi — barcha foydalanuvchilar bepul foydalanadi. Yoki o'z shaxsiy kalitingizni ulang." },
     { q: "Ma'lumotlarim xavfsizmi?", a: "Ha. Ma'lumotlar PostgreSQL serverda shifrlangan holda saqlanadi. Boshqa foydalanuvchilar sizning ma'lumotlaringizni ko'ra olmaydi. Har bir foydalanuvchi uchun alohida izolyatsiya." },
     { q: "Qancha turadi?", a: "Bepul tarif bor — 5 ta AI so'rov, 1 ta fayl. Boshlang'ich tarif 99,000 so'm/oy dan boshlanadi. Yillik to'lovda 2 oy bepul." },
@@ -1568,7 +1568,7 @@ function LandingPage({ onLogin, onRegister }) {
     <div className="landing">
       {/* NAV */}
       <nav className="land-nav">
-        <div className="land-logo">BIZ<span>NES</span>AI</div>
+        <div className="land-logo">ANA<span>LIX</span></div>
         <div className="flex gap8 aic" style={{ flexWrap: "wrap" }}>
           {[{ l: "Xususiyatlar", id: "features" }, { l: "Qanday ishlaydi", id: "howitworks" }, { l: "Narxlar", id: "pricing" }, { l: "FAQ", id: "faq" }].map(n => (
             <button key={n.id} onClick={() => scrollTo(n.id)} style={{ fontSize: 13, color: "var(--text2)", background: "none", border: "none", fontFamily: "var(--fh)", fontWeight: 500, padding: "6px 12px", cursor: "pointer", transition: "color .2s" }}
@@ -1651,9 +1651,9 @@ function LandingPage({ onLogin, onRegister }) {
         </div>
       </div>
 
-      {/* WHY BIZNESAI — Sotuvga undovchi */}
+      {/* WHY ANALIX — Sotuvga undovchi */}
       <div className="land-section">
-        <h2 className="land-section-title">Nega aynan BiznesAI?</h2>
+        <h2 className="land-section-title">Nega aynan Analix?</h2>
         <p className="land-section-sub">Biznesingizni tushunish uchun soatlab vaqt sarflamang — AI buni soniyalarda qiladi</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 20, maxWidth: 1100, margin: "0 auto" }}>
           {whyCards.map((w, i) => (
@@ -1672,7 +1672,7 @@ function LandingPage({ onLogin, onRegister }) {
       {/* TESTIMONIALS */}
       <div className="land-section" style={{ background: "var(--s1)", margin: 0, padding: "70px 48px" }}>
         <h2 className="land-section-title">Foydalanuvchilar fikri</h2>
-        <p className="land-section-sub">BiznesAI ishlatayotgan mutaxassislar nima deydi</p>
+        <p className="land-section-sub">Analix ishlatayotgan mutaxassislar nima deydi</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 20, maxWidth: 1000, margin: "0 auto" }}>
           {testimonials.map((t, i) => (
             <div key={i} style={{ padding: "28px", borderRadius: 16, border: "1px solid var(--border)", background: "var(--bg)", position: "relative" }}>
@@ -1769,7 +1769,7 @@ function LandingPage({ onLogin, onRegister }) {
       {/* FOOTER */}
       <div style={{ borderTop: "1px solid var(--border)", padding: "32px 48px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 32 }}>
         <div>
-          <div style={{ fontFamily: "var(--fh)", fontWeight: 800, fontSize: 18, marginBottom: 12 }}>BIZ<span style={{ color: "var(--gold)" }}>NES</span>AI</div>
+          <div style={{ fontFamily: "var(--fh)", fontWeight: 800, fontSize: 18, marginBottom: 12 }}>ANA<span style={{ color: "var(--gold)" }}>LIX</span></div>
           <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.7 }}>O'zbekiston uchun AI-powered biznes tahlil platformasi. Barcha ma'lumotlaringizni bitta joyda tahlil qiling.</div>
         </div>
         <div>
@@ -1788,14 +1788,14 @@ function LandingPage({ onLogin, onRegister }) {
         <div>
           <div style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 12 }}>Aloqa</div>
           <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.8 }}>
-            <div>info@shonazar.uz</div>
-            <div>Telegram: @biznesai_uz</div>
-            <div>shonazar.uz</div>
+            <div>info@analix.uz</div>
+            <div>Telegram: @analix_uz</div>
+            <div>analix.uz</div>
           </div>
         </div>
       </div>
       <div style={{ borderTop: "1px solid var(--border)", padding: "16px 48px", textAlign: "center", fontSize: 11, color: "var(--muted)" }}>
-        © 2025-2026 BiznesAI. Barcha huquqlar himoyalangan. O'zbekistonda ishlab chiqilgan.
+        © 2025-2026 Analix. Barcha huquqlar himoyalangan. O'zbekistonda ishlab chiqilgan.
       </div>
     </div>
   );
@@ -1825,7 +1825,7 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
     <div className="auth-wrap">
       <style>{CSS}</style>
       <div className="auth-card">
-        <div className="auth-logo">BIZ<span>NES</span>AI</div>
+        <div className="auth-logo">ANA<span>LIX</span></div>
         <div className="auth-sub">Hisobingizga kiring</div>
         {error && <div className="auth-err">{error}</div>}
         <div className="auth-field-wrap">
@@ -1886,7 +1886,7 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
     <div className="auth-wrap">
       <style>{CSS}</style>
       <div className="auth-card">
-        <div className="auth-logo">BIZ<span>NES</span>AI</div>
+        <div className="auth-logo">ANA<span>LIX</span></div>
         <div className="auth-sub">Yangi hisob yarating — bepul tarifda boshlang</div>
         {error && <div className="auth-err">{error}</div>}
         {[
@@ -6401,7 +6401,7 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
 
     const systemPrompt = {
       role: "system",
-      content: `Sen — BiznesAI, yuqori malakali biznes tahlilchi. Biznes egasiga HAYRATLANTIRADIGAN darajada foydali javoblar ber.${bizContext}
+      content: `Sen — Analix, yuqori malakali biznes tahlilchi. Biznes egasiga HAYRATLANTIRADIGAN darajada foydali javoblar ber.${bizContext}
 
 JAVOB FORMATI — bu juda MUHIM:
 1. Javobni STRUKTURALI yoz — sarlavhalar, nuqtalar bilan
@@ -6478,7 +6478,7 @@ MAZMUN QOIDALARI:
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `BiznesAI_chat_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.href = url; a.download = `Analix_chat_${new Date().toISOString().slice(0, 10)}.txt`;
     a.click(); URL.revokeObjectURL(url);
   };
 
@@ -6497,7 +6497,7 @@ MAZMUN QOIDALARI:
     const text = chatToText();
     if (!text.trim()) { alert("Chat bo'sh"); return; }
     if (navigator.share) {
-      try { await navigator.share({ title: "BiznesAI Chat", text }); } catch { }
+      try { await navigator.share({ title: "Analix Chat", text }); } catch { }
     } else {
       await copyChat();
     }
@@ -6515,7 +6515,7 @@ MAZMUN QOIDALARI:
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Chat");
-    XLSX.writeFile(wb, `BiznesAI_chat_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Analix_chat_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // Manba turiga qarab aqlli savollar
@@ -7001,7 +7001,7 @@ JAVOB QOIDALARI:
                   <button className="chat-export-btn" title="Yuklab olish" onClick={() => {
                     const blob = new Blob([`${activeLabel}\n${"═".repeat(40)}\n\n${result}`], { type: "text/plain;charset=utf-8" });
                     const url = URL.createObjectURL(blob); const a = document.createElement("a");
-                    a.href = url; a.download = `BiznesAI_${activeLabel.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
+                    a.href = url; a.download = `Analix_${activeLabel.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`;
                     a.click(); URL.revokeObjectURL(url);
                   }}> TXT</button>
                   <button className="chat-export-btn" title="PDF chop etish" onClick={() => {
@@ -7020,7 +7020,7 @@ JAVOB QOIDALARI:
                       if (t.startsWith("|") && t.endsWith("|")) { if (t.replace(/[|\-\s:]/g, "").length === 0) return ""; const cells = t.split("|").filter(c => c.trim()).map(c => c.trim()); return `<tr>${cells.map(c => `<td style="padding:8px 14px;border-bottom:1px solid #EDF2F7;font-size:12px">${c.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</td>`).join("")}</tr>`; }
                       return `<div style="margin:3px 0;line-height:1.75">${t.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>')}</div>`;
                     }).join("\n");
-                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border:1px solid #E2E8F0;border-radius:8px}table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;background:#F0FDFA;text-transform:uppercase;font-size:10px;letter-spacing:1px}table tr:nth-child(even){background:#F7FAFC}@media print{body{padding:24px 32px}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1"><div><div style="font-size:24px;font-weight:800;color:#1A202C">BIZ<span style="color:#B8860B">NES</span>AI</div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">BiznesAI · shonazar.uz</div></body></html>`;
+                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border:1px solid #E2E8F0;border-radius:8px}table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;background:#F0FDFA;text-transform:uppercase;font-size:10px;letter-spacing:1px}table tr:nth-child(even){background:#F7FAFC}@media print{body{padding:24px 32px}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1"><div><div style="font-size:24px;font-weight:800;color:#1A202C">ANA<span style="color:#B8860B">LIX</span></div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">Analix · analix.uz</div></body></html>`;
                     const iframe = document.createElement("iframe");
                     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:820px;height:1100px";
                     document.body.appendChild(iframe);
@@ -7191,7 +7191,7 @@ HISOBOT QOIDALARI:
     const t = text || report; const l = lbl || label;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([`${l}\n${"═".repeat(50)}\nSana: ${new Date().toLocaleDateString("uz-UZ")}\nAI: ${prov.name}\n${"═".repeat(50)}\n\n${t}`], { type: "text/plain;charset=utf-8" }));
-    a.download = `BiznesAI_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`; a.click();
+    a.download = `Analix_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.txt`; a.click();
   };
 
   const exportExcel = (text, lbl) => {
@@ -7204,11 +7204,11 @@ HISOBOT QOIDALARI:
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 12 }, { wch: 120 }];
-    XLSX.utils.sheet_add_aoa(ws, [[`${l} — ${new Date().toLocaleDateString("uz-UZ")} — BiznesAI`]], { origin: "A1" });
+    XLSX.utils.sheet_add_aoa(ws, [[`${l} — ${new Date().toLocaleDateString("uz-UZ")} — Analix`]], { origin: "A1" });
     XLSX.utils.book_append_sheet(wb, ws, "Hisobot");
     const wsRaw = XLSX.utils.aoa_to_sheet([[t]]);
     XLSX.utils.book_append_sheet(wb, wsRaw, "To'liq Matn");
-    XLSX.writeFile(wb, `BiznesAI_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Analix_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // Markdown ni HTML ga aylantirish (PDF uchun)
@@ -7270,7 +7270,7 @@ HISOBOT QOIDALARI:
           <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#0D9488,#B8860B,transparent)"></div>
           <div style="display:flex;align-items:flex-start;justify-content:space-between">
             <div>
-              <div style="font-size:24px;font-weight:800;color:#1A202C;letter-spacing:-0.5px">BIZ<span style="color:#B8860B">NES</span>AI</div>
+              <div style="font-size:24px;font-weight:800;color:#1A202C;letter-spacing:-0.5px">ANA<span style="color:#B8860B">LIX</span></div>
               <div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px;margin-top:2px">AI Biznes Tahlil Platformasi</div>
             </div>
             <div style="text-align:right">
@@ -7285,7 +7285,7 @@ HISOBOT QOIDALARI:
         <!-- Footer -->
         <div class="footer" style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <div style="font-size:9px;color:#A0AEC0">BiznesAI · shonazar.uz · AI-powered biznes tahlil</div>
+            <div style="font-size:9px;color:#A0AEC0">Analix · analix.uz · AI-powered biznes tahlil</div>
             <div style="font-size:9px;color:#A0AEC0">${dateStr}</div>
           </div>
         </div>
@@ -12195,7 +12195,7 @@ function AppContent() {
     { key: "bizType", label: "Qaysi sohada ishlaysiz?", placeholder: "", type: "select", options: ["O'quv markaz", "Onlayn do'kon", "Restoran/Kafe", "Marketing agentlik", "IT kompaniya", "Logistika", "Ishlab chiqarish", "Xizmat ko'rsatish", "Freelance", "Boshqa"] },
     { key: "employees", label: "Jamoangizda necha kishi?", placeholder: "", type: "select", options: ["Faqat men", "2-5 kishi", "6-20 kishi", "21-50 kishi", "50+ kishi"] },
     { key: "interest", label: "Sizni eng ko'p nima qiziqtiradi?", placeholder: "", type: "select", options: ["Savdo va daromad tahlili", "Xarajatlarni kamaytirish", "Mijozlar tahlili", "Marketing samaradorligi", "Xodimlar boshqaruvi", "Moliyaviy hisobotlar", "Prognozlash va bashorat"] },
-    { key: "goal", label: "BiznesAI dan nimani kutasiz?", placeholder: "", type: "select", options: ["Vaqtimni tejashni", "Aniq raqamlar bilan qaror qabul qilishni", "Avtomatik hisobotlar olishni", "Muammolarni oldindan ko'rishni", "Biznesni o'stirish strategiyasini"] },
+    { key: "goal", label: "Analix dan nimani kutasiz?", placeholder: "", type: "select", options: ["Vaqtimni tejashni", "Aniq raqamlar bilan qaror qabul qilishni", "Avtomatik hisobotlar olishni", "Muammolarni oldindan ko'rishni", "Biznesni o'stirish strategiyasini"] },
   ];
 
   const saveOnboarding = () => {
@@ -12424,7 +12424,7 @@ function AppContent() {
         <div className="app">
           <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
             <div className="logo-wrap">
-              <div className="logo-main">BIZ<span>NES</span>AI</div>
+              <div className="logo-main">ANA<span>LIX</span></div>
               <div className="logo-sub" style={{ color: "var(--gold)" }}>Super Admin</div>
               <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
             </div>
@@ -12541,7 +12541,7 @@ function AppContent() {
         {/* SIDEBAR */}
         <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
           <div className="logo-wrap">
-            <div className="logo-main">BIZ<span>NES</span>AI</div>
+            <div className="logo-main">ANA<span>LIX</span></div>
             <div className="logo-sub">Strategik Agent v2</div>
             <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
           </div>
