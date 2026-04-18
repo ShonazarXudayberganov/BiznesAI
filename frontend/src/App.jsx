@@ -8494,8 +8494,12 @@ function MtprotoChannelPanel({ push, user }) {
   const syncChannel = async (id) => {
     setBusy(true);
     try {
-      await TelegramAPI.syncChannel(id);
-      push("Statistika yangilandi", "ok");
+      const r = await TelegramAPI.syncChannel(id);
+      if (r?.note) {
+        push(r.note, "warn");
+      } else {
+        push(`Statistika yangilandi · ${r?.members?.toLocaleString() || "?"} a'zo`, "ok");
+      }
       await reload();
     } catch (e) {
       push(e.message, "error");

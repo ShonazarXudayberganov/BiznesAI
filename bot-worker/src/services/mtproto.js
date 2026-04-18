@@ -28,7 +28,7 @@ function newClient(sessionStr = '') {
     new StringSession(sessionStr || ''),
     API_ID,
     API_HASH,
-    { connectionRetries: 3, useWSS: false, baseLogger: { log() {}, info() {}, warn(){}, error: (...a)=>console.warn('[gramjs]',...a), debug(){} } }
+    { connectionRetries: 3, useWSS: false }
   );
 }
 
@@ -240,18 +240,20 @@ async function connectChannel(organizationId, channelMeta) {
   if (sessRes.rows.length === 0) throw new Error('Faol session yo\'q');
   const sessionId = sessRes.rows[0].id;
 
+  const accessHash = channelMeta.accessHash ? String(channelMeta.accessHash) : null;
   const r = await pool.query(
     `INSERT INTO telegram_channels
-       (organization_id, mtproto_session_id, channel_id, username, title, member_count, active, last_synced_at)
-     VALUES ($1, $2, $3, $4, $5, $6, TRUE, NULL)
+       (organization_id, mtproto_session_id, channel_id, access_hash, username, title, member_count, active, last_synced_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, NULL)
      ON CONFLICT (organization_id, channel_id) DO UPDATE SET
        mtproto_session_id = EXCLUDED.mtproto_session_id,
+       access_hash = EXCLUDED.access_hash,
        username = EXCLUDED.username,
        title = EXCLUDED.title,
        member_count = EXCLUDED.member_count,
        active = TRUE
      RETURNING id`,
-    [organizationId, sessionId, channelMeta.channelId, channelMeta.username, channelMeta.title, channelMeta.memberCount]
+    [organizationId, sessionId, channelMeta.channelId, accessHash, channelMeta.username, channelMeta.title, channelMeta.memberCount]
   );
   return { id: r.rows[0].id };
 }
@@ -262,7 +264,7 @@ async function connectChannel(organizationId, channelMeta) {
 async function getChannelStats(channelDbId) {
   assertApi();
   const r = await pool.query(
-    `SELECT c.id, c.channel_id, c.username, s.session_encrypted
+    `SELECT c.id, c.channel_id, c.access_hash, c.username, s.session_encrypted
      FROM telegram_channels c
      JOIN telegram_mtproto_sessions s ON s.id=c.mtproto_session_id
      WHERE c.id=$1 AND s.status='active'`,
@@ -275,39 +277,68 @@ async function getChannelStats(channelDbId) {
   await client.connect();
 
   try {
-    // Kanal entity
-    const inputChannel = ch.username
-      ? await client.getInputEntity(ch.username)
-      : await client.getInputEntity(parseInt(ch.channel_id));
+    // Kanal entity — saqlangan accessHash bilan to'g'ridan InputPeerChannel quramiz.
+    // Username ham bo'lsa fallback. Aks holda entity cache'da yo'qligi sababli xato beradi.
+    let inputChannel;
+    if (ch.access_hash) {
+      const { Api: A } = require('telegram');
+      inputChannel = new A.InputChannel({
+        channelId: BigInt(ch.channel_id),
+        accessHash: BigInt(ch.access_hash),
+      });
+    } else if (ch.username) {
+      inputChannel = await client.getInputEntity(ch.username);
+    } else {
+      // Eski yozuvlar uchun: dialogs orqali topishga harakat
+      const dialogs = await client.getDialogs({ limit: 200 });
+      const found = dialogs.find(d => d.entity && String(d.entity.id) === String(ch.channel_id));
+      if (!found) throw new Error('Kanal entity topilmadi — qaytadan ulang');
+      inputChannel = await client.getInputEntity(found.entity);
+      // accessHash ni keyin uchun saqlab qo'yamiz
+      if (found.entity.accessHash) {
+        await pool.query(`UPDATE telegram_channels SET access_hash=$1 WHERE id=$2`,
+          [String(found.entity.accessHash), ch.id]);
+      }
+    }
 
-    // Asosiy ma'lumot
+    // Asosiy ma'lumot — bu HAR DOIM ishlaydi
     const full = await client.invoke(new Api.channels.GetFullChannel({ channel: inputChannel }));
     const memberCount = full.fullChat?.participantsCount || null;
 
-    // stats DC ni topish (statistika alohida DC'da bo'lishi mumkin)
+    // Rasmiy statistika — kichik kanallar uchun mavjud emas
+    // (Telegram talabi: 100+ obunachi va broadcast channel)
     let stats = null;
+    let statsAvailable = false;
     try {
       stats = await client.invoke(new Api.stats.GetBroadcastStats({
         channel: inputChannel,
         dark: false,
       }));
+      statsAvailable = true;
     } catch (e) {
+      const msg = e.errorMessage || e.message || '';
       // STATS_MIGRATE_X — boshqa DC'ga ko'chish kerak
-      if (e.errorMessage && e.errorMessage.startsWith('STATS_MIGRATE_')) {
-        const dc = parseInt(e.errorMessage.split('_').pop(), 10);
-        await client._switchDC(dc);
-        stats = await client.invoke(new Api.stats.GetBroadcastStats({
-          channel: inputChannel,
-          dark: false,
-        }));
-      } else if (e.errorMessage === 'CHAT_ADMIN_REQUIRED') {
-        throw new Error('Bu kanalga admin huquqlari yo\'q');
+      if (msg.startsWith('STATS_MIGRATE_')) {
+        const dc = parseInt(msg.split('_').pop(), 10);
+        try {
+          await client._switchDC(dc);
+          stats = await client.invoke(new Api.stats.GetBroadcastStats({
+            channel: inputChannel,
+            dark: false,
+          }));
+          statsAvailable = true;
+        } catch (e2) {
+          console.warn('[mtproto] Stats DC migrate failed:', e2.message);
+        }
+      } else if (msg === 'CHAT_ADMIN_REQUIRED' || msg === 'BROADCAST_PUBLIC_VOTERS_FORBIDDEN') {
+        // Stats yo'q — kichik kanal yoki broadcast emas. Davom etamiz, faqat memberCount yozamiz.
+        console.warn(`[mtproto] Stats unavailable for channel ${ch.id}: ${msg}`);
       } else {
         throw e;
       }
     }
 
-    // Bugungi statistikani DB'ga yozish
+    // DB'ga yozish (stats bo'lmasa ham memberCount yoziladi)
     const today = new Date().toISOString().slice(0, 10);
     const followers = stats?.followers?.current ?? memberCount;
     const viewsAvg = stats?.viewsPerPost?.current ?? null;
@@ -350,6 +381,8 @@ async function getChannelStats(channelDbId) {
       channelId: ch.id,
       members: followers,
       viewsAvg, sharesAvg, reactionsAvg,
+      statsAvailable,
+      note: statsAvailable ? null : 'Kanal statistikasi mavjud emas (kamida 100 obunachi kerak yoki broadcast emas). Faqat a\'zolar soni yangilandi.',
     };
   } finally {
     await client.disconnect().catch(() => {});

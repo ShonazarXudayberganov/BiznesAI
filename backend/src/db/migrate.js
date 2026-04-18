@@ -356,6 +356,7 @@ CREATE TABLE IF NOT EXISTS telegram_channels (
   organization_id       INT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   mtproto_session_id    INT REFERENCES telegram_mtproto_sessions(id) ON DELETE SET NULL,
   channel_id            BIGINT NOT NULL,
+  access_hash           BIGINT,
   username              VARCHAR(128),
   title                 VARCHAR(255),
   member_count          INT,
@@ -364,6 +365,8 @@ CREATE TABLE IF NOT EXISTS telegram_channels (
   last_synced_at        TIMESTAMPTZ,
   UNIQUE (organization_id, channel_id)
 );
+
+ALTER TABLE telegram_channels ADD COLUMN IF NOT EXISTS access_hash BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_tg_channels_org ON telegram_channels(organization_id);
 CREATE INDEX IF NOT EXISTS idx_tg_channels_active ON telegram_channels(active);
