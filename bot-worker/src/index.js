@@ -13,6 +13,7 @@ const registerMenuHandlers = require('./handlers/menu');
 const { findOrgByChatId, touchChat } = require('./services/linkService');
 const { startInternalApi } = require('./internalApi');
 const { startSyncScheduler, startDigestScheduler } = require('./services/scheduler');
+const { startAnomalyScheduler } = require('./services/anomalyDetector');
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (!BOT_TOKEN) {
@@ -105,6 +106,9 @@ async function start() {
 
   // Kunlik dayjest scheduler (har 5 daqiqada tekshirib, vaqti kelganlarga yuboradi)
   startDigestScheduler(bot);
+
+  // Anomaliya kuzatuvchi (har soatda)
+  startAnomalyScheduler(bot);
 
   console.log('[BOT] Tayyor — xabarlar kutilmoqda');
 }
