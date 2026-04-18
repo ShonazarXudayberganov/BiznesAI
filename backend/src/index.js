@@ -18,23 +18,44 @@ const PORT = process.env.PORT || 3001;
 app.set('trust proxy', 1);
 
 // ── Middleware ──
-app.use(helmet());
+// Helmet: default himoya + cross-origin resource policy frontend/backend bir domendan berilganda ishlaydi.
+// CSP default'ni o'chirib qo'ydik — SPA inline style/script uchun alohida tuning kerak.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'same-site' },
+}));
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? undefined  // production da same-origin (nginx proxy)
     : ['http://localhost:3000', 'http://localhost:5173'],
   credentials: true,
 }));
-app.use(express.json({ limit: '50mb' })); // Katta data uchun
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Rate limiting
+// Payload limit — katta AI context va website scrape natijalari uchun 15MB yetarli
+const JSON_LIMIT = process.env.JSON_BODY_LIMIT || '15mb';
+app.use(express.json({ limit: JSON_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_LIMIT }));
+
+// Rate limiting — per-IP. Login/register uchun alohida stricter limit
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 daqiqa
-  max: 500,                  // max 500 so'rov / 15 min
+  max: parseInt(process.env.RATE_LIMIT_MAX || '500', 10),
   message: { error: 'Juda ko\'p so\'rov. 15 daqiqadan keyin qaytib urinib ko\'ring.' },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
+
+// Auth endpointlari uchun brute-force himoyasi
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '20', 10),
+  message: { error: 'Juda ko\'p urinish. 15 daqiqadan keyin qayta urinib ko\'ring.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
+app.use(['/api/auth/login', '/api/auth/register'], authLimiter);
 
 // Static uploads
 app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, '../uploads')));
@@ -73,10 +94,27 @@ app.use('/api/*', (req, res) => {
 
 // ── Error handler ──
 app.use((err, req, res, next) => {
-  console.error('[ERROR]', err.message);
+  // Multer'dan keladigan hajm xatosi — aniq xabar berish
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'Fayl hajmi juda katta' });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'So\'rov tanasi juda katta' });
+  }
+  console.error('[ERROR]', err.stack || err.message);
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production' ? 'Server xatosi' : err.message,
   });
+});
+
+// ── Process-level error handlers ──
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED_REJECTION]', reason?.stack || reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT_EXCEPTION]', err.stack || err.message);
+  // Kritik xato — process'ni restart qilishga imkon berish uchun chiqamiz
+  setTimeout(() => process.exit(1), 200);
 });
 
 // ── Start server ──

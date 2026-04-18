@@ -2,17 +2,58 @@ const express = require('express');
 const cheerio = require('cheerio');
 const https = require('https');
 const http = require('http');
+const dns = require('dns').promises;
 const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
 router.use(requireAuth);
 
+// SSRF himoyasi: private/loopback IP manzillarga so'rovni bloklash
+function isPrivateIp(ip) {
+    if (!ip) return false;
+    // IPv6 loopback / private
+    if (ip === '::1' || ip.toLowerCase().startsWith('fc') || ip.toLowerCase().startsWith('fd') || ip.toLowerCase().startsWith('fe80')) return true;
+    // IPv4
+    const parts = ip.split('.').map(n => parseInt(n, 10));
+    if (parts.length !== 4 || parts.some(n => isNaN(n))) return false;
+    const [a, b] = parts;
+    if (a === 10) return true;                       // 10.0.0.0/8
+    if (a === 127) return true;                      // 127.0.0.0/8
+    if (a === 0) return true;                        // 0.0.0.0/8
+    if (a === 169 && b === 254) return true;         // link-local
+    if (a === 172 && b >= 16 && b <= 31) return true;// 172.16.0.0/12
+    if (a === 192 && b === 168) return true;         // 192.168.0.0/16
+    if (a >= 224) return true;                       // multicast / reserved
+    return false;
+}
+
+async function assertPublicHost(hostname) {
+    // Literal IP
+    if (/^[0-9.]+$/.test(hostname) || hostname.includes(':')) {
+        if (isPrivateIp(hostname)) throw new Error('Ichki tarmoq manzillariga ulanish taqiqlangan');
+        return;
+    }
+    try {
+        const addrs = await dns.lookup(hostname, { all: true });
+        for (const a of addrs) {
+            if (isPrivateIp(a.address)) throw new Error('Ichki tarmoq manzillariga ulanish taqiqlangan');
+        }
+    } catch (e) {
+        if (e.message && e.message.includes('Ichki tarmoq')) throw e;
+        // DNS topilmasa — fetch keyin tegishli xato beradi
+    }
+}
+
 // Saytdan HTML yuklab olish (Node.js http/https modullari — SSL ham o'tadi)
-function fetchHtml(url, timeout = 15000) {
+function fetchHtml(url, timeout = 15000, redirectDepth = 0) {
     return new Promise((resolve, reject) => {
+        if (redirectDepth > 5) return reject(new Error('Juda ko\'p redirect'));
         let parsed;
         try { parsed = new URL(url); } catch (e) { return reject(new Error('URL noto\'g\'ri formatda')); }
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return reject(new Error('Faqat http/https qo\'llab-quvvatlanadi'));
+        }
 
         const isHttps = parsed.protocol === 'https:';
         const lib = isHttps ? https : http;
@@ -29,8 +70,10 @@ function fetchHtml(url, timeout = 15000) {
                 'Accept-Encoding': 'identity',
                 'Connection': 'close',
             },
-            // SSL xatolarini e'tiborsiz qoldirish (ko'p o'zbek saytlarda SSL muammo)
-            rejectUnauthorized: false,
+            // SSL: ko'p o'zbek saytlarda sertifikat muammolari bor — default ravishda tekshirilmaydi.
+            // SCRAPE_STRICT_TLS=true qilib qat'iy tekshiruvni yoqish mumkin.
+            // SSRF xavfi yuqorida assertPublicHost() bilan bloklanadi, shuning uchun bu yerda TLS off xavfli emas.
+            rejectUnauthorized: process.env.SCRAPE_STRICT_TLS === 'true',
         };
 
         let settled = false;
@@ -47,7 +90,7 @@ function fetchHtml(url, timeout = 15000) {
             if ([301, 302, 303, 307, 308].includes(res.statusCode) && loc) {
                 clearTimeout(timer);
                 const next = loc.startsWith('http') ? loc : new URL(loc, url).href;
-                fetchHtml(next, timeout).then(
+                fetchHtml(next, timeout, redirectDepth + 1).then(
                     html => done(() => resolve(html)),
                     err => done(() => reject(err))
                 );
@@ -61,7 +104,18 @@ function fetchHtml(url, timeout = 15000) {
             }
 
             const chunks = [];
-            res.on('data', chunk => chunks.push(chunk));
+            let totalBytes = 0;
+            const MAX_BYTES = 5 * 1024 * 1024; // 5MB limit — juda katta sahifalar uchun himoya
+            res.on('data', chunk => {
+                totalBytes += chunk.length;
+                if (totalBytes > MAX_BYTES) {
+                    clearTimeout(timer);
+                    try { req.destroy(); } catch { }
+                    done(() => reject(new Error('Sahifa hajmi 5MB dan katta — tahlil qilinmaydi')));
+                    return;
+                }
+                chunks.push(chunk);
+            });
             res.on('end', () => {
                 clearTimeout(timer);
                 const html = Buffer.concat(chunks).toString('utf8');
@@ -223,6 +277,15 @@ router.post('/', async (req, res) => {
     let normalizedUrl = url.trim();
     if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;
 
+    // SSRF himoyasi — URL public hostnamega yo'naltirilsin
+    let parsedUrl;
+    try { parsedUrl = new URL(normalizedUrl); } catch { return res.status(400).json({ error: 'URL noto\'g\'ri formatda' }); }
+    try {
+        await assertPublicHost(parsedUrl.hostname);
+    } catch (e) {
+        return res.status(400).json({ error: e.message });
+    }
+
     try {
         console.log(`[SCRAPE] Starting: ${normalizedUrl} (deep=${deepScan})`);
 
@@ -233,12 +296,21 @@ router.post('/', async (req, res) => {
 
         if (deepScan) {
             const innerLinks = mainData.ichki_havolalar.slice(0, 10);
+
+            // Parallel fetch — ketma-ket o'rniga barchasi birga
+            const results = await Promise.allSettled(
+                innerLinks.map(link => fetchHtml(link, 10000).then(html => ({ link, html })))
+            );
+
             let scanned = 0;
-            for (const link of innerLinks) {
+            results.forEach((result, idx) => {
+                const link = innerLinks[idx];
+                if (result.status === 'rejected') {
+                    console.warn(`[SCRAPE] Failed inner page ${link}: ${result.reason?.message || result.reason}`);
+                    return;
+                }
                 try {
-                    console.log(`[SCRAPE] Inner page: ${link}`);
-                    const html = await fetchHtml(link, 10000);
-                    const pageData = analyzePage(html, link);
+                    const pageData = analyzePage(result.value.html, link);
                     const pathLower = new URL(link).pathname.toLowerCase();
                     let pageType = 'ichki_sahifa';
                     if (/contact|aloqa|bog-lan|murojaat/.test(pathLower)) pageType = 'aloqa_sahifasi';
@@ -250,10 +322,10 @@ router.post('/', async (req, res) => {
                     allPages.push({ ...pageData, _type: 'website_page', _page_type: pageType });
                     scanned++;
                 } catch (e) {
-                    console.warn(`[SCRAPE] Failed inner page ${link}: ${e.message}`);
+                    console.warn(`[SCRAPE] analyze failed ${link}: ${e.message}`);
                 }
-            }
-            console.log(`[SCRAPE] Inner pages scanned: ${scanned}`);
+            });
+            console.log(`[SCRAPE] Inner pages scanned: ${scanned}/${innerLinks.length}`);
         }
 
         const allPhones = [...new Set(allPages.flatMap(p => p.telefon_raqamlar))];

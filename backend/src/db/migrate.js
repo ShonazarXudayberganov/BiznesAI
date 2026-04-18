@@ -185,23 +185,36 @@ CREATE TABLE IF NOT EXISTS login_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_login_history_user ON login_history(user_id);
-
--- Default admin user
-INSERT INTO users (name, email, password_hash, role, plan)
-VALUES ('Admin', 'biznesadmin@gmail.com', '$ADMIN_HASH', 'admin', 'enterprise')
-ON CONFLICT (email) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_login_history_user_created ON login_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_last_active ON sessions(last_active DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_created ON payments(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_source_data_updated ON source_data(updated_at DESC);
 `;
 
 async function migrate(shouldEndPool = true) {
   console.log('[MIGRATE] Starting database migration...');
   try {
-    // bcrypt admin password
-    const bcrypt = require('bcryptjs');
-    const adminHash = await bcrypt.hash('badmin9595', 12);
-    const sql = SCHEMA.replace('$ADMIN_HASH', adminHash);
-
-    await pool.query(sql);
+    await pool.query(SCHEMA);
     console.log('[MIGRATE] ✓ All tables created successfully');
+
+    // Default admin — faqat ADMIN_PASSWORD env berilganda yaratamiz (kodda hardcoded parol yo'q)
+    const adminEmail = (process.env.ADMIN_EMAIL || 'biznesadmin@gmail.com').toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (adminPassword && adminPassword.length >= 8) {
+      const bcrypt = require('bcryptjs');
+      const existing = await pool.query('SELECT id FROM users WHERE email=$1', [adminEmail]);
+      if (existing.rows.length === 0) {
+        const adminHash = await bcrypt.hash(adminPassword, 12);
+        await pool.query(
+          `INSERT INTO users (name, email, password_hash, role, plan)
+           VALUES ('Admin', $1, $2, 'admin', 'enterprise')`,
+          [adminEmail, adminHash]
+        );
+        console.log(`[MIGRATE] ✓ Admin yaratildi: ${adminEmail}`);
+      }
+    } else if (!process.env.ADMIN_PASSWORD) {
+      console.warn('[MIGRATE] ⚠ ADMIN_PASSWORD env yo\'q — default admin yaratilmadi');
+    }
 
     // Insert default global settings
     await pool.query(`
