@@ -4,7 +4,8 @@ const https = require('https');
 const http = require('http');
 const dns = require('dns').promises;
 const pool = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, checkPermission } = require('../middleware/auth');
+const { requireSourceAccess } = require('./sources');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -265,14 +266,14 @@ function analyzePage(html, url) {
 }
 
 // ── POST /api/scrape ── (Saytni to'liq tahlil qilish)
-router.post('/', async (req, res) => {
+router.post('/', checkPermission('can_add_sources'), async (req, res) => {
     const { url, sourceId, deepScan = false } = req.body;
 
     if (!url) return res.status(400).json({ error: 'url kerak' });
     if (!sourceId) return res.status(400).json({ error: 'sourceId kerak' });
 
-    const check = await pool.query('SELECT id FROM sources WHERE id=$1 AND user_id=$2', [sourceId, req.userId]);
-    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+    const access = await requireSourceAccess(req, res, sourceId);
+    if (!access) return;
 
     let normalizedUrl = url.trim();
     if (!normalizedUrl.startsWith('http')) normalizedUrl = 'https://' + normalizedUrl;

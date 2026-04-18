@@ -3,7 +3,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const pool = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, checkPermission } = require('../middleware/auth');
+const { requireSourceAccess } = require('./sources');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -30,7 +31,7 @@ const upload = multer({
 });
 
 // ── POST /api/upload/parse-only ── (source siz — faqat matn ajratish, DB ga saqlamasdan)
-router.post('/parse-only', upload.single('file'), async (req, res) => {
+router.post('/parse-only', checkPermission('can_add_sources'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Fayl kerak' });
 
@@ -82,12 +83,12 @@ router.post('/parse-only', upload.single('file'), async (req, res) => {
 });
 
 // ── POST /api/upload/:sourceId/parse ── (fayl yuklash + parse + bazaga saqlash)
-router.post('/:sourceId/parse', upload.single('file'), async (req, res) => {
+router.post('/:sourceId/parse', checkPermission('can_add_sources'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Fayl kerak' });
 
-    const check = await pool.query('SELECT id FROM sources WHERE id=$1 AND user_id=$2', [req.params.sourceId, req.userId]);
-    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+    const access = await requireSourceAccess(req, res, req.params.sourceId);
+    if (!access) return;
 
     const filePath = req.file.path;
     const ext = path.extname(req.file.originalname).toLowerCase();
@@ -233,11 +234,11 @@ router.post('/:sourceId/parse', upload.single('file'), async (req, res) => {
 });
 
 // ── POST /api/upload/:sourceId ── (oddiy fayl yuklash)
-router.post('/:sourceId', upload.single('file'), async (req, res) => {
+router.post('/:sourceId', checkPermission('can_add_sources'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Fayl kerak' });
-    const check = await pool.query('SELECT id FROM sources WHERE id=$1 AND user_id=$2', [req.params.sourceId, req.userId]);
-    if (check.rows.length === 0) return res.status(404).json({ error: 'Manba topilmadi' });
+    const access = await requireSourceAccess(req, res, req.params.sourceId);
+    if (!access) return;
 
     await pool.query(
       `INSERT INTO source_files (source_id, filename, filepath, size_bytes, mime_type)
@@ -254,12 +255,11 @@ router.post('/:sourceId', upload.single('file'), async (req, res) => {
 // ── GET /api/upload/:sourceId ── (manba fayllari ro'yxati)
 router.get('/:sourceId', async (req, res) => {
   try {
+    const access = await requireSourceAccess(req, res, req.params.sourceId);
+    if (!access) return;
     const result = await pool.query(
-      `SELECT sf.* FROM source_files sf
-       JOIN sources s ON s.id=sf.source_id
-       WHERE sf.source_id=$1 AND s.user_id=$2
-       ORDER BY sf.uploaded_at DESC`,
-      [req.params.sourceId, req.userId]
+      `SELECT sf.* FROM source_files sf WHERE sf.source_id=$1 ORDER BY sf.uploaded_at DESC`,
+      [req.params.sourceId]
     );
     res.json(result.rows.map(f => ({
       id: f.id, filename: f.filename, size: f.size_bytes, uploadedAt: f.uploaded_at,

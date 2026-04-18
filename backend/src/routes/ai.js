@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireAdmin, checkPermission, checkAiLimit } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -87,8 +87,8 @@ router.put('/global', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
-// ── POST /api/ai/increment ── (AI so'rov hisoblagich)
-router.post('/increment', requireAuth, async (req, res) => {
+// ── POST /api/ai/increment ── (AI so'rov hisoblagich + limit tekshiruvi)
+router.post('/increment', requireAuth, checkPermission('can_use_ai'), checkAiLimit, async (req, res) => {
   try {
     const curMonth = new Date().toISOString().slice(0, 7);
     await pool.query(`
