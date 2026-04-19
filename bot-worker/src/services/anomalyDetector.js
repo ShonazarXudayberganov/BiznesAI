@@ -14,6 +14,7 @@
  */
 const cron = require('node-cron');
 const pool = require('../db/pool');
+const F = require('../lib/formatter');
 
 // Sensitivity → threshold (z-score chegaralari)
 const SENSITIVITY = {
@@ -109,21 +110,34 @@ async function isDuplicate(orgId, type, withinHours = 24) {
   return r.rows.length > 0;
 }
 
-function severityIcon(sev) { return sev === 'critical' ? '🔴' : sev === 'warning' ? '🟡' : '🟢'; }
-
 function formatAnomaly(a) {
   const d = a.details || {};
   const label = METRIC_LABELS[a.metric] || a.metric;
-  const arrow = d.direction === 'oshish' ? '↑' : '↓';
-  return [
-    `${severityIcon(a.severity)} <b>Anomaliya — ${a.severity.toUpperCase()}</b>`,
-    '',
-    `Kanal: <b>${d.channelTitle || '?'}</b>${d.channelUsername ? ' (@' + d.channelUsername + ')' : ''}`,
-    `Ko'rsatkich: ${label}`,
-    `Bugun: <b>${(a.value || 0).toLocaleString()}</b> ${arrow} (${d.pctChange > 0 ? '+' : ''}${d.pctChange}%)`,
-    `O'rtacha (${d.baselineDays} kun): ${(a.baseline || 0).toLocaleString()}`,
-    `Z-score: ${d.z}`,
-  ].join('\n');
+  const icon = F.severityIcon(a.severity);
+  const sevLabel = { critical: 'Kritik', warning: 'Ogohlantirish', info: 'Ma\'lumot' }[a.severity] || a.severity;
+  const arrow = d.direction === 'oshish' ? '📈' : '📉';
+  const today = new Date().toLocaleString('uz-UZ', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const pct = d.pctChange > 0 ? `+${d.pctChange}%` : `${d.pctChange}%`;
+
+  const out = [];
+  out.push(F.header(`${icon} Anomaliya — ${sevLabel}`, today));
+  out.push('');
+  out.push(`📺 <b>${F.escHtml(d.channelTitle || '?')}</b>${d.channelUsername ? ' @' + F.escHtml(d.channelUsername) : ''}`);
+  out.push('');
+  out.push(F.table(
+    [{ label: 'Ko\'rsatkich', width: 18 }, { label: 'Qiymat', width: 12 }, { label: 'Bazaga nisbatan', width: 16 }],
+    [[label, F.fmtNum(a.value), `${arrow} ${pct}`]]
+  ));
+  out.push('');
+  out.push(`  ▫️ Bugungi: <b>${F.fmtNum(a.value)}</b>`);
+  out.push(`  ▫️ ${d.baselineDays} kunlik o'rtacha: <b>${F.fmtNum(a.baseline)}</b>`);
+  out.push(`  ▫️ Z-score: <code>${d.z}</code>`);
+  if (a.severity === 'critical') {
+    out.push('');
+    out.push(F.quote('⚠️ Kritik o\'zgarish — sababni aniqlash tavsiya etiladi'));
+  }
+  out.push(F.footer());
+  return out.join('\n');
 }
 
 async function processAnomalies(bot) {

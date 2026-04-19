@@ -5,14 +5,22 @@
  * Hisobot turi: kunlik dayjest, savdo, kanal va h.k.
  * Hozircha barcha tur uchun bitta umumiy generator — AI matni + tashkilot KPI'lari.
  */
-const PDFDocument = require('pdfkit');
 const XLSX = require('xlsx');
 const pool = require('../db/pool');
+const puppeteer = require('puppeteer-core');
+const { buildReportHtml } = require('./htmlTemplate');
 
-const BRAND_GOLD = '#D4A853';
-const BRAND_TEAL = '#00C9BE';
-const TEXT_DARK = '#1A202C';
-const TEXT_MUTED = '#718096';
+const CHROMIUM_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser';
+
+// Markdown matnni TXT/Excel uchun tozalash
+function stripMd(s) {
+  return String(s || '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/^#+\s*/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+}
 
 // ─────────────────────────────────────────────
 // 1. Tashkilot ma'lumotlarini yig'ish
@@ -53,89 +61,52 @@ async function gatherReportData(organizationId) {
 }
 
 // ─────────────────────────────────────────────
-// 2. PDF
+// 2. PDF — Puppeteer orqali (sayt bilan bir xil dizayn)
 // ─────────────────────────────────────────────
-async function buildPdf({ organizationId, title, aiText }) {
-  const data = await gatherReportData(organizationId);
-
-  return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
-    const chunks = [];
-    doc.on('data', c => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-
-    // Header
-    doc.fillColor(TEXT_DARK).fontSize(22).font('Helvetica-Bold').text('ANALIX', 50, 50, { continued: false });
-    doc.fontSize(8).fillColor(TEXT_MUTED).font('Helvetica').text('AI biznes-tahlilchi', 50, 75);
-
-    // Sarlavha
-    const today = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
-    doc.fontSize(16).fillColor(TEXT_DARK).font('Helvetica-Bold').text(title || 'Hisobot', 50, 110);
-    doc.fontSize(10).fillColor(TEXT_MUTED).font('Helvetica').text(`${data.orgName} · ${today}`, 50, 130);
-
-    // Chiziq
-    doc.moveTo(50, 155).lineTo(545, 155).lineWidth(2).strokeColor(BRAND_GOLD).stroke();
-    doc.moveDown();
-    doc.y = 170;
-
-    // Tashkilot xulosa
-    doc.fontSize(11).fillColor(BRAND_TEAL).font('Helvetica-Bold').text('TASHKILOT HOLATI', 50, doc.y);
-    doc.moveDown(0.3);
-    doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
-    doc.text(`Ulangan manbalar: ${data.sources.length} ta`);
-    doc.text(`Telegram kanallar: ${data.channels.length} ta`);
-    doc.moveDown();
-
-    // Manbalar jadvali
-    if (data.sources.length > 0) {
-      doc.fontSize(11).fillColor(BRAND_TEAL).font('Helvetica-Bold').text('MA\'LUMOT MANBALARI');
-      doc.moveDown(0.3);
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
-      for (const s of data.sources) {
-        const updated = s.updated_at ? new Date(s.updated_at).toLocaleDateString('uz-UZ') : '-';
-        doc.text(`  - ${s.name} (${s.type}) - ${(s.row_count || 0).toLocaleString()} qator, oxirgi: ${updated}`);
-      }
-      doc.moveDown();
-    }
-
-    // Telegram kanallar
-    if (data.channels.length > 0) {
-      doc.fontSize(11).fillColor(BRAND_TEAL).font('Helvetica-Bold').text('TELEGRAM KANALLAR');
-      doc.moveDown(0.3);
-      doc.fontSize(9).fillColor(TEXT_DARK).font('Helvetica');
-      for (const c of data.channels) {
-        doc.text(`  - ${c.title}${c.username ? ' (@' + c.username + ')' : ''} - ${(c.member_count || 0).toLocaleString()} a'zo`);
-      }
-      doc.moveDown();
-    }
-
-    // AI tahlil
-    if (aiText) {
-      doc.fontSize(11).fillColor(BRAND_TEAL).font('Helvetica-Bold').text('AI TAHLIL');
-      doc.moveDown(0.3);
-      doc.fontSize(10).fillColor(TEXT_DARK).font('Helvetica').text(stripMd(aiText), { align: 'justify' });
-    }
-
-    // Footer
-    const range = doc.bufferedPageRange();
-    for (let i = 0; i < range.count; i++) {
-      doc.switchToPage(range.start + i);
-      doc.fontSize(8).fillColor(TEXT_MUTED).font('Helvetica');
-      doc.text(`Analix · analix.uz · ${i + 1}/${range.count}`, 50, 800, { align: 'center', width: 495 });
-    }
-
-    doc.end();
+let _browserPromise = null;
+async function getBrowser() {
+  if (_browserPromise) return _browserPromise;
+  _browserPromise = puppeteer.launch({
+    executablePath: CHROMIUM_PATH,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--font-render-hinting=none',
+    ],
+  }).catch(e => {
+    _browserPromise = null;
+    throw e;
   });
+  return _browserPromise;
 }
 
-function stripMd(s) {
-  return String(s || '')
-    .replace(/\*\*(.+?)\*\*/g, '$1')
-    .replace(/\*(.+?)\*/g, '$1')
-    .replace(/`(.+?)`/g, '$1')
-    .replace(/^#+\s*/gm, '')
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+async function buildPdf({ organizationId, title, aiText, provider }) {
+  const data = await gatherReportData(organizationId);
+  const html = buildReportHtml({
+    title: title || 'Hisobot',
+    orgName: data.orgName,
+    data,
+    aiText,
+    provider,
+  });
+
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
+    const pdfData = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20mm', bottom: '20mm', left: '16mm', right: '16mm' },
+    });
+    // Puppeteer 23+ Uint8Array qaytaradi — Buffer ga aylantirish kerak
+    return Buffer.from(pdfData);
+  } finally {
+    await page.close().catch(() => {});
+  }
 }
 
 // ─────────────────────────────────────────────

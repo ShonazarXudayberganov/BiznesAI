@@ -14,6 +14,7 @@ const { findOrgByChatId } = require('../services/linkService');
 const BackendAPI = require('../services/backendApi');
 const { transcribeOgg } = require('../services/transcribe');
 const { renderChart, lineChart } = require('../services/chartImage');
+const F = require('../lib/formatter');
 
 // ── Asosiy menyu (reply keyboard, doimiy) ──
 const mainKeyboard = Markup.keyboard([
@@ -90,30 +91,51 @@ async function withOrg(ctx) {
 // ── KPI matni tayyorlash ──
 async function buildKpiMessage(orgId, orgName) {
   const sum = await BackendAPI.orgSummary(orgId);
-  const lines = [];
-  lines.push(`<b>${orgName}</b> — tezkor holat`);
-  lines.push('');
+  const today = new Date().toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' });
+  const out = [];
+  out.push(F.header(`📊 ${orgName} — Tezkor holat`, today));
+
+  // Manbalar
+  out.push(F.section('📁', 'Ma\'lumot manbalari'));
   if (sum.sources.length === 0) {
-    lines.push('📁 Manbalar yo\'q');
+    out.push('  <i>Hali ulanmagan</i>');
   } else {
-    lines.push(`📁 <b>${sum.sources.length}</b> manba ulangan:`);
-    for (const s of sum.sources.slice(0, 8)) {
-      lines.push(`  • ${s.name} (${s.type}) — ${(s.row_count || 0).toLocaleString()} qator`);
-    }
-    if (sum.sources.length > 8) lines.push(`  va boshqa ${sum.sources.length - 8} ta...`);
+    const totalRows = sum.sources.reduce((a, s) => a + (s.row_count || 0), 0);
+    out.push(`  <b>${sum.sources.length}</b> manba · <b>${F.fmtNum(totalRows)}</b> qator jami`);
+    // Top 5 ni jadval qilib ko'rsatamiz
+    const topRows = sum.sources.slice(0, 5).map(s => [
+      s.name,
+      s.type,
+      F.fmtNum(s.row_count || 0),
+    ]);
+    out.push(F.table(
+      [{ label: 'Nom', width: 18 }, { label: 'Tur', width: 10 }, { label: 'Qator', width: 8 }],
+      topRows
+    ));
+    if (sum.sources.length > 5) out.push(`  <i>va yana ${sum.sources.length - 5} ta</i>`);
   }
+
+  // Telegram kanallar
   if (sum.channels.length > 0) {
-    lines.push('');
-    lines.push(`📺 <b>${sum.channels.length}</b> Telegram kanal:`);
+    out.push(F.section('📺', 'Telegram kanallar'));
     for (const c of sum.channels) {
-      lines.push(`  • ${c.title}${c.username ? ' (@' + c.username + ')' : ''} — ${(c.member_count || 0).toLocaleString()} a'zo`);
+      const uname = c.username ? ` @${c.username}` : '';
+      const synced = c.last_synced_at
+        ? new Date(c.last_synced_at).toLocaleDateString('uz-UZ')
+        : 'hali sinxronlanmagan';
+      out.push(`  ▫️ <b>${F.escHtml(c.title)}</b>${F.escHtml(uname)}`);
+      out.push(`     ${F.fmtNum(c.member_count || 0)} a'zo · <i>${F.escHtml(synced)}</i>`);
     }
   }
+
+  // Ogohlantirishlar
   if (sum.unreadAlerts > 0) {
-    lines.push('');
-    lines.push(`🔔 <b>${sum.unreadAlerts}</b> ta o'qilmagan ogohlantirish`);
+    out.push(F.section('🔔', 'Ogohlantirishlar'));
+    out.push(`  🟡 <b>${sum.unreadAlerts}</b> ta yangi xabar`);
   }
-  return lines.join('\n');
+
+  out.push(F.footer());
+  return out.join('\n');
 }
 
 // ── Erkin matnga AI javob ──
@@ -126,27 +148,49 @@ async function aiReply(ctx, link, message) {
       message,
       history: [],
     });
-    // "wait" xabarini almashtirish
+    // AI javobini formatlab yuborish (markdown → Telegram HTML)
+    const body = F.mdToTgHtml(r.reply || '(bo\'sh javob)');
+    const footer = r.summary ? `\n\n${F.HR_SHORT}\n<i>📊 ${F.escHtml(r.summary)} · ${F.escHtml(r.provider)}</i>` : '';
+    const text = body + footer;
+
+    // Telegram 4096 belgi chegarasi
+    const parts = splitForTelegram(text);
     await ctx.telegram.editMessageText(
       ctx.chat.id, wait.message_id, undefined,
-      r.reply || '(bo\'sh javob)',
-      { parse_mode: 'HTML' }
+      parts[0], { parse_mode: 'HTML' }
     ).catch(async () => {
-      // HTML parse failed — oddiy matn bilan urin
+      // HTML parse fail — oddiy matn
       await ctx.telegram.editMessageText(
         ctx.chat.id, wait.message_id, undefined,
         r.reply || '(bo\'sh javob)'
       );
     });
-    if (r.summary) {
-      await ctx.reply(`📊 Manbalar: ${r.summary} · ${r.provider}`, { reply_to_message_id: wait.message_id }).catch(() => {});
+    for (let i = 1; i < parts.length; i++) {
+      await ctx.reply(parts[i], { parse_mode: 'HTML' }).catch(() => ctx.reply(parts[i]));
     }
   } catch (e) {
     await ctx.telegram.editMessageText(
       ctx.chat.id, wait.message_id, undefined,
-      `❌ AI xato: ${e.message}\n\nAI kalit sozlamasini tekshiring (saytda Sozlamalar → AI).`
-    );
+      `❌ <b>AI xato</b>\n\n${F.escHtml(e.message)}\n\n<i>Saytda Sozlamalar → AI kaliti tekshiring.</i>`,
+      { parse_mode: 'HTML' }
+    ).catch(() => {});
   }
+}
+
+// Telegram xabar 4096 belgidan oshmasin — qism-qism yuborish
+function splitForTelegram(text, max = 3800) {
+  if (text.length <= max) return [text];
+  const parts = [];
+  let remaining = text;
+  while (remaining.length > max) {
+    // Yaqin \n'dan bo'lishga harakat
+    let cut = remaining.lastIndexOf('\n', max);
+    if (cut < max * 0.5) cut = max;
+    parts.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut);
+  }
+  if (remaining.trim()) parts.push(remaining);
+  return parts;
 }
 
 module.exports = function registerMenuHandlers(bot) {

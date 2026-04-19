@@ -8,6 +8,7 @@ const cron = require('node-cron');
 const pool = require('../db/pool');
 const { getChannelStats } = require('./mtproto');
 const BackendAPI = require('./backendApi');
+const F = require('../lib/formatter');
 
 // Har kunlik soat 04:00 (Asia/Tashkent) — barcha faol kanallar uchun
 const SYNC_CRON = process.env.CHANNEL_SYNC_CRON || '0 4 * * *';
@@ -72,30 +73,47 @@ function inQuietHours(timeStr, qStart, qEnd) {
   return t >= qStart || t < qEnd;
 }
 
-async function buildDigestText(orgId) {
+async function buildDigestText(orgId, orgName) {
   const sum = await BackendAPI.orgSummary(orgId);
-  const lines = [];
   const today = new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' });
-  lines.push(`🌅 <b>Tongki dayjest</b> — ${today}`);
-  lines.push('');
-  if (sum.sources.length > 0) {
-    lines.push(`📁 <b>${sum.sources.length}</b> manba ulangan`);
+  const out = [];
+  out.push(F.header(`🌅 Tongki dayjest — ${orgName || 'Tashkilot'}`, today));
+
+  if (sum.sources.length === 0 && sum.channels.length === 0) {
+    out.push('');
+    out.push('<i>Hali manbalar ulanmagan.</i>');
+    out.push('');
+    out.push('Data Hub orqali Excel, CRM, Instagram yoki Telegram kanal qo\'shing — ertangi dayjest to\'liq bo\'ladi.');
+    out.push(F.footer());
+    return out.join('\n');
   }
+
+  // Manbalar umumiy holati
+  if (sum.sources.length > 0) {
+    const totalRows = sum.sources.reduce((a, s) => a + (s.row_count || 0), 0);
+    out.push(F.section('📁', 'Ma\'lumot manbalari'));
+    out.push(`  <b>${sum.sources.length}</b> manba · <b>${F.fmtNum(totalRows)}</b> qator`);
+  }
+
+  // Kanallar
   if (sum.channels.length > 0) {
-    lines.push('');
-    lines.push(`📺 <b>Telegram kanallar:</b>`);
+    out.push(F.section('📺', 'Telegram kanallar'));
     for (const c of sum.channels) {
-      lines.push(`  • ${c.title} — ${(c.member_count || 0).toLocaleString()} a'zo`);
+      const uname = c.username ? ` @${c.username}` : '';
+      out.push(`  ▫️ <b>${F.escHtml(c.title)}</b>${F.escHtml(uname)} — ${F.fmtNum(c.member_count || 0)} a'zo`);
     }
   }
+
+  // Ogohlantirishlar
   if (sum.unreadAlerts > 0) {
-    lines.push('');
-    lines.push(`🔔 <b>${sum.unreadAlerts}</b> ta o'qilmagan ogohlantirish`);
+    out.push(F.section('🔔', 'Ogohlantirishlar'));
+    out.push(`  🟡 <b>${sum.unreadAlerts}</b> ta o'qilmagan xabar`);
   }
-  if (sum.sources.length === 0 && sum.channels.length === 0) {
-    lines.push('Hozircha manbalar ulanmagan. Saytda Data Hub orqali manba qo\'shing.');
-  }
-  return lines.join('\n');
+
+  out.push('');
+  out.push(`<i>💡 Chuqur tahlil uchun botda <b>/menu</b> → Tahlil tugmasi</i>`);
+  out.push(F.footer());
+  return out.join('\n');
 }
 
 async function tickDigest() {
@@ -118,7 +136,7 @@ async function tickDigest() {
       continue;
     }
     try {
-      const text = await buildDigestText(t.organization_id);
+      const text = await buildDigestText(t.organization_id, t.org_name);
       await _botInstance.telegram.sendMessage(String(t.chat_id), text, { parse_mode: 'HTML' });
       console.log(`[DIGEST] ✓ ${t.org_name} → chat=${t.chat_id}`);
     } catch (e) {
