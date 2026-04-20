@@ -399,6 +399,20 @@ export const UploadAPI = {
   },
 };
 
+// ── GOOGLE SHEETS API ──
+export const SheetsAPI = {
+  preview: (url) =>
+    apiFetch('/sheets/preview', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+  fetch: (url, sourceId) =>
+    apiFetch('/sheets/fetch', {
+      method: 'POST',
+      body: JSON.stringify({ url, sourceId }),
+    }),
+};
+
 // ── TELEGRAM API ──
 export const TelegramAPI = {
   status: () => apiFetch('/telegram/status'),

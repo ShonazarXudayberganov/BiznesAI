@@ -50,6 +50,7 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-AnalixBot}
       BOT_WORKER_URL: http://bot-worker:3002
       BOT_WORKER_INTERNAL_SECRET: ${BOT_WORKER_INTERNAL_SECRET:?BOT_WORKER_INTERNAL_SECRET .env'da bo'lishi kerak}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
     volumes:
       - uploads:/app/uploads
     ports:

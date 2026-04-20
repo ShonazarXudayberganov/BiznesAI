@@ -10,7 +10,7 @@ import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
-  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -175,9 +175,11 @@ function syncSourceToAPI(source) {
   const { data, files, ...meta } = source;
   // Manba metadata ni yangilash
   SourcesAPI.update(source.id, meta).catch(() => { });
-  // Data ni bazaga saqlash
+  // Data ni bazaga saqlash — lekin server allaqachon yozgan bo'lsa o'tkazib yuboramiz
+  // (sheets/telegram va h.k. _sheet/_serverManaged belgisi bilan keladi)
   if (data && data.length > 0) {
-    // Katta data — bazaga saqlash (serverda PostgreSQL ga tushadi)
+    const isServerManaged = data[0] && (data[0]._sheet !== undefined || data[0]._serverManaged === true);
+    if (isServerManaged) return;
     console.log(`[Sync] ${source.name}: ${data.length} qator bazaga yuklanmoqda...`);
     SourcesAPI.saveData(source.id, data).catch(e => console.warn("[Sync] Data save error:", e.message));
   }
@@ -1217,10 +1219,29 @@ select.field{cursor:pointer;-webkit-appearance:none}
 .type-card-ico{font-size:26px;margin-bottom:10px}
 .type-card-lbl{font-family:var(--fh);font-size:12px;font-weight:700;margin-bottom:4px;letter-spacing:-0.01em}
 .type-card-desc{font-size:10px;color:var(--muted);font-weight:400}
-.source-item{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:12px;transition:all .25s var(--ease);}
+.source-item{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:12px;transition:all .25s var(--ease);position:relative;overflow:hidden;}
 .source-item:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
-.source-item.active-src{border-left:3px solid var(--green)}
-.source-item.inactive-src{opacity:.5}
+.source-item.active-src{
+  border:1.5px solid #4ADE80;
+  background:linear-gradient(135deg,rgba(74,222,128,0.10) 0%,rgba(74,222,128,0.03) 50%,var(--s2) 100%);
+  box-shadow:0 0 24px rgba(74,222,128,0.18),inset 0 0 0 1px rgba(74,222,128,0.20);
+}
+.source-item.active-src::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:5px;
+  background:linear-gradient(180deg,#34D399,#4ADE80,#22C55E);
+  box-shadow:0 0 16px rgba(74,222,128,0.7);
+}
+.source-item.active-src .src-color-dot{
+  background:#4ADE80!important;
+  box-shadow:0 0 16px #4ADE80,0 0 6px #4ADE80;
+  animation:srcPulse 1.8s ease-in-out infinite;
+}
+.source-item.active-src .src-name{color:#F1F5FA;font-weight:700;}
+.source-item.inactive-src{opacity:.5;filter:grayscale(0.3);}
+@keyframes srcPulse{
+  0%,100%{box-shadow:0 0 16px #4ADE80,0 0 6px #4ADE80;transform:scale(1)}
+  50%{box-shadow:0 0 24px #4ADE80,0 0 12px #4ADE80;transform:scale(1.15)}
+}
 .src-header{display:flex;align-items:center;gap:12px}
 .src-color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px currentColor}
 .src-name{font-family:var(--fh);font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
@@ -3418,6 +3439,156 @@ function AdminPanel({ currentUser, push, sources: adminSources, initialTab, hide
 // DATA HUB PAGE (Constructor)
 // ─────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────
+// GOOGLE SHEETS — backend API key orqali (barcha varaqlar)
+// ─────────────────────────────────────────────────────────────
+function GoogleSheetsSource({ src, updateConfig, push, onUpdate }) {
+  const [url, setUrl] = useState(src.config?.url || "");
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const doPreview = async () => {
+    if (!url.trim()) { push("URL kiriting", "warn"); return; }
+    setBusy(true); setPreview(null);
+    try {
+      const r = await SheetsAPI.preview(url.trim());
+      setPreview(r);
+      push(`✓ Topildi: "${r.title}" — ${r.sheetCount} varaq`, "ok");
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const doFetch = async () => {
+    setBusy(true);
+    try {
+      const r = await SheetsAPI.fetch(url.trim(), src.id);
+      // Backend allaqachon connected=TRUE va config'ni yozdi.
+      // Frontend lokal state'ni ham darhol yangilab qo'yamiz —
+      // bir bosishda manba "ulangan" ko'rinishi uchun.
+      const newConfig = {
+        ...(src.config || {}),
+        url: url.trim(),
+        workbookTitle: r.workbookTitle,
+        sheetCount: r.sheetCount,
+        totalRows: r.totalRows,
+        lastFetch: new Date().toISOString(),
+      };
+      // Server'da source_data alohida jadval — local data orientation faqat
+      // count uchun ishlatiladi. Backend'dan keyingi kontekstga avtomatik tortiladi.
+      const dataPlaceholder = (r.sheets || []).map(s => ({ _sheet: s.title, _rowCount: s.rowCount }));
+      onUpdate?.({
+        ...src,
+        connected: true,
+        active: true,
+        config: newConfig,
+        data: dataPlaceholder,
+        spreadsheetName: r.workbookTitle,
+        updatedAt: new Date().toLocaleString("uz-UZ"),
+      });
+      push(`✓ ${r.sheetCount} varaq · ${r.totalRows.toLocaleString()} qator yuklandi`, "ok");
+      setPreview(null);
+    } catch (e) {
+      push(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const isConnected = src.connected && src.config?.url;
+
+  return (
+    <div>
+      {/* Yo'riqnoma */}
+      <div style={{ background: "var(--s3)", borderRadius: 10, padding: "12px 14px", fontSize: 11.5, lineHeight: 1.7, color: "var(--text2)", marginBottom: 12, border: "1px solid var(--border-hi)" }}>
+        <div style={{ color: "#60A5FA", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Google Sheets ulash:</div>
+        <div>1. Sheet'da <strong style={{ color: "var(--gold)" }}>"Share"</strong> tugmasi → <span style={{ color: "var(--text)" }}>"General access"</span> → <strong style={{ color: "var(--green)" }}>"Anyone with the link"</strong> → Viewer</div>
+        <div>2. URL'ni nusxa olib quyiga joylashtiring</div>
+        <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(96,165,250,0.08)", borderRadius: 6, border: "1px solid rgba(96,165,250,0.2)" }}>
+          ✓ Barcha varaqlar (sheet'lar) avtomatik olinadi · ✓ Formula qiymatlar to'g'ri keladi · ✓ Qator chegarasi yo'q
+        </div>
+      </div>
+
+      <label className="field-label">Google Sheets URL</label>
+      <input
+        className="field mb8"
+        placeholder="https://docs.google.com/spreadsheets/d/..."
+        value={url}
+        onChange={e => setUrl(e.target.value)}
+        onKeyDown={e => e.key === "Enter" && (preview ? doFetch() : doPreview())}
+      />
+
+      <div className="flex gap8 mb10">
+        {!preview ? (
+          <button className="btn btn-primary btn-sm" onClick={doPreview} disabled={busy || !url.trim()}>
+            {busy ? "Tekshirilmoqda..." : "🔍 Tekshirish"}
+          </button>
+        ) : (
+          <>
+            <button className="btn btn-primary btn-sm" onClick={doFetch} disabled={busy}>
+              {busy ? "Yuklanmoqda..." : `✓ ${preview.sheetCount} varaqni ulash`}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setPreview(null)} disabled={busy}>
+              Bekor
+            </button>
+          </>
+        )}
+        {isConnected && !preview && (
+          <button className="btn btn-ghost btn-sm" onClick={doFetch} disabled={busy}>
+            ↻ Yangilash
+          </button>
+        )}
+      </div>
+
+      {/* Preview natija */}
+      {preview && (
+        <div style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border-hi)", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>📊 {preview.title}</div>
+          <div style={{ display: "grid", gap: 4, maxHeight: 280, overflow: "auto" }}>
+            {preview.sheets.map(s => (
+              <div key={s.title} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "var(--s3)", borderRadius: 6, fontSize: 11 }}>
+                <span>{s.hidden ? "🔒 " : "📄 "}{s.title}{s.hidden && <span style={{ color: "var(--muted)" }}> (yashirin)</span>}</span>
+                <span style={{ color: "var(--muted)" }}>{(s.rowCount || 0).toLocaleString()} × {s.colCount || 0}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ulangan holat */}
+      {isConnected && !preview && (
+        <div style={{ background: "rgba(96,165,250,0.06)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(96,165,250,0.2)", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 18 }}>📊</div>
+            <div className="f1">
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#60A5FA" }}>{src.config?.workbookTitle || "Ulangan"}</div>
+              <div style={{ fontSize: 10, color: "var(--text2)", marginTop: 2 }}>
+                {src.config?.sheetCount || 0} varaq · {(src.config?.totalRows || 0).toLocaleString()} qator
+                {src.config?.lastFetch && <> · Oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Avtomatik yangilash */}
+      {isConnected && (
+        <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
+          <div className="flex aic jb">
+            <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
+            <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }}
+              value={src.config?.autoRefresh || 0}
+              onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
+              <option value={0}>O'chirilgan</option>
+              <option value={60}>Har 1 soat</option>
+              <option value={360}>Har 6 soat</option>
+              <option value={1440}>Har 24 soat</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // TELEGRAM KANAL — manba ichida MTProto orqali ulash
 // ─────────────────────────────────────────────────────────────
 function TelegramChannelSource({ src, updateConfig, push, onSyncDone }) {
@@ -3459,15 +3630,30 @@ function TelegramChannelSource({ src, updateConfig, push, onSyncDone }) {
       updateConfig("channelId", String(ch.channelId));
       updateConfig("channelUsername", ch.username || null);
       updateConfig("channelTitle", ch.title);
+      // Manbani darhol ulangan deb belgilash (bir bosishda active bo'lsin)
+      onSyncDone?.({
+        ...src,
+        connected: true,
+        active: true,
+        config: {
+          ...(src.config || {}),
+          mode: "mtproto",
+          channelDbId: r.id,
+          channelId: String(ch.channelId),
+          channelUsername: ch.username || null,
+          channelTitle: ch.title,
+        },
+        spreadsheetName: ch.title,
+        updatedAt: new Date().toLocaleString("uz-UZ"),
+      });
       push(`✓ "${ch.title}" ulandi`, "ok");
       setPicking(false);
-      // Birinchi sync
+      // Birinchi sync (orqa fonda)
       try {
         const sync = await TelegramAPI.syncChannel(r.id);
         if (sync?.note) push(sync.note, "warn");
       } catch (e) { /* ignore initial sync error */ }
       await reload();
-      onSyncDone?.();
     } catch (e) {
       push(e.message, "error");
     } finally { setBusy(false); }
@@ -4685,7 +4871,18 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
       // Eski Bot API (mavjud sourcelar uchun fallback)
       return handleTelegramFetch();
     }
-    if (src.type === "sheets") return handleSheetsFetch();
+    if (src.type === "sheets") {
+      // Yangi: backend API key orqali — barcha varaqlar
+      if (src.config?.url) {
+        try {
+          const r = await SheetsAPI.fetch(src.config.url, src.id);
+          push(`✓ ${r.sheetCount} varaq · ${r.totalRows.toLocaleString()} qator yangilandi`, "ok");
+        } catch (e) { push(e.message, "error"); }
+        return;
+      }
+      // Eski client-side fallback
+      return handleSheetsFetch();
+    }
     if (src.type === "restapi") return handleAPIFetch();
     if (src.type === "crm") return handleCrmFetch();
     if (src.type === "onec") return handle1CFetch();
@@ -4826,52 +5023,14 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
             </div>
           )}
 
-          {/* SHEETS */}
+          {/* SHEETS — backend API key orqali */}
           {src.type === "sheets" && (
-            <div>
-              <div style={{ background: "var(--s3)", borderRadius: 8, padding: "12px 14px", fontSize: 10.5, lineHeight: 1.9, color: "var(--muted)", marginBottom: 12, border: "1px solid var(--border)" }}>
-                <div style={{ color: "#60A5FA", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Google Sheets Ulash:</div>
-                <div>1. Google Sheets ni oching</div>
-                <div>2. <strong style={{ color: "var(--gold)" }}>Ulashish (Share)</strong> → "Havola orqali ulashish" → <span style={{ color: "var(--green)" }}>"Havolaga ega har kim ko'rishi mumkin"</span></div>
-                <div>3. Brauzer <strong style={{ color: "var(--text2)" }}>URL</strong> ni nusxa oling va pastga joylashtiring</div>
-                <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(96,165,250,0.08)", borderRadius: 6, border: "1px solid rgba(96,165,250,0.15)" }}>
-                  <span style={{ color: "#60A5FA", fontWeight: 600 }}>Masalan:</span> <span style={{ color: "var(--muted)", fontSize: 9, fontFamily: "var(--fm)" }}>https://docs.google.com/spreadsheets/d/1abc.../edit</span>
-                </div>
-              </div>
-              <label className="field-label">Google Sheets URL</label>
-              <input className="field mb8" placeholder="https://docs.google.com/spreadsheets/d/..." value={src.config?.url || ""} onChange={e => updateConfig("url", e.target.value)} />
-              <div className="flex gap8 mb10">
-                <button className="btn btn-primary btn-sm" onClick={handleSheetsFetch} disabled={loading || !src.config?.url}>
-                  {loading ? " Yuklanmoqda..." : " Ulash va Yuklash"}
-                </button>
-                {src.connected && src.data?.length > 0 && (
-                  <button className="btn btn-ghost btn-sm" onClick={handleSheetsFetch} disabled={loading}>↻ Yangilash</button>
-                )}
-              </div>
-              {src.connected && src.spreadsheetName && (
-                <div style={{ fontSize: 11, color: "#60A5FA", marginBottom: 8 }}>
-                  <strong>{src.spreadsheetName}</strong> ulangan
-                  {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
-                </div>
-              )}
-              {/* Avtomatik yangilash */}
-              {src.connected && (
-                <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div className="flex aic jb">
-                    <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
-                    <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }} value={src.config?.autoRefresh || 0} onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
-                      <option value={0}>O'chirilgan</option>
-                      <option value={15}>Har 15 daqiqa</option>
-                      <option value={30}>Har 30 daqiqa</option>
-                      <option value={60}>Har 1 soat</option>
-                      <option value={360}>Har 6 soat</option>
-                      <option value={1440}>Har 24 soat</option>
-                    </select>
-                  </div>
-                  {src.config?.autoRefresh > 0 && <div style={{ fontSize: 9.5, color: "var(--teal)", marginTop: 5 }}>⟳ Har {src.config.autoRefresh >= 60 ? Math.round(src.config.autoRefresh / 60) + " soat" : src.config.autoRefresh + " daqiqa"}da avtomatik yangilanadi</div>}
-                </div>
-              )}
-            </div>
+            <GoogleSheetsSource
+              src={src}
+              updateConfig={updateConfig}
+              push={push}
+              onUpdate={(updated) => onUpdate(updated || src)}
+            />
           )}
 
           {/* REST API */}
@@ -5002,7 +5161,7 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
               src={src}
               updateConfig={updateConfig}
               push={push}
-              onSyncDone={() => onUpdate(src)}
+              onSyncDone={(updated) => onUpdate(updated || src)}
             />
           )}
 
