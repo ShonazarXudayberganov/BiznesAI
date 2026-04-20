@@ -91,6 +91,10 @@ services:
       BACKEND_URL: http://backend:3001
       CHANNEL_SYNC_CRON: ${CHANNEL_SYNC_CRON:-0 4 * * *}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    # Server'ning ba'zi IP'lardan Telegram bloklangan bo'lsa, ishlaydigan DC ga yo'naltirish.
+    # IP'ni .env (TELEGRAM_API_IP) orqali boshqarish mumkin (bo'sh bo'lsa default 149.154.167.220).
+    extra_hosts:
+      - "api.telegram.org:${TELEGRAM_API_IP:-149.154.167.220}"
     networks:
       - biznesai_net
 
