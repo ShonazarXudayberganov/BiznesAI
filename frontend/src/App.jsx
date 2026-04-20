@@ -6714,11 +6714,28 @@ MAZMUN QOIDALARI:
     try {
       const controller = new AbortController();
       abortRef.current = controller;
-      await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
-        setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
-      }, controller.signal);
-      // Faqat global AI ishlatilsa limit hisobla (shaxsiy kalit bo'lsa hisoblanmaydi)
-      if (!hasPersonalKey && user && onAiUsed) onAiUsed();
+      // YANGI — backend agent (vositalar bilan, real ma'lumot)
+      // Agent multi-turn, streaming yo'q lekin javob aniqroq
+      const useAgent = LS.get("ai_use_agent_" + (user?.id || "anon"), true);
+      if (useAgent && user) {
+        try {
+          const r = await AiAgentAPI.chat(fullMsg, hist.map(h => ({ role: h.role, content: h.content })));
+          setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: r.reply }; return c; });
+          if (!hasPersonalKey && user && onAiUsed) onAiUsed();
+        } catch (e) {
+          // Agent xato bo'lsa eski yo'lga tushib, oddiy AI
+          console.warn('[chat] agent xato, fallback:', e.message);
+          await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
+            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
+          }, controller.signal);
+          if (!hasPersonalKey && user && onAiUsed) onAiUsed();
+        }
+      } else {
+        await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
+          setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
+        }, controller.signal);
+        if (!hasPersonalKey && user && onAiUsed) onAiUsed();
+      }
       setMessages(m => m); // Sessions tizimi avtomatik saqlaydi
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -9036,12 +9053,16 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
       const newAllKeys = { ...allKeys }; delete newAllKeys[aiConfig.provider];
       setAllKeys(newAllKeys); LS.set(uk("all_keys"), newAllKeys);
       setAiConfig(c => ({ ...c, apiKey: "" })); LS.set(uk("apiKey"), "");
+      // Backend DB'da ham yangilash (agent ishlatishi uchun)
+      AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: "", allKeys: newAllKeys }).catch(() => {});
       push("Shaxsiy kalit o'chirildi — global AI ishlatiladi", "ok");
       return;
     }
     const newAllKeys = { ...allKeys, [aiConfig.provider]: k };
     setAllKeys(newAllKeys); LS.set(uk("all_keys"), newAllKeys);
     setAiConfig(c => ({ ...c, apiKey: k })); LS.set(uk("apiKey"), k);
+    // Backend DB'da ham — agent va bot shu yerdan o'qiydi
+    AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: k, allKeys: newAllKeys }).catch(() => {});
     setSaved(true); setTimeout(() => setSaved(false), 2500);
     push(`✓ Shaxsiy ${AI_PROVIDERS[aiConfig.provider].name} API kalit saqlandi — cheksiz foydalanish!`, "ok");
   };

@@ -147,13 +147,22 @@ async function fetchWorkbookFull(workbookId, opts = {}) {
         return out;
       });
 
-      // Smart header detection — AI uchun strukturali qator obyektlari yaratamiz.
-      // RAW data bilan parallel ishlaydi (raw saqlanadi, ob'ektlar AI uchun qulay).
+      // Smart header detection — header odatda MATN qiymatlardan iborat (raqam emas).
+      // Birinchi 8 qator orasidan eng "header'simon" qatorni topamiz:
+      //   - Ko'p to'liq hujayralar (10+)
+      //   - Ko'pchilik hujayralar matn (raqam emas)
+      //   - Takrorlanmaydigan qiymatlar
       let headerIdx = -1;
-      let maxFilled = 0;
-      for (let i = 0; i < Math.min(5, fullRaw.length); i++) {
-        const filled = fullRaw[i].filter(c => String(c || '').trim() !== '').length;
-        if (filled > maxFilled) { maxFilled = filled; headerIdx = i; }
+      let bestScore = -1;
+      for (let i = 0; i < Math.min(8, fullRaw.length); i++) {
+        const cells = fullRaw[i].map(c => String(c || '').trim()).filter(c => c !== '');
+        if (cells.length < 2) continue;
+        const numericCount = cells.filter(c => /^[\d.,\-\s]+$/.test(c)).length;
+        const textRatio = (cells.length - numericCount) / cells.length;
+        const uniqueRatio = new Set(cells.map(c => c.toLowerCase())).size / cells.length;
+        // Score: ko'p hujayralar + ko'pchilik matn + ko'pchilik unikal
+        const score = cells.length * textRatio * uniqueRatio;
+        if (score > bestScore) { bestScore = score; headerIdx = i; }
       }
       if (headerIdx === -1) headerIdx = 0;
 

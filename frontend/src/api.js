@@ -399,6 +399,15 @@ export const UploadAPI = {
   },
 };
 
+// ── AI AGENT (sayt chat — backend tool use) ──
+export const AiAgentAPI = {
+  chat: (message, history) =>
+    apiFetch('/ai/agent', {
+      method: 'POST',
+      body: JSON.stringify({ message, history: history || [] }),
+    }),
+};
+
 // ── GOOGLE SHEETS API ──
 export const SheetsAPI = {
   preview: (url) =>

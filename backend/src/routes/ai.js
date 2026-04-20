@@ -1,8 +1,55 @@
 const express = require('express');
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin, checkPermission, checkAiLimit } = require('../middleware/auth');
+const { runAgent } = require('../services/aiAgent');
 
 const router = express.Router();
+
+// ── POST /api/ai/agent ── (sayt chat — multi-turn, tools bilan)
+router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiLimit, async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'message kerak' });
+    const orgId = req.user.organization_id;
+    if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
+
+    const r = await runAgent({
+      message,
+      organizationId: orgId,
+      userId: req.userId,
+      history: Array.isArray(history) ? history.slice(-6) : [],
+    });
+
+    // Chat history saqlash
+    await pool.query(
+      `INSERT INTO chat_history (user_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)`,
+      [req.userId, message, r.reply]
+    ).catch(() => {});
+    // AI hisoblagich
+    const curMonth = new Date().toISOString().slice(0, 7);
+    await pool.query(
+      `UPDATE users SET
+        ai_requests_used = CASE WHEN ai_requests_month=$2 THEN ai_requests_used+1 ELSE 1 END,
+        ai_requests_month = $2
+       WHERE id=$1`,
+      [req.userId, curMonth]
+    ).catch(() => {});
+
+    res.json({
+      ok: true,
+      reply: r.reply,
+      provider: r.provider,
+      model: r.model,
+      iterations: r.iterations,
+      toolCallsCount: r.toolCalls.length,
+      tools: r.toolCalls.map(t => ({ name: t.name, input: t.input })),
+    });
+  } catch (e) {
+    console.error('[ai/agent]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ── GET /api/ai/config ── (foydalanuvchi AI sozlamalari)
 router.get('/config', requireAuth, async (req, res) => {
