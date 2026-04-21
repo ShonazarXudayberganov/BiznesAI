@@ -434,6 +434,51 @@ CREATE TABLE IF NOT EXISTS telegram_anomalies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tg_anomalies_org_detected ON telegram_anomalies(organization_id, detected_at DESC);
+
+-- ══════════════════════════════════════════════
+-- USER MEMORY (AI cross-session fact'lari)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS user_memory (
+  id          SERIAL PRIMARY KEY,
+  user_id     INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind        VARCHAR(20) DEFAULT 'fact',   -- 'fact' | 'preference' | 'context'
+  content     TEXT NOT NULL,                 -- "Men matematika o'qituvchisiman"
+  source      VARCHAR(20) DEFAULT 'auto',    -- 'auto' (AI o'zi saqladi) | 'manual' (foydalanuvchi kiritdi)
+  pinned      BOOLEAN DEFAULT FALSE,         -- asosiy faktlar (hech qachon o'chmaydi)
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_memory_user ON user_memory(user_id, created_at DESC);
+
+-- ══════════════════════════════════════════════
+-- USER SETTINGS (til, push, xulq)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id           INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  language          VARCHAR(5) DEFAULT 'uz',      -- 'uz' | 'ru' | 'en'
+  tone              VARCHAR(20) DEFAULT 'friendly_pro',
+  response_depth    VARCHAR(20) DEFAULT 'adaptive', -- 'short' | 'adaptive' | 'detailed'
+  push_settings     JSONB DEFAULT '{"sales":true,"channel":true,"finance":true,"crm":true,"anomaly":true}',
+  memory_enabled    BOOLEAN DEFAULT TRUE,
+  auto_learn        BOOLEAN DEFAULT TRUE,
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ══════════════════════════════════════════════
+-- AGENT TOOL CALL LOG (debug + sifat monitoringi)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS agent_tool_calls (
+  id           SERIAL PRIMARY KEY,
+  user_id      INT REFERENCES users(id) ON DELETE CASCADE,
+  question     TEXT,
+  tool_name    VARCHAR(64),
+  tool_input   JSONB,
+  tool_output  JSONB,
+  iteration    INT,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_agent_tool_user ON agent_tool_calls(user_id, created_at DESC);
 `;
 
 // ═══════════════════════════════════════════════════════════════

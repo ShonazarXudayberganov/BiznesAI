@@ -51,6 +51,9 @@ services:
       BOT_WORKER_URL: http://bot-worker:3002
       BOT_WORKER_INTERNAL_SECRET: ${BOT_WORKER_INTERNAL_SECRET:?BOT_WORKER_INTERNAL_SECRET .env'da bo'lishi kerak}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID:-1637192060986464}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:-}
+      INSTAGRAM_REDIRECT_URI: ${INSTAGRAM_REDIRECT_URI:-https://analix.uz/api/instagram/callback}
     volumes:
       - uploads:/app/uploads
     ports:

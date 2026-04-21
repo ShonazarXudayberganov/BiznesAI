@@ -70,14 +70,18 @@ async function loadUser(userId) {
 // requireAuth — Bearer token tekshirish + user yuklash
 // ─────────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
+  // Header yoki query param dan token olish (OAuth redirect uchun)
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
+  const rawToken = (header?.startsWith('Bearer ') ? header.split(' ')[1] : null)
+                || req.query._t || null;
+
+  if (!rawToken) {
     return res.status(401).json({ error: 'Token kerak' });
   }
 
   let decoded;
   try {
-    decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+    decoded = jwt.verify(rawToken, JWT_SECRET);
   } catch (err) {
     return res.status(401).json({ error: 'Token yaroqsiz yoki muddati o\'tgan' });
   }
@@ -179,6 +183,30 @@ function checkPermission(permName) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// AI per-user rate limit: max 10 req/min (DoS himoyasi)
+// ─────────────────────────────────────────────────────────────
+const _aiRateMap = new Map();
+function checkAiRateLimit(req, res, next) {
+  const key = req.userId;
+  const now = Date.now();
+  const windowMs = 60_000;
+  const maxReq = 10;
+  const entry = _aiRateMap.get(key) || { count: 0, start: now };
+  if (now - entry.start > windowMs) { entry.count = 0; entry.start = now; }
+  entry.count++;
+  _aiRateMap.set(key, entry);
+  if (entry.count > maxReq) {
+    return res.status(429).json({ error: `Minutiga maksimal ${maxReq} ta AI so'rov. Bir oz kuting.`, code: 'AI_RATE_LIMIT' });
+  }
+  next();
+}
+// Har 5 daqiqada eski yozuvlarni tozalash
+setInterval(() => {
+  const cutoff = Date.now() - 120_000;
+  for (const [k, v] of _aiRateMap) { if (v.start < cutoff) _aiRateMap.delete(k); }
+}, 300_000);
+
+// ─────────────────────────────────────────────────────────────
 // AI oylik limit tekshiruvi (checkPermission dan alohida — limit integer)
 // ─────────────────────────────────────────────────────────────
 function checkAiLimit(req, res, next) {
@@ -211,6 +239,7 @@ module.exports = {
   requireCeo,
   checkPermission,
   checkAiLimit,
+  checkAiRateLimit,
   sameOrg,
   loadUser,
 };

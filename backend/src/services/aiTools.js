@@ -5,8 +5,31 @@
  * Provider-agnostic. aiProviders.js har provayder uchun moslashtiradi.
  */
 const dataLayer = require('./dataLayer');
+const userMemory = require('./userMemory');
 
 const TOOLS = [
+  {
+    name: 'save_memory',
+    description:
+      "Foydalanuvchi haqida muhim faktni eslab qolish (kasbi, biznes sohasi, afzalliklari, odatlari, muhim sanalar). " +
+      "Suhbat davomida foydalanuvchi o'zi aytgan yoki siz kuzatgan narsalarni shu yerga yozing. " +
+      "Misol: 'Foydalanuvchi matematika fanidan repetitor', 'Foydalanuvchi Mart oyi statistikasini ko'p so'raydi'. " +
+      "TAKRORIY faktlar saqlamang — avval eslab qolganini ishlating.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        content: { type: 'string', description: "Fakt (1-2 gap, 500 belgidan kam)" },
+        kind: { type: 'string', enum: ['fact', 'preference', 'context'], description: "Turi: fact (oddiy fakt), preference (afzallik/odat), context (loyihaga doir kontekst)" },
+      },
+      required: ['content'],
+    },
+    async execute({ userId, content, kind }) {
+      if (!userId) return { error: 'userId yo\'q' };
+      const r = await userMemory.addMemory(userId, { content, kind: kind || 'fact', source: 'auto' });
+      return { saved: true, id: r.id, duplicated: !!r.duplicated };
+    },
+  },
+
   {
     name: 'list_sources',
     description:
@@ -41,7 +64,8 @@ const TOOLS = [
       required: ['sourceId'],
     },
     async execute({ sourceId, sheet, query, filter, limit }) {
-      return await dataLayer.searchInSource({ sourceId, sheet, query, filter, limit: limit || 100 });
+      // Default 30 — agent ko'p qator so'rasa ham truncate qilamiz
+      return await dataLayer.searchInSource({ sourceId, sheet, query, filter, limit: Math.min(limit || 30, 100) });
     },
   },
 
@@ -131,6 +155,85 @@ const TOOLS = [
   },
 
   {
+    name: 'query_data',
+    description:
+      "SQL-ga o'xshash kuchli so'rov — bitta chaqiruvda select + where + groupBy + multiple aggregates + orderBy. " +
+      "Murakkab savollar uchun: masalan 'har oy bo'yicha eng yaxshi 5 mijoz va umumiy to'lovi' yoki " +
+      "'fan bo'yicha o'rtacha va maksimal ball'. " +
+      "select + where yetib qolganda odatiy search_rows dan AFZAL (bitta tool chaqiruv).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string' },
+        sheet: { type: 'string', description: "Varaq nomi" },
+        select: {
+          type: 'array',
+          items: { type: 'string' },
+          description: "Qaytaradigan ustunlar ([\"*\"] = barcha). Agregatsiyada e'tiborga olinmaydi.",
+        },
+        where: { type: 'object', description: "Filter: {col: val} yoki {col: {gte,lte,gt,lt,contains,equals,in}}" },
+        groupBy: {
+          type: 'array',
+          items: { type: 'string' },
+          description: "Guruhlash ustunlari (masalan ['oy'] yoki ['fan','sinf']).",
+        },
+        aggregates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              col: { type: 'string' },
+              func: { type: 'string', enum: ['sum', 'avg', 'count', 'min', 'max', 'median'] },
+              as: { type: 'string', description: "Natija ustun nomi (ixtiyoriy)" },
+            },
+          },
+          description: "Agregatsiyalar ro'yxati (count uchun col kerak emas).",
+        },
+        orderBy: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              col: { type: 'string' },
+              dir: { type: 'string', enum: ['asc', 'desc'] },
+            },
+          },
+        },
+        limit: { type: 'number', description: "Max natija (default 100, max 500)" },
+      },
+      required: ['sourceId'],
+    },
+    async execute({ sourceId, sheet, select, where, groupBy, aggregates, orderBy, limit }) {
+      return await dataLayer.queryData({ sourceId, sheet, select, where, groupBy, aggregates, orderBy, limit });
+    },
+  },
+
+  {
+    name: 'time_series',
+    description:
+      "Vaqt bo'yicha trend ko'rish: kun/hafta/oy/yil kesimida sotuv, to'lov, arizalar va h.k. " +
+      "Misol: oxirgi 12 oy bo'yicha har oy sotuv yig'indisi. " +
+      "dateColumn — sana ustuni, aggColumn — raqam ustuni, granularity: day|week|month|year.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string' },
+        sheet: { type: 'string' },
+        dateColumn: { type: 'string', description: "Sana ustuni nomi" },
+        aggColumn: { type: 'string', description: "Raqam ustuni (yo'q bo'lsa count)" },
+        func: { type: 'string', enum: ['sum', 'avg', 'count', 'min', 'max'] },
+        granularity: { type: 'string', enum: ['day', 'week', 'month', 'year'] },
+        filter: { type: 'object' },
+        limit: { type: 'number', description: "Oxirgi N bucket (default 60)" },
+      },
+      required: ['sourceId', 'dateColumn'],
+    },
+    async execute({ sourceId, sheet, dateColumn, aggColumn, func, granularity, filter, limit }) {
+      return await dataLayer.timeSeries({ sourceId, sheet, dateColumn, aggColumn, func, granularity, filter, limit });
+    },
+  },
+
+  {
     name: 'get_source_schema',
     description:
       "Manba sxemasini olish: ustunlar, ustun turlari, namuna qatorlar. " +
@@ -164,19 +267,95 @@ async function executeTool(name, input, ctx) {
   try {
     const args = { ...(input || {}), ...ctx };
     const result = await tool.execute(args);
-    // Natijani qisqartirish (token tejash) — agar 50K dan ko'p belgi bo'lsa
-    const json = JSON.stringify(result);
-    if (json.length > 50000) {
-      return {
-        ...result,
-        _truncated: true,
-        _note: 'Natija juda katta — agar to\'liq kerak bo\'lsa filter qo\'sh',
-      };
-    }
-    return result;
+    return truncateResult(result, 12000);  // har vosita javob max ~12K char (~3K token)
   } catch (e) {
     return { error: e.message || 'Vosita xatosi' };
   }
+}
+
+/**
+ * Natijani belgilangan o'lchamga moslashtirish.
+ * Massivlarni qisqartiradi, obyekt qiymatlarini cheklaydi.
+ */
+function truncateResult(result, maxChars) {
+  if (!result || typeof result !== 'object') return result;
+  let json = JSON.stringify(result);
+  if (json.length <= maxChars) return result;
+
+  // Top-level array (masalan list_sources) uchun — ichidagi har source'ning sheets/columns'ini cheklaymiz
+  if (Array.isArray(result)) {
+    const cloned = JSON.parse(json);
+    // 1. Har source'da sheet ichidagi cols'ni 10 ga cheklaymiz
+    for (const src of cloned) {
+      if (Array.isArray(src.sheets)) {
+        for (const sh of src.sheets) {
+          if (Array.isArray(sh.cols) && sh.cols.length > 10) {
+            sh._colsFull = sh.cols.length;
+            sh.cols = sh.cols.slice(0, 10);
+          }
+        }
+      }
+      if (Array.isArray(src.columns) && src.columns.length > 15) {
+        src.columns = src.columns.slice(0, 15);
+      }
+    }
+    json = JSON.stringify(cloned);
+    if (json.length <= maxChars) return cloned;
+    // Hali katta bo'lsa — sheets ro'yxatini qisqaroq shaklda
+    for (const src of cloned) {
+      if (Array.isArray(src.sheets)) {
+        src.sheets = src.sheets.map(sh => ({ title: sh.title, rows: sh.rows, colTotal: sh.colTotal }));
+      }
+    }
+    json = JSON.stringify(cloned);
+    if (json.length <= maxChars) return cloned;
+    return cloned.slice(0, Math.max(5, Math.floor(cloned.length / 2)));
+  }
+
+  // Massivlarni qisqartirib boramiz
+  const cloned = JSON.parse(json);
+  for (const arrayField of ['rows', 'groups', 'values', 'top', 'sheets', 'results', 'channels']) {
+    if (Array.isArray(cloned[arrayField]) && cloned[arrayField].length > 5) {
+      const original = cloned[arrayField].length;
+      // Avval 50 tagacha kesamiz
+      cloned[arrayField] = cloned[arrayField].slice(0, 50);
+      cloned._truncated = true;
+      cloned._note = `${arrayField} juda katta (${original} ta), ${cloned[arrayField].length} ta ko'rsatilmoqda. Aniq filter berib qaytarish so'rang.`;
+      json = JSON.stringify(cloned);
+      if (json.length <= maxChars) return cloned;
+      // Hali katta — yana qisqartiramiz
+      cloned[arrayField] = cloned[arrayField].slice(0, 20);
+      json = JSON.stringify(cloned);
+      if (json.length <= maxChars) return cloned;
+      cloned[arrayField] = cloned[arrayField].slice(0, 10);
+      json = JSON.stringify(cloned);
+      if (json.length <= maxChars) return cloned;
+    }
+  }
+
+  // Hali katta — har qatorni qisqartiramiz (ko'p ustunli sheet'lar uchun)
+  if (Array.isArray(cloned.rows)) {
+    cloned.rows = cloned.rows.map(r => {
+      if (typeof r !== 'object') return r;
+      const keys = Object.keys(r);
+      if (keys.length <= 15) return r;
+      const small = {};
+      for (const k of keys.slice(0, 15)) small[k] = r[k];
+      small._omittedFields = keys.length - 15;
+      return small;
+    });
+    cloned._note = (cloned._note || '') + ` Har qatorda max 15 ustun ko'rsatilmoqda.`;
+  }
+
+  json = JSON.stringify(cloned);
+  if (json.length > maxChars) {
+    return {
+      _truncated: true,
+      _error: 'Natija juda katta — boshqa filter yoki konkret ustun nomini bering',
+      _originalSize: json.length,
+    };
+  }
+  return cloned;
 }
 
 /**
@@ -218,4 +397,5 @@ module.exports = {
   TOOL_MAP,
   executeTool,
   getToolsForProvider,
+  truncateResult,
 };

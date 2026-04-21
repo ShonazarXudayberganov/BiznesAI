@@ -280,6 +280,11 @@ router.put('/:id/data', async (req, res) => {
     const { data } = req.body;
     if (!Array.isArray(data)) return res.status(400).json({ error: 'data massiv bo\'lishi kerak' });
 
+    const MAX_ROWS = 75000;
+    if (data.length > MAX_ROWS) {
+      return res.status(400).json({ error: `Maksimal ${MAX_ROWS} ta qator ruxsat etiladi (yuborildi: ${data.length}). Faylni filtrlang yoki bo'lib yuklang.` });
+    }
+
     const access = await requireSourceAccess(req, res, req.params.id);
     if (!access) return;
 

@@ -28,6 +28,9 @@ router.use((req, res, next) => {
 // Body: { organizationId, userId, message, history?, useAgent? (default true) }
 // Agent rejimi (default): vositalar bilan multi-turn — har savolga real ma'lumot
 // Legacy: useAgent=false bo'lsa eski oddiy chat (statik kontekst)
+//
+// SYNC: agar history bo'sh bo'lsa va userId bor bo'lsa — oxirgi 6 xabar DB dan yuklanadi
+// (sayt va bot o'rtasida suhbat sinxron bo'lishi uchun).
 router.post('/ai-chat', async (req, res) => {
   try {
     const { organizationId, userId, message, history, useAgent } = req.body || {};
@@ -38,13 +41,27 @@ router.post('/ai-chat', async (req, res) => {
     let result;
     let metadata;
 
+    let histArr = Array.isArray(history) ? history.slice(-6) : [];
+    if (histArr.length === 0 && userId) {
+      try {
+        const dbHist = await pool.query(
+          `SELECT role, content FROM chat_history
+           WHERE user_id=$1
+           ORDER BY id DESC
+           LIMIT 6`,
+          [userId]
+        );
+        histArr = dbHist.rows.reverse().map(r => ({ role: r.role, content: r.content }));
+      } catch {}
+    }
+
     if (useAgent !== false) {
       // YANGI — Agent rejim (multi-turn tool use)
       const agentRes = await runAgent({
         message,
         organizationId,
         userId: userId || null,
-        history: Array.isArray(history) ? history.slice(-6) : [],
+        history: histArr,
       });
       result = { reply: agentRes.reply, provider: agentRes.provider, model: agentRes.model, source: agentRes.keySource };
       metadata = {
@@ -59,7 +76,7 @@ router.post('/ai-chat', async (req, res) => {
         userId: userId || null,
         systemPrompt: ctx.systemPrompt,
         message,
-        history: Array.isArray(history) ? history.slice(-6) : [],
+        history: histArr,
         maxTokens: 1500,
       });
       metadata = { sourceCount: ctx.sourceCount, summary: ctx.summary };
@@ -191,14 +208,24 @@ router.get('/digest-targets', async (req, res) => {
     // Targetlar: digest_enabled = TRUE, digest_time ±5 daq (asosiy cron 5 daqiqada bir marta ishlaydi)
     const r = await pool.query(
       `SELECT bs.organization_id, bs.digest_time, bs.timezone, bs.quiet_hours_start, bs.quiet_hours_end, bs.enabled_modules,
-              bl.chat_id, o.name AS org_name
+              bl.chat_id, bl.user_id, o.name AS org_name,
+              us.push_settings
        FROM telegram_bot_settings bs
        JOIN telegram_bot_links bl ON bl.organization_id = bs.organization_id AND bl.active=TRUE
        JOIN organizations o ON o.id = bs.organization_id
+       LEFT JOIN user_settings us ON us.user_id = bl.user_id
        WHERE bs.digest_enabled = TRUE
          AND bs.digest_time = $1`,
       [now]
     );
+
+    // Agar user_settings.push_settings hammasi false bo'lsa — bu org digest olmaydi
+    const filtered = r.rows.filter(t => {
+      const ps = t.push_settings;
+      if (!ps) return true;
+      return Object.values(ps).some(v => v === true);
+    });
+    r.rows = filtered;
     res.json({ now, targets: r.rows });
   } catch (e) {
     console.error('[internal/digest-targets]', e.message);

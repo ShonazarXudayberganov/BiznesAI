@@ -75,6 +75,7 @@ app.use('/api/departments', require('./routes/departments'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/super-admin', require('./routes/super-admin'));
 app.use('/api/telegram', require('./routes/telegram'));
+app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/internal', require('./routes/internal'));
 app.use('/api/sheets', require('./routes/sheets'));
 

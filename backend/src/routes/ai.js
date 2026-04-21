@@ -1,12 +1,14 @@
 const express = require('express');
 const pool = require('../db/pool');
-const { requireAuth, requireAdmin, checkPermission, checkAiLimit } = require('../middleware/auth');
+const { requireAuth, requireAdmin, checkPermission, checkAiLimit, checkAiRateLimit } = require('../middleware/auth');
 const { runAgent } = require('../services/aiAgent');
+const { resolveAiConfig, chatComplete } = require('../services/aiProviders');
+const userMemory = require('../services/userMemory');
 
 const router = express.Router();
 
 // ── POST /api/ai/agent ── (sayt chat — multi-turn, tools bilan)
-router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiLimit, async (req, res) => {
+router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
   try {
     const { message, history } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message kerak' });
@@ -20,10 +22,14 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiLimit, 
       history: Array.isArray(history) ? history.slice(-6) : [],
     });
 
-    // Chat history saqlash
+    // Chat history saqlash + 90 kundan eski yozuvlarni tozalash
     await pool.query(
       `INSERT INTO chat_history (user_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)`,
       [req.userId, message, r.reply]
+    ).catch(() => {});
+    pool.query(
+      `DELETE FROM chat_history WHERE user_id=$1 AND created_at < NOW() - INTERVAL '90 days'`,
+      [req.userId]
     ).catch(() => {});
     // AI hisoblagich
     const curMonth = new Date().toISOString().slice(0, 7);
@@ -38,6 +44,8 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiLimit, 
     res.json({
       ok: true,
       reply: r.reply,
+      confidence: r.confidence,
+      sourcesUsed: r.sourcesUsed,
       provider: r.provider,
       model: r.model,
       iterations: r.iterations,
@@ -48,6 +56,130 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiLimit, 
     console.error('[ai/agent]', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── POST /api/ai/agent/stream ── SSE: tool eventlarini real-time yuboradi
+router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
+  try {
+    const { message, history } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'message kerak' });
+    const orgId = req.user.organization_id;
+    if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const sendEvent = (event, data) => {
+      try {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch {}
+    };
+
+    const onTool = ({ name, input }) => sendEvent('tool', { name, input });
+    const onDelta = (text) => sendEvent('delta', { text });
+
+    try {
+      sendEvent('start', { ts: Date.now() });
+      const r = await runAgent({
+        message,
+        organizationId: orgId,
+        userId: req.userId,
+        history: Array.isArray(history) ? history.slice(-6) : [],
+        onTool,
+        onDelta,
+      });
+
+      sendEvent('done', {
+        reply: r.reply,
+        confidence: r.confidence,
+        sourcesUsed: r.sourcesUsed,
+        provider: r.provider,
+        model: r.model,
+        iterations: r.iterations,
+        toolCallsCount: r.toolCalls.length,
+      });
+
+      // Chat history + counter + 90-kun cleanup
+      await pool.query(
+        `INSERT INTO chat_history (user_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)`,
+        [req.userId, message, r.reply]
+      ).catch(() => {});
+      pool.query(
+        `DELETE FROM chat_history WHERE user_id=$1 AND created_at < NOW() - INTERVAL '90 days'`,
+        [req.userId]
+      ).catch(() => {});
+      const curMonth = new Date().toISOString().slice(0, 7);
+      await pool.query(
+        `UPDATE users SET
+          ai_requests_used = CASE WHEN ai_requests_month=$2 THEN ai_requests_used+1 ELSE 1 END,
+          ai_requests_month = $2
+         WHERE id=$1`,
+        [req.userId, curMonth]
+      ).catch(() => {});
+    } catch (e) {
+      sendEvent('error', { error: e.message });
+    } finally {
+      res.end();
+    }
+  } catch (e) {
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+    else { try { res.end(); } catch {} }
+  }
+});
+
+// ── Memory routes ──
+router.get('/memory', requireAuth, async (req, res) => {
+  try {
+    const list = await userMemory.listMemories(req.userId);
+    res.json({ memories: list });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/memory', requireAuth, async (req, res) => {
+  try {
+    const { content, kind, pinned } = req.body || {};
+    const r = await userMemory.addMemory(req.userId, { content, kind, source: 'manual', pinned });
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/memory/:id', requireAuth, async (req, res) => {
+  try {
+    await userMemory.updateMemory(req.userId, parseInt(req.params.id, 10), req.body || {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/memory/:id', requireAuth, async (req, res) => {
+  try {
+    await userMemory.deleteMemory(req.userId, parseInt(req.params.id, 10));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/memory/clear', requireAuth, async (req, res) => {
+  try {
+    await userMemory.clearMemories(req.userId, { keepPinned: req.body?.keepPinned !== false });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── User settings (til, tone, push, memory) ──
+router.get('/settings', requireAuth, async (req, res) => {
+  try {
+    const s = await userMemory.getUserSettings(req.userId);
+    res.json(s);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/settings', requireAuth, async (req, res) => {
+  try {
+    await userMemory.saveUserSettings(req.userId, req.body || {});
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 
@@ -131,6 +263,30 @@ router.put('/global', requireAuth, requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ── POST /api/ai/complete ── Oddiy AI completion (grafik, chart uchun)
+// Frontend API key yubormasdan, backend o'z AI configini ishlatadi
+router.post('/complete', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
+  const { prompt } = req.body || {};
+  if (!prompt) return res.status(400).json({ error: 'prompt kerak' });
+
+  try {
+    // Max 30KB prompt — DeepSeek/Claude token limiti uchun
+    const safePrompt = prompt.length > 30000 ? prompt.slice(0, 30000) + "\n...[qisqartirildi]" : prompt;
+    const r = await chatComplete({
+      userId: req.userId,
+      systemPrompt: 'Sen biznes tahlilchi AI assistantsan. Faqat JSON format qaytarasan.',
+      message: safePrompt,
+      history: [],
+      maxTokens: 3000,
+    });
+    console.log(`[ai/complete] provider=${r.provider}, model=${r.model}, promptLen=${prompt.length}`);
+    res.json({ ok: true, result: r.reply });
+  } catch (e) {
+    console.error('[ai/complete]', e.message);
+    res.status(500).json({ error: e.message });
   }
 });
 

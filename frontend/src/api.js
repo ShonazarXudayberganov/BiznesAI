@@ -406,6 +406,81 @@ export const AiAgentAPI = {
       method: 'POST',
       body: JSON.stringify({ message, history: history || [] }),
     }),
+
+  // Streaming chat (SSE) — onEvent({ type, data })
+  // type: 'start' | 'tool' | 'done' | 'error'
+  stream: async (message, history, onEvent, { signal } = {}) => {
+    const res = await fetch(`${API_BASE}/ai/agent/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+      },
+      body: JSON.stringify({ message, history: history || [] }),
+      signal,
+    });
+    if (!res.ok || !res.body) {
+      const t = await res.text().catch(() => '');
+      throw new Error(t || `Stream xatosi (${res.status})`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let final = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const events = buf.split(/\n\n/);
+      buf = events.pop() || '';
+      for (const evt of events) {
+        const lines = evt.split('\n');
+        let event = 'message';
+        let data = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        let parsed = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch { parsed = data; }
+        onEvent?.({ type: event, data: parsed });
+        if (event === 'done') final = parsed;
+        if (event === 'error') throw new Error(parsed?.error || 'Stream xatosi');
+      }
+    }
+    return final;
+  },
+};
+
+// ── MEMORY API ──
+export const MemoryAPI = {
+  list: () => apiFetch('/ai/memory'),
+  add: (content, kind, pinned) =>
+    apiFetch('/ai/memory', {
+      method: 'POST',
+      body: JSON.stringify({ content, kind, pinned }),
+    }),
+  update: (id, patch) =>
+    apiFetch(`/ai/memory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
+  remove: (id) => apiFetch(`/ai/memory/${id}`, { method: 'DELETE' }),
+  clear: (keepPinned = true) =>
+    apiFetch('/ai/memory/clear', {
+      method: 'POST',
+      body: JSON.stringify({ keepPinned }),
+    }),
+};
+
+// ── USER SETTINGS API (til, tone, push, memory) ──
+export const UserSettingsAPI = {
+  get: () => apiFetch('/ai/settings'),
+  save: (patch) =>
+    apiFetch('/ai/settings', {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    }),
 };
 
 // ── GOOGLE SHEETS API ──

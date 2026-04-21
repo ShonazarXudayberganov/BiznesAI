@@ -27,7 +27,7 @@ const PROVIDERS = {
     call: callOpenAI,
   },
   gemini: {
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-2.5-flash',
     url: 'https://generativelanguage.googleapis.com/v1beta/models',
     call: callGemini,
   },
@@ -36,6 +36,21 @@ const PROVIDERS = {
 // ────────────────────────────────────────────────
 // Kalit yechish
 // ────────────────────────────────────────────────
+// Eskirgan modellarni avtomatik almashtirish
+const MODEL_REPLACEMENTS = {
+  'gemini-2.0-flash': 'gemini-2.5-flash',
+  'gemini-2.0-flash-lite': 'gemini-2.5-flash-lite',
+  'gemini-pro': 'gemini-2.5-pro',
+  'claude-3-opus-20240229': 'claude-sonnet-4-5-20250929',
+  'claude-3-sonnet-20240229': 'claude-sonnet-4-5-20250929',
+  'claude-3-haiku-20240307': 'claude-haiku-4-5-20251001',
+};
+
+function modernizeModel(model, provider) {
+  if (!model) return PROVIDERS[provider]?.defaultModel;
+  return MODEL_REPLACEMENTS[model] || model;
+}
+
 async function resolveAiConfig(userId) {
   // Foydalanuvchi shaxsiy kalit
   if (userId) {
@@ -49,7 +64,12 @@ async function resolveAiConfig(userId) {
       const allKeys = cfg.all_keys || {};
       const personalKey = allKeys[provider] || cfg.api_key || '';
       if (personalKey) {
-        return { provider, model: cfg.model || PROVIDERS[provider]?.defaultModel, apiKey: personalKey, source: 'personal' };
+        return {
+          provider,
+          model: modernizeModel(cfg.model, provider),
+          apiKey: personalKey,
+          source: 'personal',
+        };
       }
     }
   }
@@ -57,9 +77,10 @@ async function resolveAiConfig(userId) {
   const g = await pool.query(`SELECT value FROM global_settings WHERE key='global_ai'`);
   const gv = g.rows[0]?.value || {};
   if (gv.apiKey) {
+    const p = gv.provider || 'deepseek';
     return {
-      provider: gv.provider || 'deepseek',
-      model: gv.model || PROVIDERS[gv.provider || 'deepseek']?.defaultModel,
+      provider: p,
+      model: modernizeModel(gv.model, p),
       apiKey: gv.apiKey,
       source: 'global',
     };

@@ -140,10 +140,31 @@ function formatAnomaly(a) {
   return out.join('\n');
 }
 
+// Foydalanuvchining per-category push sozlamasini tekshiradi.
+// Agar user_settings.push_settings[category] === false bo'lsa — yubormaydi.
+async function pushEnabledFor(userId, category) {
+  if (!userId || !category) return true;
+  try {
+    const r = await pool.query(
+      `SELECT push_settings FROM user_settings WHERE user_id=$1`,
+      [userId]
+    );
+    if (r.rows.length === 0) return true;  // sozlamasiz — default yoqilgan
+    const ps = r.rows[0].push_settings || {};
+    if (ps[category] === false) return false;
+    return true;
+  } catch { return true; }
+}
+
+// Anomaliya type'ini kategoriyaga tarjima qilamiz ("channel.members" → "channel", "sales.avg" → "sales")
+function anomalyCategory(type) {
+  return String(type || '').split('.')[0] || 'anomaly';
+}
+
 async function processAnomalies(bot) {
   const orgs = await pool.query(
     `SELECT bs.organization_id, bs.anomaly_sensitivity, bs.quiet_hours_start, bs.quiet_hours_end,
-            bl.chat_id
+            bl.chat_id, bl.user_id
      FROM telegram_bot_settings bs
      JOIN telegram_bot_links bl ON bl.organization_id = bs.organization_id AND bl.active=TRUE
      WHERE bs.anomaly_enabled = TRUE`
@@ -163,6 +184,15 @@ async function processAnomalies(bot) {
 
     for (const a of anomalies) {
       if (await isDuplicate(o.organization_id, a.type)) continue;
+
+      // Per-category push tekshirish (user_settings.push_settings.channel/sales/...)
+      const cat = anomalyCategory(a.type);
+      const userWantsPush = await pushEnabledFor(o.user_id, cat);
+      const userWantsAnomaly = await pushEnabledFor(o.user_id, 'anomaly');
+      if (!userWantsPush || !userWantsAnomaly) {
+        console.log(`[ANOMALY] org=${o.organization_id} user push_settings: ${cat} o'chirilgan — yuborilmadi`);
+        continue;
+      }
 
       // DB ga yozish
       const ins = await pool.query(

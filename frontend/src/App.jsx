@@ -10,7 +10,8 @@ import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
-  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI, AiAgentAPI,
+  MemoryAPI, UserSettingsAPI,
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -175,12 +176,14 @@ function syncSourceToAPI(source) {
   const { data, files, ...meta } = source;
   // Manba metadata ni yangilash
   SourcesAPI.update(source.id, meta).catch(() => { });
-  // Data ni bazaga saqlash — lekin server allaqachon yozgan bo'lsa o'tkazib yuboramiz
-  // (sheets/telegram va h.k. _sheet/_serverManaged belgisi bilan keladi)
+  // Data ni bazaga saqlash
+  // Server tomonidan boshqariladigan manbalar (sheets, telegram, instagram, crm va h.k.) — DB ga qayta yozmaymiz
+  // Fayllar (excel, document, image, manual) — DB ga saqlaymiz (_sheet bo'lsa ham)
   if (data && data.length > 0) {
-    const isServerManaged = data[0] && (data[0]._sheet !== undefined || data[0]._serverManaged === true);
+    const SERVER_MANAGED_TYPES = new Set(["sheets", "telegram", "instagram", "crm", "restapi", "website", "scrape"]);
+    const isServerManaged = SERVER_MANAGED_TYPES.has(source.type) || (data[0]?._serverManaged === true);
     if (isServerManaged) return;
-    console.log(`[Sync] ${source.name}: ${data.length} qator bazaga yuklanmoqda...`);
+    console.log(`[Sync] ${source.name} (${source.type}): ${data.length} qator bazaga yuklanmoqda...`);
     SourcesAPI.saveData(source.id, data).catch(e => console.warn("[Sync] Data save error:", e.message));
   }
 }
@@ -5057,99 +5060,90 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
           {/* INSTAGRAM */}
           {src.type === "instagram" && (
             <div>
-              <div style={{ background: "var(--s3)", borderRadius: 10, padding: "12px 14px", fontSize: 11, lineHeight: 1.8, color: "var(--text2)", marginBottom: 14, border: "1px solid rgba(232,121,249,0.1)" }}>
-                <div style={{ color: "#E879F9", fontWeight: 700, marginBottom: 6, fontFamily: "var(--fh)", fontSize: 12 }}>Instagram Business API — qanday ulash:</div>
-                <div>1. <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>developers.facebook.com</a> → My Apps → Create App (Business)</div>
-                <div>2. Instagram akkountni Professional (Business) ga o'tkazing</div>
-                <div>3. Facebook Page yarating va Instagram ni ulang</div>
-                <div>4. Graph API Explorer dan Access Token oling</div>
-                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Kerakli ruxsatlar: pages_show_list, instagram_basic, instagram_manage_insights, business_management</div>
-              </div>
+              {/* ── Ulangan holat ── */}
+              {src.connected && src.config?.token ? (
+                <div>
+                  {/* Profil info */}
+                  {src.data?.find(d => d._type === "PROFIL_STATISTIKA") && (() => {
+                    const p = src.data.find(d => d._type === "PROFIL_STATISTIKA");
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: "12px 14px", background: "rgba(232,121,249,0.06)", borderRadius: 10, border: "1px solid rgba(232,121,249,0.15)" }}>
+                        {p.profile_picture_url && <img src={p.profile_picture_url} alt="" style={{ width: 40, height: 40, borderRadius: "50%", objectFit: "cover" }} />}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, color: "#E879F9", fontSize: 13 }}>@{p.username}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                            {p.followers_count?.toLocaleString()} followers · {p.fetched_posts} post · ER {p.engagement_rate_str}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--muted)", textAlign: "right" }}>
+                          {src.config?.tokenType === "page"
+                            ? <span style={{ color: "#4ADE80" }}>✓ Muddatsiz token</span>
+                            : <span style={{ color: "#FBBF24" }}>⏱ 60 kunlik token</span>}
+                          {src.config?.lastSync && <div style={{ marginTop: 2 }}>Oxirgi sync: {new Date(src.config.lastSync).toLocaleString("uz-UZ")}</div>}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-              {/* Access Token */}
-              <label className="field-label">Access Token</label>
-              <input className="field mb6" type="password" placeholder="EAAVBMeBfo..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
+                  {/* Tugmalar */}
+                  <div className="flex gap8 mb10">
+                    <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading}>
+                      {loading ? "Yuklanmoqda..." : "↻ Ma'lumotlarni yangilash"}
+                    </button>
+                    <button className="btn btn-ghost btn-sm"
+                      onClick={() => { if (confirm("Instagram ni uzish va qayta ulash?")) { updateConfig("token", ""); updateConfig("tokenType", ""); } }}>
+                      Qayta ulash
+                    </button>
+                  </div>
 
-              {/* Token holati */}
-              {src.config?.tokenType === "page" ? (
-                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(74,222,128,0.06)", borderRadius: 6, border: "1px solid rgba(74,222,128,0.15)" }}>
-                  <span style={{ color: "#4ADE80" }}>&#10003;</span> <strong style={{ color: "#4ADE80" }}>Muddatsiz Page Token</strong> — eskirmaydi
-                  {src.config?.tokenExtendedAt && <span style={{ color: "var(--muted)" }}> · {new Date(src.config.tokenExtendedAt).toLocaleDateString("uz-UZ")} da uzaytirilgan</span>}
-                </div>
-              ) : src.config?.tokenType === "long-lived" ? (
-                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(251,191,36,0.06)", borderRadius: 6, border: "1px solid rgba(251,191,36,0.12)" }}>
-                  <span style={{ color: "#FBBF24" }}>⏱</span> <strong style={{ color: "#FBBF24" }}>60 kunlik token</strong>
-                  {src.config?.tokenExtendedAt && <span> · tugaydi: ~{new Date(src.config.tokenExtendedAt + 60 * 86400000).toLocaleDateString("uz-UZ")}</span>}
+                  {/* Avtomatik yangilash */}
+                  <div style={{ padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
+                    <div className="flex aic jb">
+                      <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
+                      <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }} value={src.config?.autoRefresh || 0} onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
+                        <option value={0}>O'chirilgan</option>
+                        <option value={360}>Har 6 soat</option>
+                        <option value={720}>Har 12 soat</option>
+                        <option value={1440}>Har 24 soat</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6, padding: "6px 10px", background: "rgba(248,113,113,0.06)", borderRadius: 6, border: "1px solid rgba(248,113,113,0.12)" }}>
-                  <span style={{ color: "#F87171" }}>&#9888;</span> Graph API Explorer dan olingan token <strong style={{ color: "#F87171" }}>1 soat</strong> amal qiladi. Pastdagi "Token uzaytirish" orqali <strong style={{ color: "#4ADE80" }}>muddatsiz</strong> ga aylantiring.
-                </div>
-              )}
-
-              {/* Token uzaytirish bo'limi */}
-              {src.config?.tokenType !== "page" && (
-                <div style={{ marginBottom: 12, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid rgba(232,121,249,0.1)" }}>
-                  <div style={{ color: "#E879F9", fontWeight: 700, fontSize: 11, fontFamily: "var(--fh)", marginBottom: 8 }}>Token uzaytirish (muddatsiz qilish)</div>
-                  <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 8, lineHeight: 1.6 }}>
-                    App ID va App Secret ni <a href="https://developers.facebook.com" target="_blank" rel="noreferrer" style={{ color: "var(--teal)" }}>developers.facebook.com</a> → <strong style={{ color: "var(--text2)" }}>My Apps</strong> → ilovangiz → <strong style={{ color: "var(--text2)" }}>Settings → Basic</strong> dan oling.
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                    <div>
-                      <label className="field-label">App ID</label>
-                      <input className="field" placeholder="1479057357119695" value={src.config?.appId || ""} onChange={e => updateConfig("appId", e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="field-label">App Secret</label>
-                      <input className="field" type="password" placeholder="65ff04950..." value={src.config?.appSecret || ""} onChange={e => updateConfig("appSecret", e.target.value)} />
-                    </div>
-                  </div>
-                  <button className="btn btn-sm" onClick={handleTokenExtend} disabled={loading || !src.config?.token || !src.config?.appId || !src.config?.appSecret}
-                    style={{ background: "linear-gradient(135deg, #E879F9, #A78BFA)", color: "#fff", border: "none", fontWeight: 700, opacity: (!src.config?.token || !src.config?.appId || !src.config?.appSecret) ? 0.4 : 1 }}>
-                    {loading ? "Uzaytirilmoqda..." : "Token uzaytirish (muddatsiz)"}
+                /* ── Ulanmagan holat — OAuth tugmasi ── */
+                <div>
+                  {/* OAuth tugmasi */}
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: "100%", background: "linear-gradient(135deg, #E879F9, #A78BFA)", border: "none", padding: "12px", fontSize: 14, fontWeight: 700, borderRadius: 10, marginBottom: 14 }}
+                    onClick={() => {
+                      if (!src.id) { push("Avval manbani saqlang", "warn"); return; }
+                      const tok = Token.get();
+                      window.location.href = `/api/instagram/auth?sourceId=${src.id}&_t=${tok}`;
+                    }}
+                    disabled={!src.id}
+                  >
+                     Instagram bilan ulash
                   </button>
-                  <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 6, lineHeight: 1.5 }}>
-                    1 soatlik token → 60 kunlik → muddatsiz Page Token ga avtomatik aylantiriladi
+
+                  <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 10, marginBottom: 14 }}>— yoki qo'lda token kiriting —</div>
+
+                  {/* Manual token (fallback) */}
+                  <label className="field-label">Access Token (qo'lda)</label>
+                  <input className="field mb6" type="password" placeholder="EAAVBMeBfo..." value={src.config?.token || ""} onChange={e => updateConfig("token", e.target.value)} />
+
+                  {src.config?.token && (
+                    <div className="flex gap8 mb10">
+                      <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading || !src.config?.token}>
+                        {loading ? "Yuklanmoqda..." : "Ulash"}
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ background: "var(--s3)", borderRadius: 8, padding: "10px 12px", fontSize: 10, color: "var(--muted)", lineHeight: 1.8, border: "1px solid var(--border)" }}>
+                    <strong style={{ color: "var(--text2)" }}>Talab:</strong> Instagram Business yoki Creator akkaunt + Facebook Page<br/>
+                    <strong style={{ color: "var(--text2)" }}>Ruxsatlar:</strong> instagram_basic, instagram_manage_insights, pages_show_list
                   </div>
-                </div>
-              )}
-
-              {/* Instagram Business ID — ixtiyoriy */}
-              <label className="field-label">Instagram Business ID <span style={{ color: "var(--muted)", fontWeight: 400 }}>(ixtiyoriy — avtomatik aniqlanadi)</span></label>
-              <input className="field mb10" placeholder="17841422858670678" value={src.config?.igBusinessId || ""} onChange={e => updateConfig("igBusinessId", e.target.value)} />
-
-              <div className="flex gap8 mb10">
-                <button className="btn btn-primary btn-sm" onClick={handleInstagramFetch} disabled={loading || !src.config?.token}>
-                  {loading ? "Yuklanmoqda..." : "Ulash va Yuklash"}
-                </button>
-                {src.connected && src.data?.length > 0 && (
-                  <button className="btn btn-ghost btn-sm" onClick={handleInstagramFetch} disabled={loading}>↻ Yangilash</button>
-                )}
-              </div>
-
-              {src.profileName && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#E879F9", marginBottom: 8, padding: "8px 12px", background: "rgba(232,121,249,0.06)", borderRadius: 8, border: "1px solid rgba(232,121,249,0.1)" }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ADE80" }} />
-                  <strong>@{src.profileName}</strong> ulangan
-                  {src.config?.lastFetch && <span style={{ color: "var(--muted)", marginLeft: 8 }}>· oxirgi: {new Date(src.config.lastFetch).toLocaleString("uz-UZ")}</span>}
-                  {src.data?.find(d => d._type === "PROFIL_STATISTIKA")?.total_reach > 0 && <span style={{ color: "var(--teal)", marginLeft: 4 }}>· Insights faol</span>}
-                </div>
-              )}
-              {/* Avtomatik yangilash */}
-              {src.connected && (
-                <div style={{ marginTop: 8, padding: "10px 12px", background: "var(--s3)", borderRadius: 8, border: "1px solid var(--border)" }}>
-                  <div className="flex aic jb">
-                    <label className="field-label" style={{ marginBottom: 0 }}>Avtomatik Yangilash</label>
-                    <select className="field" style={{ width: "auto", padding: "5px 10px", fontSize: 11 }} value={src.config?.autoRefresh || 0} onChange={e => updateConfig("autoRefresh", Number(e.target.value))}>
-                      <option value={0}>O'chirilgan</option>
-                      <option value={15}>Har 15 daqiqa</option>
-                      <option value={30}>Har 30 daqiqa</option>
-                      <option value={60}>Har 1 soat</option>
-                      <option value={360}>Har 6 soat</option>
-                      <option value={1440}>Har 24 soat</option>
-                    </select>
-                  </div>
-                  {src.config?.autoRefresh > 0 && <div style={{ fontSize: 9.5, color: "var(--teal)", marginTop: 5 }}>⟳ Har {src.config.autoRefresh} daqiqada avtomatik yangilanadi</div>}
                 </div>
               )}
             </div>
@@ -6019,208 +6013,330 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
     ];
   }, [workingSource?.id, workingSource?.type]);
 
-  // AI TAHLIL — foydalanuvchi so'rovi asosida raqamlar va chartlar yaratish
+  // Source type ga qarab aqlli agregatsiya konteksti
+  const buildChartContext = (source) => {
+    const data = source.data || [];
+    if (!data.length) return { ctx: "", meta: {} };
+    const tp = source.type || "generic";
+
+    const f = (n) => { n = Number(n)||0; return n>=1e9?(n/1e9).toFixed(1)+"B":n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?(n/1e3).toFixed(1)+"K":String(Math.round(n)); };
+    const sh = (v, n=18) => String(v??"-").replace(/\s+/g," ").slice(0,n);
+    const numVals = (arr, col) => arr.map(r=>parseFloat(r[col])).filter(v=>!isNaN(v)&&v>=0);
+    const stats = (vals) => { if(!vals.length) return null; const sum=vals.reduce((a,b)=>a+b,0); return {sum,avg:sum/vals.length,max:Math.max(...vals),min:Math.min(...vals),n:vals.length}; };
+    const topCnt = (arr, col, n=7) => { const c={}; arr.forEach(r=>{const v=sh(r[col]);if(v&&v!=="-"&&v!=="null"&&v!=="undefined")c[v]=(c[v]||0)+1;}); return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,n); };
+    const topSum = (arr, catCol, numCol, n=7) => { const c={}; arr.forEach(r=>{const k=sh(r[catCol]);const v=parseFloat(r[numCol]);if(k&&k!=="-"&&k!=="null"&&!isNaN(v)&&v>=0)c[k]=(c[k]||0)+v;}); return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,n); };
+    const monthTrend = (arr, dateCol, valFn, n=8) => { const m={}; arr.forEach(r=>{const d=String(r[dateCol]||"").slice(0,7);if(/^\d{4}-\d{2}$/.test(d)){if(!m[d])m[d]=0;m[d]+=valFn(r);}}); return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0])).slice(-n); };
+    const cap = (s) => s.length>3500?s.slice(0,3500)+"\n...[qisqartirildi]":s;
+
+    // ── INSTAGRAM ──
+    if (tp === "instagram") {
+      const profile = data.find(d=>d._type==="PROFIL_STATISTIKA")||{};
+      const posts = data.filter(d=>!d._type&&!d._entity).slice(0,60);
+      const L = [`INSTAGRAM: "@${source.profileName||source.name}" | ${posts.length} post`];
+      if (profile.followers) L.push(`Followers:${f(profile.followers)} | Following:${f(profile.following||0)} | Media:${f(profile.media_count||posts.length)}`);
+      if (posts.length) {
+        const lk = numVals(posts,"like_count"); const cm = numVals(posts,"comments_count"); const vw = numVals(posts.filter(p=>p.video_views>0),"video_views");
+        const sl = stats(lk); const sc = stats(cm); const sv = stats(vw);
+        L.push(`\nPOST METRIKALAR (${posts.length} ta):`);
+        if(sl) L.push(`Like: jami=${f(sl.sum)} | o'rtacha=${f(sl.avg)} | max=${f(sl.max)}`);
+        if(sc) L.push(`Comment: jami=${f(sc.sum)} | o'rtacha=${f(sc.avg)} | max=${f(sc.max)}`);
+        if(sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
+        const top7 = [...posts].map(p=>({...p,eng:(p.like_count||0)+(p.comments_count||0)})).sort((a,b)=>b.eng-a.eng).slice(0,7);
+        L.push(`\nTOP 7 POST:`);
+        top7.forEach((p,i)=>L.push(`${i+1}. like=${f(p.like_count||0)} comment=${f(p.comments_count||0)} | "${sh(p.caption||"",25)}" | ${String(p.timestamp||"").slice(0,10)}`));
+        const mTrend = monthTrend(posts,"timestamp",p=>(p.like_count||0)+(p.comments_count||0));
+        if(mTrend.length>1){L.push(`\nOYLIK ENGAGEMENT TREND:`);L.push(mTrend.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | "));}
+        const mPost = monthTrend(posts,"timestamp",()=>1);
+        if(mPost.length>1) L.push(`Post soni: ${mPost.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
+        const types={}; posts.forEach(p=>{const t=p.media_type||"IMAGE";types[t]=(types[t]||0)+1;});
+        if(Object.keys(types).length>1) L.push(`Media turi: ${Object.entries(types).map(([k,v])=>`${k}=${v}`).join(", ")}`);
+      }
+      return { ctx:cap(L.join("\n")), meta:{type:"instagram"} };
+    }
+
+    // ── TELEGRAM ──
+    if (tp === "telegram") {
+      const chStat = data.find(d=>d._type==="KANAL_STATISTIKA")||{};
+      const posts = data.filter(d=>!d._type&&!d._entity).slice(0,60);
+      const L = [`TELEGRAM: "${source.name||source.profileName}"`];
+      const subs = chStat.subscribers||chStat.members_count||chStat.members;
+      if(subs) L.push(`Obunachi: ${f(subs)}`);
+      if(posts.length){
+        const vw=numVals(posts,"views"); const rc=numVals(posts,"reactions");
+        const sv=stats(vw); const sr=stats(rc);
+        L.push(`\nPOST METRIKALAR (${posts.length} ta):`);
+        if(sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
+        if(sr) L.push(`Reactions: jami=${f(sr.sum)} | o'rtacha=${f(sr.avg)} | max=${f(sr.max)}`);
+        const top7=[...posts].sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,7);
+        L.push(`\nTOP 7 POST (views):`);
+        top7.forEach((p,i)=>L.push(`${i+1}. views=${f(p.views||0)} reactions=${f(p.reactions||0)} | "${sh(p.text||p.message||"",25)}" | ${String(p.date||"").slice(0,10)}`));
+        const mTrend=monthTrend(posts,"date",p=>p.views||0);
+        if(mTrend.length>1){L.push(`\nOYLIK VIEWS TREND:`);L.push(mTrend.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | "));}
+        const mPost=monthTrend(posts,"date",()=>1);
+        if(mPost.length>1) L.push(`Post soni: ${mPost.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
+      }
+      return { ctx:cap(L.join("\n")), meta:{type:"telegram"} };
+    }
+
+    // ── CRM ──
+    if (tp === "crm") {
+      const summary = data.find(d=>d._type==="CRM_STATISTIKA")||{};
+      const students = data.filter(d=>d._entity==="student");
+      const groups   = data.filter(d=>d._entity==="group");
+      const teachers = data.filter(d=>d._entity==="teacher");
+      const leads    = data.filter(d=>d._entity==="lid");
+      const L = [`CRM: "${source.name}" | o'quvchi:${students.length} guruh:${groups.length} o'qituvchi:${teachers.length} lid:${leads.length}`];
+      const smKeys = Object.keys(summary).filter(k=>!["_type","id","_id"].includes(k)&&summary[k]!=null);
+      if(smKeys.length) L.push(`Umumiy: ${smKeys.slice(0,8).map(k=>`${k}=${f(summary[k])}`).join(" | ")}`);
+      if(students.length){
+        L.push(`\nO'QUVCHILAR (${students.length}):`);
+        const bySt=topCnt(students,"status"); if(bySt.length) L.push(`Status: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const byTe=topCnt(students,"teacher"||"o_qituvchi"); if(byTe.length) L.push(`O'qituvchi: ${byTe.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const byGr=topCnt(students,"group"||"guruh"); if(byGr.length) L.push(`Guruh: ${byGr.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const payCol=["payment","to'lov","summa","amount"].find(c=>students[0]?.[c]!=null);
+        if(payCol){const ps=stats(numVals(students,payCol));if(ps)L.push(`To'lov: jami=${f(ps.sum)} | o'rtacha=${f(ps.avg)}`);}
+        const dateCol=["created_at","sana","date"].find(c=>students[0]?.[c]!=null);
+        if(dateCol){const mT=monthTrend(students,dateCol,()=>1);if(mT.length>1)L.push(`Oylik qabul: ${mT.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);}
+      }
+      if(groups.length){
+        L.push(`\nGURUHLAR (${groups.length}):`);
+        const bySt=topCnt(groups,"status"); if(bySt.length) L.push(`Status: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const byTe=topCnt(groups,"teacher"||"teacher_name"); if(byTe.length) L.push(`O'qituvchi: ${byTe.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+      }
+      if(leads.length){
+        L.push(`\nLIDLAR (${leads.length}):`);
+        const bySt=topCnt(leads,"status"); if(bySt.length) L.push(`Holat: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const dateLead=["created_at","sana","date"].find(c=>leads[0]?.[c]!=null);
+        if(dateLead){const mT=monthTrend(leads,dateLead,()=>1);if(mT.length>1)L.push(`Oylik lid: ${mT.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);}
+      }
+      return { ctx:cap(L.join("\n")), meta:{type:"crm",students:students.length,groups:groups.length,leads:leads.length} };
+    }
+
+    // ── GENERIC (Sheets / Excel / CSV / Document) ──
+    const SKIP = new Set(["id","_id","_type","_entity","webhook_url","source_id","__v","token","password"]);
+    const firstRow = data.find(r=>typeof r==="object"&&r!==null)||{};
+    const allCols = Object.keys(firstRow).filter(k=>!SKIP.has(k));
+
+    // Excel/Sheets fayl tuzilmasi (sheet metadata) ni aniqla
+    const FILE_META = new Set(["row_count","rows","is_hidden","sheet_name","sheet_index","header_rows","column_count"]);
+    const metaHit = allCols.filter(c=>FILE_META.has(c.toLowerCase())).length;
+    if (metaHit >= 2) return { ctx:"", meta:{ isFileMeta:true, sheetNames: data.map(r=>r.sheet_name||r.list_nomi||"").filter(Boolean).slice(0,24) } };
+
+    const numCols=[], dateCols=[], catCols=[];
+    allCols.forEach(col=>{
+      const vals=data.slice(0,100).map(r=>r[col]).filter(v=>v!=null&&v!=="");
+      if(!vals.length) return;
+      const isDate=vals.filter(v=>/\d{4}-\d{2}/.test(String(v))).length>vals.length*0.5;
+      const isNum=vals.filter(v=>!isNaN(parseFloat(v))&&isFinite(String(v))).length>vals.length*0.6;
+      if(isDate) dateCols.push(col);
+      else if(isNum) numCols.push(col);
+      else catCols.push(col);
+    });
+    const L=[];
+    L.push(`MANBA: "${source.name}" | ${data.length} yozuv | ustunlar:[${allCols.slice(0,10).join(",")}]`);
+    L.push(`Raqamli:[${numCols.join(",")}] | Sana:[${dateCols.join(",")}] | Kategoriya:[${catCols.join(",")}]`);
+    L.push("");
+    if(numCols.length){
+      L.push("## RAQAMLI STATISTIKA:");
+      numCols.slice(0,5).forEach(col=>{const st=stats(numVals(data,col));if(st)L.push(`${col}: jami=${f(st.sum)} | o'rtacha=${f(st.avg)} | max=${f(st.max)} | min=${f(st.min)} | n=${st.n}`);});
+      L.push("");
+    }
+    if(catCols.length){
+      L.push("## KATEGORIYA TAQSIMOTI:");
+      catCols.slice(0,3).forEach(col=>{const top=topCnt(data,col);if(top.length>1)L.push(`${col}: ${top.map(([k,v])=>`${k}=${v}`).join(" | ")}`);});
+      L.push("");
+    }
+    if(catCols.length&&numCols.length){
+      L.push("## KATEGORIYA × RAQAM (bar chart):");
+      catCols.slice(0,2).forEach(cc=>numCols.slice(0,2).forEach(nc=>{const top=topSum(data,cc,nc);if(top.length>1)L.push(`${cc}→${nc}: ${top.map(([k,v])=>`${k}=${f(v)}`).join(" | ")}`); }));
+      L.push("");
+    }
+    if(dateCols.length&&numCols.length){
+      L.push("## OYLIK TREND:");
+      const dc=dateCols[0];
+      numCols.slice(0,2).forEach(nc=>{const tr=monthTrend(data,dc,r=>parseFloat(r[nc])||0);if(tr.length>1)L.push(`${nc}: ${tr.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | ")}`);});
+      const mCnt=monthTrend(data,dc,()=>1);if(mCnt.length>1)L.push(`yozuv_soni: ${mCnt.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
+      L.push("");
+    }
+    const raw=L.join("\n");
+    return { ctx:cap(raw), meta:{numCols,dateCols,catCols,total:data.length,type:"generic"} };
+  };
+
+  // Avtomatik chart generatsiya
+  const autoGenerateCharts = async () => { await runAiCharts("__auto__"); };
+
+  // AI CHART GENERATSIYA
   const runAiCharts = async (queryText) => {
-    const query = queryText || userQuery;
-    if (!query.trim() || !workingSource?.data?.length || !aiConfig?.apiKey) return;
-    // AI limit tekshirish
+    const isAuto = queryText === "__auto__";
+    const query = isAuto ? "" : (queryText || userQuery);
+    if (!isAuto && !query.trim()) return;
+    if (!workingSource?.data?.length) return;
+
     if (!hasPersonalKey && user && !Auth.checkLimit(user, "ai_requests", sources)) {
       const info = Auth.getLimitInfo(user, "ai_requests", sources);
       setAiError(`AI so'rov limiti tugadi (${info.label}). Tarifni yangilang yoki shaxsiy API kalit ulang.`);
       return;
     }
-    setAiLoading(true); setAiError(""); setLastQuery(query);
+    setAiLoading(true); setAiError(""); setLastQuery(query || "Avtomatik tahlil");
 
     try {
-      // SMART CONTEXT — Backend dan aqlli qidiruv
+      // Foydalanuvchi so'rovi bo'lsa — backend sheet ma'lumotlaridan qidiradi (RAG)
+      // Auto rejim bo'lsa — hisoblangan aggregatsiya ishlatiladi
       let ctx = "";
-      if (Token.get()) {
+      let meta = {};
+
+      if (!isAuto && Token.get()) {
         try {
-          const smartResult = await SourcesAPI.getAiContext(workingSource.id, query);
-          if (smartResult?.context) ctx = smartResult.context;
-        } catch (e) {
-          console.warn("[CHART-CTX] Backend xato, fallback:", e.message);
-        }
+          const r = await SourcesAPI.getAiContext(workingSource.id, query);
+          if (r?.context) { ctx = r.context; }
+        } catch (e) { console.warn("[CHART-CTX]", e.message); }
       }
-      if (!ctx) ctx = buildMergedContext([workingSource]);
-      const srcType = SOURCE_TYPES[workingSource.type];
 
-      const prompt = `Biznes tahlilchi. So'rov: "${query}"
+      // getAiContext ishlamasa yoki auto rejim — aggregatsiya
+      if (!ctx) {
+        const built = buildChartContext(workingSource);
+        ctx = built.ctx;
+        meta = built.meta;
+      }
 
-MANBA: "${workingSource.name}" (${workingSource.data.length} ta yozuv)
-DATA:\n${ctx}
+      // Excel fayl tuzilmasi aniqlandi — foydalanuvchiga yo'naltirish
+      if (meta.isFileMeta) {
+        const sheets = meta.sheetNames?.length ? `\n\nMavjud varaqlar: ${meta.sheetNames.map(s=>`"${s}"`).join(", ")}` : "";
+        setAiError(`📊 Bu manba Excel fayl tuzilmasini ko'rsatmoqda (sheet ro'yxati — nechta qator, yashirin yoki yo'q).${sheets}\n\n💡 Haqiqiy biznes ma'lumotlari uchun quyidagi qidiruv maydoniga murojaat qiling:\n• "Kassa I oylik daromad trend"\n• "Guruh bo'yicha o'quvchilar soni"\n• "Umumiy savdo statistikasi"`);
+        setAiLoading(false);
+        return;
+      }
 
-SO'ROV TURINI ANIQLA:
-- Agar RAQAM so'ralsa (masalan: "nechta", "jami", "o'rtacha", "foiz") → FAQAT "stats" karta qaytar. Chart KERAK EMAS.
-- Agar GRAFIK so'ralsa (masalan: "trend", "grafik", "chart", "solishtirish") → "chart" karta qaytar.
-- Agar UMUMIY so'ralsa → 1 stats + 1 chart.
-- 1 ta narsa so'ralsa → 1 ta karta. 3 ta so'ralsa → 3 ta. ORTIQCHA QILMA.
+      // Qattiq chek — token limit uchun
+      if (ctx.length > 3500) ctx = ctx.slice(0, 3500) + "\n...[qisqartirildi]";
 
-MISOL:
-- "Nechta o'quvchi bor?" → FAQAT 1 ta stats karta: {"type":"stats","title":"O'quvchilar soni","stats":[{"l":"Jami","v":"836","c":"#00C9BE"}]}
-- "Oylik trend ko'rsat" → FAQAT 1 ta chart karta
-- "Umumiy tahlil" → 1 stats + 1 chart + 1 highlight
+      const hasNum  = meta.numCols?.length > 0;
+      const hasCat  = meta.catCols?.length > 0;
+      const hasDate = meta.dateCols?.length > 0;
 
-QOIDALAR:
-- Ma'lumot YO'Q bo'lsa → highlight da "Bu ma'lumot mavjud emas" yoz
-- MANFIY raqam TAQIQLANGAN
-- Raqam HAQIQIY bo'lsin — hisobla, o'ylab chiqarma
-- Label O'ZBEK tilida, max 10 belgi
-- Raqam formati: 1500000 → "1.5M"
-- "qiymat" so'zini HECH QACHON ishlatma! ANIQ nom yoz: "like soni", "daromad", "o'quvchilar"
-- Chart title ANIQ bo'lsin: "Postlar bo'yicha like soni" (EMAS: "Dinamika", "Trend")
-- keys da ANIQ nom: ["like_soni"], ["daromad_som"] (EMAS: ["qiymat", "value"])
+      const autoRules = `VAZIFA: Quyidagi qoidalarga amal qilib chart yarat (faqat mavjud ma'lumot uchun):
+${hasNum  ? "✅ Raqamli ma'lumot bor → STATS karta (jami, o'rtacha, max, min — haqiqiy raqamlar)" : ""}
+${hasCat && hasNum ? "✅ Kategoriya × Raqam bor → BAR chart (top-7 kategoriya)" : ""}
+${hasDate && hasNum ? "✅ Oylik trend bor → LINE yoki AREA chart" : ""}
+${hasCat ? "✅ Kategoriya taqsimoti bor → PIE chart" : ""}
+✅ Oxirida → HIGHLIGHT karta (3-5 ta muhim xulosa + 1 ta tavsiya)
 
-\`\`\`json
-{
-  "cards": [
-    {
-      "type": "stats",
-      "title": "Sarlavha (o'zbekcha)",
-      "icon": "emoji",
-      "stats": [
-        {"l":"Ko'rsatkich nomi","v":"123","c":"#rang","i":"emoji"},
-        {"l":"Yana biri","v":"456K","c":"#rang","i":"emoji"}
-      ]
-    },
-    {
-      "type": "chart",
-      "title": "Grafik sarlavhasi (o'zbekcha)",
-      "icon": "emoji",
-      "chartType": "bar|line|area|pie|scatter",
-      "data": [{"name":"Label1","qiymat":100},{"name":"Label2","qiymat":200}],
-      "keys": ["qiymat"],
-      "xKey": "name",
-      "colors": ["#00C9BE","#E8B84B"]
-    },
-    {
-      "type": "chart",
-      "chartType": "pie",
-      "title": "Taqsimot",
-      "icon": "emoji",
-      "data": [{"name":"Kategoriya1","value":50},{"name":"Kategoriya2","value":30}],
-      "colors": ["#00C9BE","#E8B84B","#A78BFA","#4ADE80","#F87171","#60A5FA"]
-    },
-    {
-      "type": "gauge",
-      "title": "Foiz ko'rsatkich",
-      "icon": "emoji",
-      "value": 73,
-      "max": 100,
-      "label": "73%",
-      "color": "#4ADE80"
-    },
-    {
-      "type": "highlight",
-      "title": "Asosiy xulosalar",
-      "icon": "emoji",
-      "items": [
-        {"l":"Xulosa 1","v":"qiymat","c":"#rang"},
-        {"l":"Xulosa 2","v":"qiymat","c":"#rang"}
-      ]
-    }
-  ]
-}
-\`\`\`
+Agar biror ma'lumot YO'Q bo'lsa — o'sha chart turini CHIQARMA.`;
 
-TARTIB:
-1. Birinchi: "stats" karta — asosiy RAQAMLAR (min 4 ta ko'rsatkich)
-2. O'rtada: "chart" karta(lar) — FAQAT vizual ma'nosi bor ma'lumotlar
-3. Oxirida: "highlight" karta — XULOSA va TAVSIYA
+      const userQueryRule = `VAZIFA: Foydalanuvchi so'rovi: "${query}"
 
-TEXNIK FORMAT:
-- stats: {"type":"stats","title":"...","icon":"📊","stats":[{"l":"Nomi","v":"1,234","c":"#00C9BE","i":"📈"}]}
-- chart bar: {"type":"chart","title":"...","icon":"📊","chartType":"bar","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
-- chart pie: {"type":"chart","title":"...","icon":"📊","chartType":"pie","data":[{"name":"Kategoriya","value":50}],"colors":["#00C9BE","#E8B84B"]}
-- chart line: {"type":"chart","title":"...","icon":"📈","chartType":"line","data":[{"name":"Yan","qiymat":100}],"keys":["qiymat"],"xKey":"name","colors":["#00C9BE"]}
-- gauge: {"type":"gauge","title":"...","icon":"📊","value":73,"max":100,"label":"73%","color":"#4ADE80"}
-- highlight: {"type":"highlight","title":"Xulosa","icon":"💡","items":[{"l":"Topilma","v":"tushuntirish","c":"#00C9BE"}]}
-- Ranglar: #00C9BE #E8B84B #A78BFA #4ADE80 #F87171 #60A5FA #FB923C #E879F9
+So'rovni tahlil qil:
+- Oddiy savol ("nechta", "jami", "qancha") → FAQAT 1 ta stats karta
+- Tahlil so'rovi ("trend", "o'sish", "taqqoslash") → 1-2 chart + stats
+- Umumiy tahlil → stats + 1-2 chart + highlight
+Ortiqcha chart YARATMA — faqat so'ralganini qaytar.`;
 
-MUHIM OGOHLANTIRISH:
-- Foydalanuvchi FAQAT bitta narsa so'ragan bo'lsa — FAQAT bitta chart yoki stats qaytar. Ortiqcha chart QILMA!
-- Agar "umumiy statistika" so'ralsa — 1 ta stats + 1 ta highlight = 2 ta karta. Tamom.
-- Agar "trend" so'ralsa — 1 ta line chart. Tamom.
-- Agar "solishtirish" so'ralsa — 1 ta bar chart. Tamom.
-- ORTIQCHA CHART YARATISH TAQIQLANGAN. Faqat so'ralganini qaytar.
+      const prompt = `Sen professional biznes tahlilchisan. Quyidagi HISOBLANGAN statistika asosida vizual chartlar tayyorla.
 
-RAQAMLAR HAQIDA QATTIQ QOIDA:
-- MANFIY RAQAM CHIQARISH TAQIQLANGAN! Agar hisoblash natijasi manfiy chiqsa — 0 yoz.
-- "id", "_id", "_type", "webhook_url", "source_id" kabi TEXNIK USTUNLARNI HISOBGA OLMA — ularni BUTUNLAY IGNOR QIL.
-- Faqat BIZNES MA'NOSI bor raqamlarni hisobla: soni, summasi, o'rtachasi, foizi.
-- Raqamlarni O'YLAB CHIQARMA — faqat berilgan ma'lumotdan ANIQ hisoblangan raqamlarni yoz.
-- Agar biror narsa hisoblab bo'lmasa — "Ma'lumot yetarli emas" deb yoz.
+${ctx}
 
-FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
+${isAuto ? autoRules : userQueryRule}
 
-      // Background da ishga tushirish — sahifa o'zgarganda ham davom etadi
-      const srcId = workingSource.id;
+MUHIM QOIDALAR:
+1. Faqat yuqoridagi MA'LUMOTDAGI raqamlarni ishlatasan — O'YLAB CHIQARMA
+2. Har chart uchun "analysis" — biznes insight: trend + sabab + tavsiya (masalan: "📈 Mart +34% — bahor mavsumi ta'siri, shu yo'nalishni kuchaytiring")
+3. Stats kartasida "analysis" — eng muhim raqamni sharhlash + 1 ta amaliy qaror
+4. Highlight kartasida har "v" — konkret raqam + ta'sir + nima qilish kerak
+5. MANFIY raqam → 0 yoz
+6. Raqam formati: 1500000→"1.5M", 1500→"1.5K", 150→"150"
+7. Chart sarlavhasi ANIQ: "Menejer bo'yicha savdo" (EMAS: "Tahlil", "Dinamika")
+8. JSON keys ANIQ: ["savdo_sum"] (EMAS: ["qiymat","value","data"])
+9. Texnik ustunlar (id, _id, webhook_url) → IGNOR
+
+JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
+{"cards":[
+{"type":"stats","title":"Sarlavha","icon":"📊","analysis":"insight...","stats":[{"l":"Ko'rsatkich","v":"1.2M","c":"#00C9BE","i":"📈"},{"l":"O'rtacha","v":"36K","c":"#E8B84B","i":"📊"}]},
+{"type":"chart","title":"Sarlavha","icon":"📊","chartType":"bar","analysis":"insight...","data":[{"name":"Kat","savdo":100}],"keys":["savdo"],"xKey":"name","colors":["#00C9BE","#E8B84B","#A78BFA","#4ADE80","#F87171","#60A5FA","#FB923C"]},
+{"type":"chart","title":"Sarlavha","icon":"📈","chartType":"line","analysis":"insight...","data":[{"name":"01","daromad":500}],"keys":["daromad"],"xKey":"name","colors":["#00C9BE"]},
+{"type":"chart","title":"Sarlavha","icon":"🥧","chartType":"pie","analysis":"insight...","data":[{"name":"Kat","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA","#4ADE80","#F87171","#60A5FA"]},
+{"type":"highlight","title":"Xulosa va Amaliy Qarorlar","icon":"💡","items":[{"l":"🟢 Kuchli tomon","v":"[raqam] — sababi nima","c":"#00C9BE"},{"l":"🔴 Muammo","v":"[raqam] — ta'sir: XM so'm","c":"#F87171"},{"l":"💡 Qaror 1","v":"[Aniq harakat] → [Kutilgan natija]","c":"#4ADE80"},{"l":"💡 Qaror 2","v":"[Aniq harakat] → [muddat]","c":"#A78BFA"}]}
+]}`;
+
+      // Backend orqali AI chaqiruv (CORS/network muammolarini oldini olish)
       const curCacheKey = cacheKey;
-      runBackgroundAI(query.substring(0, 40), [{ role: "user", content: prompt }], aiConfig, (result) => {
-        try {
-          const jsonMatch = result.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) return;
-          const parsed = JSON.parse(jsonMatch[0]);
-          const rawCards = parsed.cards || [];
+      let result = "";
+      if (Token.get()) {
+        const resp = await fetch("/api/ai/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json", "authorization": `Bearer ${Token.get()}` },
+          body: JSON.stringify({ prompt }),
+        });
+        const text = await resp.text();
+        let d;
+        try { d = JSON.parse(text); } catch { throw new Error(`Server xato (${resp.status}). AI javob qaytarmadi — qayta urinib ko'ring.`); }
+        if (!resp.ok) throw new Error(d.error || `Server xato ${resp.status}`);
+        result = d.result || "";
+      } else {
+        await callAI([{ role: "user", content: prompt }], aiConfig, (chunk) => { result = chunk; });
+      }
 
-          // ── VALIDATSIYA — noto'g'ri kartalarni filtrlash + manfiy tozalash ──
-          const cards = rawCards.map((c, i) => {
-            const card = { ...c, id: `ai_${Date.now()}_${i}` };
-            // Stats dagi manfiy raqamlarni 0 ga aylantirish
-            if (card.stats) card.stats = card.stats.map(s => {
-              const num = parseFloat(String(s.v).replace(/[^0-9.-]/g, ""));
-              if (!isNaN(num) && num < 0) return { ...s, v: "0" };
-              return s;
+      // JSON parse + validatsiya
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AI javob noto'g'ri formatda qaytdi. Qayta urinib ko'ring.");
+      const parsed = JSON.parse(jsonMatch[0]);
+      const rawCards = parsed.cards || [];
+
+      if (rawCards.length === 0) throw new Error("AI hech qanday chart yarata olmadi. Manba ma'lumotlarini tekshiring.");
+
+      const cards = rawCards.map((c, i) => {
+        const card = { ...c, id: `ai_${Date.now()}_${i}` };
+        if (card.stats) card.stats = card.stats.map(s => {
+          const num = parseFloat(String(s.v).replace(/[^0-9.-]/g, ""));
+          if (!isNaN(num) && num < 0) return { ...s, v: "0" };
+          return s;
+        });
+        if (card.data && card.type === "chart") {
+          card.data = card.data.map(row => {
+            const clean = { ...row };
+            Object.keys(clean).forEach(k => {
+              if (k !== "name" && k !== "xKey" && typeof clean[k] === "number" && clean[k] < 0) clean[k] = 0;
             });
-            // Chart data dagi manfiy qiymatlarni 0 ga
-            if (card.data && card.type === "chart") {
-              card.data = card.data.map(row => {
-                const clean = { ...row };
-                Object.keys(clean).forEach(k => {
-                  if (k !== "name" && k !== "xKey" && typeof clean[k] === "number" && clean[k] < 0) clean[k] = 0;
-                });
-                return clean;
-              });
-            }
-            return card;
-          }).filter(c => {
-            if (!c.type) return false;
-            // Stats — kamida 1 ta stat bo'lishi kerak
-            if (c.type === "stats" && (!Array.isArray(c.stats) || c.stats.length === 0)) return false;
-            // Chart — data bo'lishi va kamida 1 ta element
-            if (c.type === "chart") {
-              if (!Array.isArray(c.data) || c.data.length === 0) return false;
-              // Pie uchun value tekshirish
-              if (c.chartType === "pie" && !c.data.every(d => d.value != null || d.name != null)) return false;
-              // Bar/line uchun keys tekshirish
-              if (["bar", "line", "area", "stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
-              // Data ichida hamma NaN bo'lsa — o'chirish
-              if (c.chartType !== "pie") {
-                const k = c.keys?.[0];
-                if (k && c.data.every(d => isNaN(parseFloat(d[k])))) return false;
-              }
-            }
-            // Highlight — kamida 1 ta item
-            if (c.type === "highlight" && (!Array.isArray(c.items) || c.items.length === 0)) return false;
-            // Gauge — value bo'lishi kerak
-            if (c.type === "gauge" && (c.value == null || isNaN(c.value))) return false;
-            return true;
+            return clean;
           });
-          if (!cards.length) return;
-          // Cache ga saqlash (component unmount bo'lgan bo'lishi mumkin)
-          const prev = LS.get(curCacheKey, []);
-          const updated = [...cards, ...(Array.isArray(prev) ? prev : [])];
-          LS.set(curCacheKey, updated);
-          // Agar hali shu sahifada bo'lsa — state ni yangilash
-          setAiCards(updated);
-        } catch { }
+        }
+        return card;
+      }).filter(c => {
+        if (!c.type) return false;
+        if (c.type === "stats" && (!Array.isArray(c.stats) || c.stats.length === 0)) return false;
+        if (c.type === "chart") {
+          if (!Array.isArray(c.data) || c.data.length === 0) return false;
+          if (c.chartType === "pie" && !c.data.every(d => d.value != null || d.name != null)) return false;
+          if (["bar", "line", "area", "stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
+          if (c.chartType !== "pie") {
+            const k = c.keys?.[0];
+            if (k && c.data.every(d => isNaN(parseFloat(d[k])))) return false;
+          }
+        }
+        if (c.type === "highlight" && (!Array.isArray(c.items) || c.items.length === 0)) return false;
+        if (c.type === "gauge" && (c.value == null || isNaN(c.value))) return false;
+        return true;
       });
+
+      if (!cards.length) throw new Error("Yaratilgan chartlar validatsiyadan o'tmadi. Qayta urinib ko'ring.");
+
+      const prev = LS.get(curCacheKey, []);
+      const updated = [...cards, ...(Array.isArray(prev) ? prev : [])];
+      LS.set(curCacheKey, updated);
+      setAiCards(updated);
 
       if (!hasPersonalKey && user && onAiUsed) onAiUsed();
     } catch (err) {
-      setAiError(err.message || "AI tahlil xatosi");
+      const msg = err.message || "";
+      if (msg.includes("429") || msg.toLowerCase().includes("quota") || msg.toLowerCase().includes("exceeded")) {
+        setAiError("⚠️ " + (aiConfig.provider === "gemini" ? "Gemini" : aiConfig.provider) + " quota limiti tugadi. Sozlamalar → boshqa provayder tanlang (DeepSeek yoki Claude tavsiya etiladi).");
+      } else if (msg.includes("401") || msg.toLowerCase().includes("api key") || msg.toLowerCase().includes("unauthorized")) {
+        setAiError("🔑 API kalit noto'g'ri. Sozlamalar → API kalitni tekshiring.");
+      } else {
+        setAiError(msg || "AI tahlil xatosi. Qayta urinib ko'ring.");
+      }
+    } finally {
+      setAiLoading(false);
     }
-    setAiLoading(false);
   };
 
   // Instagram/Telegram uchun avvalgi auto-dashboard
@@ -6238,7 +6354,23 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
     return workingSource.data.filter(d => !d._type && !d.webhook_url);
   }, [workingSource?.id, workingSource?.data?.length]);
 
-  const filteredCards = filter === "all" ? allCards : filter === "table" ? allCards : allCards.filter(c => c.type === filter);
+  const [chartTypeFilter, setChartTypeFilter] = useState("all");
+  const CHART_TYPE_FILTERS = [
+    { id: "all", l: "Hammasi" },
+    { id: "line", l: "📈 Trend" },
+    { id: "bar", l: "📊 Bar" },
+    { id: "pie", l: "🥧 Donut" },
+    { id: "area", l: "📉 Area" },
+    { id: "stats", l: "🔢 KPI" },
+    { id: "highlight", l: "💡 Xulosa" },
+  ];
+
+  const filteredByType = chartTypeFilter === "all" ? allCards
+    : chartTypeFilter === "stats" ? allCards.filter(c => c.type === "stats" || c.type === "gauge")
+    : chartTypeFilter === "highlight" ? allCards.filter(c => c.type === "highlight")
+    : allCards.filter(c => c.type === "chart" && c.chartType === chartTypeFilter);
+
+  const filteredCards = filter === "table" ? allCards : filteredByType;
   const filters = [
     { id: "all", l: "Hammasi", count: allCards.length },
     { id: "chart", l: "Grafiklar", count: allCards.filter(c => c.type === "chart").length },
@@ -6255,122 +6387,130 @@ FAQAT JSON QAYTAR, boshqa hech narsa yozma.`;
 
   return (
     <div>
-      {/* Manba tanlash */}
-      <div className="flex gap6 mb14 aic flex-wrap">
-        <span className="text-xs text-muted" style={{ fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2 }}>Manba:</span>
-        {connectedSources.map(s => {
-          const st = SOURCE_TYPES[s.type];
-          return (
-            <button key={s.id} className="btn btn-ghost btn-sm" onClick={() => { setSelectedSrc(s.id); setChartOverrides({}); setFilter("all"); }}
-              style={workingSource?.id === s.id ? { borderColor: s.color || st.color, color: s.color || st.color, background: `${s.color || st.color}0F` } : {}}>
-              {st.icon} {s.name} <span className="badge b-ok" style={{ fontSize: 8, marginLeft: 4 }}>{s.data?.length}</span>
+      {/* ── HEADER: Manba tabs + Yangilash tugma ── */}
+      <div className="flex aic jb mb12 flex-wrap gap8">
+        <div className="flex gap6 aic flex-wrap">
+          <span className="text-xs text-muted" style={{ fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2 }}>Manba:</span>
+          {connectedSources.map(s => {
+            const st = SOURCE_TYPES[s.type];
+            const active = workingSource?.id === s.id;
+            return (
+              <button key={s.id} className="btn btn-ghost btn-sm" onClick={() => { setSelectedSrc(s.id); setChartOverrides({}); setFilter("all"); setChartTypeFilter("all"); }}
+                style={active ? { borderColor: s.color || st.color, color: s.color || st.color, background: `${s.color || st.color}12`, fontWeight: 700 } : {}}>
+                {st.icon} {s.name}
+                <span className="badge b-ok" style={{ fontSize: 8, marginLeft: 4, background: active ? `${s.color || st.color}25` : undefined }}>{s.data?.length}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex gap8 aic">
+          {aiCards.length > 0 && (
+            <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}
+              onClick={() => { if (confirm("Barcha chartlarni tozalash?")) { setAiCards([]); LS.del(cacheKey); } }}>
+              🗑 Tozalash
             </button>
-          );
-        })}
+          )}
+          <button className="btn btn-primary" onClick={autoGenerateCharts}
+            disabled={aiLoading || !workingSource}
+            style={{ padding: "8px 18px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+            {aiLoading ? <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Tahlil...</> : "🔄 Yangilash"}
+          </button>
+        </div>
       </div>
 
-      {/* ═══ AI SO'ROV PANELI — ixcham ═══ */}
+      {/* ── AI SO'ROV: qo'shimcha savol ── */}
       {workingSource && (
-        <div className="mb14" style={{ background: "var(--s1)", border: "1px solid rgba(0,201,190,0.12)", borderRadius: 14, padding: "14px 18px" }}>
-          {/* Input qatori */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-            <input className="field f1" placeholder={`${SOURCE_TYPES[workingSource.type]?.label || "Manba"} tahlili: qanday grafik kerak?`}
+        <div className="mb12" style={{ background: "var(--s1)", border: "1px solid rgba(0,201,190,0.1)", borderRadius: 12, padding: "12px 16px" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input className="field f1" placeholder="Qo'shimcha grafik so'rash: masalan 'Top 10 mijoz bar chart'"
               value={userQuery} onChange={e => setUserQuery(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !aiLoading) runAiCharts(); }}
-              disabled={aiLoading}
-              style={{ fontSize: 12, padding: "10px 14px" }} />
+              disabled={aiLoading} style={{ fontSize: 11, padding: "8px 12px" }} />
             <button className="btn btn-primary" onClick={() => runAiCharts()} disabled={aiLoading || !userQuery.trim() || !aiConfig?.apiKey}
-              style={{ padding: "10px 20px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>
-              {aiLoading ? "Tahlil..." : "Generatsiya"}
+              style={{ padding: "8px 16px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+              {aiLoading ? "..." : "➕ Qo'shish"}
             </button>
           </div>
-          {/* Chiplar — ixcham, bir qator scroll */}
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }} className="hide-scroll">
+          <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2 }} className="hide-scroll">
             {QUICK_CHARTS.map((q, i) => (
               <button key={i} onClick={() => { setUserQuery(q.text); runAiCharts(q.text); }} disabled={aiLoading}
-                style={{
-                  background: `${q.c}08`, border: `1px solid ${q.c}20`, borderRadius: 8, padding: "5px 12px", cursor: aiLoading ? "not-allowed" : "pointer",
-                  fontSize: 10, color: q.c, transition: "all .2s", whiteSpace: "nowrap", flexShrink: 0, fontWeight: 600,
-                }}
-                onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = q.c + "60"; e.currentTarget.style.background = q.c + "18"; } }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = q.c + "20"; e.currentTarget.style.background = q.c + "08"; }}>
-                {q.text.length > 40 ? q.text.substring(0, 38) + "..." : q.text}
+                style={{ background: `${q.c}08`, border: `1px solid ${q.c}22`, borderRadius: 7, padding: "4px 10px", cursor: aiLoading ? "not-allowed" : "pointer", fontSize: 9.5, color: q.c, whiteSpace: "nowrap", flexShrink: 0, fontWeight: 600, transition: "all .15s" }}
+                onMouseEnter={e => { if (!aiLoading) { e.currentTarget.style.borderColor = q.c + "55"; e.currentTarget.style.background = q.c + "16"; } }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = q.c + "22"; e.currentTarget.style.background = q.c + "08"; }}>
+                {q.text.length > 35 ? q.text.substring(0, 33) + "…" : q.text}
               </button>
             ))}
           </div>
-          {/* Xato va info */}
-          {!aiConfig?.apiKey && <div className="text-muted text-xs mt6">AI ulangan emas. Sozlamalar → API kalit kiriting.</div>}
-          {aiError && <div style={{ color: "var(--red)", fontSize: 10, marginTop: 6 }}>Xato: {aiError}</div>}
-          {aiCards.length > 0 && (
-            <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>{aiCards.length} ta AI grafik saqlangan</span>
-              <button className="btn btn-ghost btn-xs" style={{ fontSize: 9, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)", padding: "2px 8px" }}
-                onClick={() => { if (confirm("AI grafiklarni tozalash?")) { setAiCards([]); LS.del(cacheKey); } }}>
-                Tozalash
-              </button>
-            </div>
-          )}
+          {!aiConfig?.apiKey && <div className="text-muted" style={{ fontSize: 10, marginTop: 6 }}>⚠️ AI ulangan emas. Sozlamalar → API kalit.</div>}
+          {aiError && <div style={{ color: "var(--red)", fontSize: 10, marginTop: 6 }}>❌ {aiError}</div>}
         </div>
       )}
 
-      {/* AI Loading — bosqichli progress bar */}
+      {/* ── LOADING ── */}
       <AiProgressBar loading={aiLoading} />
 
-      {/* Filter tabs */}
+      {/* ── CHART TYPE FILTER ── */}
       {allCards.length > 0 && (
-        <div className="flex gap6 mb14 aic flex-wrap">
-          {filters.map(f => (
-            <button key={f.id} className="btn btn-ghost btn-sm" onClick={() => setFilter(f.id)}
-              style={filter === f.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-              {f.l} <span className="badge b-ok" style={{ fontSize: 7.5, marginLeft: 3 }}>{f.count}</span>
-            </button>
-          ))}
-          <button className="btn btn-ghost btn-sm ml-auto" onClick={() => setFilter("table")}
-            style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-            Jadval
+        <div className="flex gap5 mb12 flex-wrap aic">
+          {CHART_TYPE_FILTERS.map(f => {
+            const count = f.id === "all" ? allCards.length
+              : f.id === "stats" ? allCards.filter(c => c.type === "stats" || c.type === "gauge").length
+              : f.id === "highlight" ? allCards.filter(c => c.type === "highlight").length
+              : allCards.filter(c => c.type === "chart" && c.chartType === f.id).length;
+            if (f.id !== "all" && count === 0) return null;
+            const active = chartTypeFilter === f.id;
+            return (
+              <button key={f.id} className="btn btn-ghost btn-sm" onClick={() => setChartTypeFilter(f.id)}
+                style={active ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)", fontWeight: 700 } : { fontSize: 11 }}>
+                {f.l} {count > 0 && <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>{count}</span>}
+              </button>
+            );
+          })}
+          <button className="btn btn-ghost btn-sm ml-auto" onClick={() => setFilter(filter === "table" ? "all" : "table")}
+            style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}>
+            📋 Jadval
           </button>
         </div>
       )}
 
-      {/* Jadval tugmasi — agar chartlar yo'q bo'lsa */}
-      {allCards.length === 0 && tableData.length > 0 && !aiLoading && (
-        <div className="flex gap6 mb14 aic">
-          <button className="btn btn-ghost btn-sm" onClick={() => setFilter("table")}
-            style={filter === "table" ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.07)" } : {}}>
-            Jadval ko'rinishi
-          </button>
-        </div>
-      )}
-
-      {/* Jadval ko'rinishi */}
+      {/* ── JADVAL ── */}
       {filter === "table" && tableData.length > 0 && (
         <div className="card">
-          <div className="card-title mb12"> Jadval — {workingSource?.name} ({tableData.length} qator)</div>
+          <div className="card-title mb12">📋 Jadval — {workingSource?.name} ({tableData.length} qator)</div>
           <div className="overflow-x">
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-              <thead><tr>{Object.keys(tableData[0] || {}).map(k => <th key={k} style={{ padding: "7px 12px", textAlign: "left", color: "var(--muted)", borderBottom: "1px solid var(--border)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>{k}</th>)}</tr></thead>
-              <tbody>{tableData.slice(0, 30).map((row, i) => (
+              <thead><tr>{Object.keys(tableData[0] || {}).map(k => <th key={k} style={{ padding: "7px 12px", textAlign: "left", color: "var(--muted)", borderBottom: "1px solid var(--border)", fontSize: 9, textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap", background: "var(--s2)" }}>{k}</th>)}</tr></thead>
+              <tbody>{tableData.slice(0, 50).map((row, i) => (
                 <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.015)" }}>
-                  {Object.values(row).map((v, j) => <td key={j} style={{ padding: "6px 12px", borderBottom: "1px solid rgba(0,201,190,0.04)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", fontSize: 11 }}>{typeof v === "object" ? JSON.stringify(v) : String(v).substring(0, 40)}</td>)}
+                  {Object.values(row).map((v, j) => <td key={j} style={{ padding: "6px 12px", borderBottom: "1px solid rgba(0,201,190,0.04)", whiteSpace: "nowrap", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", fontSize: 11 }}>{typeof v === "object" ? JSON.stringify(v) : String(v ?? "").substring(0, 40)}</td>)}
                 </tr>
               ))}</tbody>
             </table>
-            {tableData.length > 30 && <div className="text-muted text-xs mt8" style={{ textAlign: "center" }}>... va yana {tableData.length - 30} ta qator</div>}
+            {tableData.length > 50 && <div className="text-muted text-xs mt8" style={{ textAlign: "center" }}>... va yana {tableData.length - 50} ta qator</div>}
           </div>
         </div>
       )}
 
-      {/* Dashboard kartalar gridi */}
+      {/* ── CHARTLAR GRID ── */}
       {filter !== "table" && filteredCards.length > 0 && (
-        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_charts_" + (workingSource?.id || "")}
+        <CardGrid cards={filteredCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride}
+          layoutKey={"u_" + (user?.id || "anon") + "_layout_charts_" + (workingSource?.id || "")}
           onDeleteCard={(id) => { const updated = aiCards.filter(c => c.id !== id); setAiCards(updated); LS.set(cacheKey, updated); }} />
       )}
 
-      {filter !== "table" && allCards.length === 0 && !aiLoading && (
-        <div className="card" style={{ textAlign: "center", padding: 32 }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}></div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 13 }}>Yuqoridagi so'rovlardan birini tanlang yoki o'zingiz yozing</div>
-          <div className="text-muted text-sm mt4">AI ma'lumotlaringizni tahlil qilib, raqamlar va grafiklar yaratadi</div>
+      {/* ── EMPTY STATE ── */}
+      {filter !== "table" && allCards.length === 0 && !aiLoading && workingSource && (
+        <div className="card" style={{ textAlign: "center", padding: 48 }}>
+          <div style={{ fontSize: 40, marginBottom: 14 }}>📊</div>
+          <div style={{ fontFamily: "var(--fh)", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+            {workingSource.name} tayyor
+          </div>
+          <div className="text-muted text-sm mb16">{workingSource.data?.length?.toLocaleString()} ta yozuv • AI tahlil qilib 5-8 ta grafik yaratadi</div>
+          <button className="btn btn-primary" onClick={autoGenerateCharts} disabled={!aiConfig?.apiKey}
+            style={{ padding: "12px 28px", fontSize: 13, fontWeight: 700 }}>
+            🔄 Avtomatik grafik yaratish
+          </button>
+          {!aiConfig?.apiKey && <div className="text-muted text-xs mt8">Sozlamalar → API kalit ulang</div>}
         </div>
       )}
     </div>
@@ -6482,11 +6622,25 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
 
   // ── Chat sessiyalar tizimi ──
   const nowTS = () => new Date().toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-  const defaultMsg = [{
-    role: "assistant", content: connectedSources.length > 0
-      ? `Salom! Sizda ${connectedSources.length} ta manba ulangan. Manbani tanlang va savolingizni yozing.`
-      : "Salom! Boshlash uchun avval Data Hub sahifasidan manba ulang (Excel, Google Sheets yoki boshqa). Keyin menga savol bering — tahlil qilaman.", time: nowTS()
-  }];
+  const hour = new Date().getHours();
+  const timeSalom = hour < 6 ? "Xayrli tun" : hour < 12 ? "Xayrli tong" : hour < 18 ? "Xayrli kun" : "Xayrli kech";
+  const firstName = (user?.name || "").split(" ")[0] || "";
+  const greetLines = [
+    `### ${timeSalom}${firstName ? ", " + firstName : ""}! 👋`,
+    '',
+    connectedSources.length > 0
+      ? `Sizda **${connectedSources.length} ta** manba ulangan va tahlilga tayyor.`
+      : '⚠️ Hali birorta manba ulanmagan — **Data Hub** bo\'limidan boshlang.',
+    '',
+    '**Men qila olaman:**',
+    '- 📊 Ma\'lumotlaringiz bo\'yicha tahlil (sotuv, mijoz, moliya)',
+    '- 📈 Trend va solishtirish (oy/chorak/yil)',
+    '- ⚠️ Anomaliya va ogohlantirishlar',
+    '- 💡 Tavsiya va keyingi qadamlar',
+    '',
+    '_Tezkor savollardan tanlang yoki o\'zingiz yozing._',
+  ].join('\n');
+  const defaultMsg = [{ role: "assistant", content: greetLines, time: nowTS() }];
 
   const [sessions, setSessions] = useState(() => {
     const saved = LS.get(sessionsKey, []);
@@ -6719,16 +6873,109 @@ MAZMUN QOIDALARI:
       const useAgent = LS.get("ai_use_agent_" + (user?.id || "anon"), true);
       if (useAgent && user) {
         try {
-          const r = await AiAgentAPI.chat(fullMsg, hist.map(h => ({ role: h.role, content: h.content })));
-          setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: r.reply }; return c; });
+          const agentMsg = text + (attachedFile ? `\n\n━━━ YUKLANGAN FAYL: ${attachedFile.name} ━━━\n${attachedFile.content}` : "");
+          const trimmedHist = hist.slice(-4).map(h => ({
+            role: h.role,
+            content: String(h.content || '').slice(0, 2000),
+          }));
+
+          // Streaming: tool-call'larni real-time ko'rsatamiz
+          const toolLabels = {
+            list_sources: "📚 Manbalar ro'yxati",
+            search_rows: "🔎 Qatorlarni qidirish",
+            aggregate: "🧮 Hisoblash",
+            group_by: "📊 Guruhlash",
+            get_distinct_values: "🔣 Noyob qiymatlar",
+            cross_source_search: "🌐 Hamma manbalarda qidiruv",
+            get_source_schema: "🗂 Manba sxemasi",
+            time_series: "📈 Vaqt bo'yicha trend",
+            query_data: "⚡ Kuchli so'rov",
+            save_memory: "💾 Eslab qolish",
+          };
+          const seenTools = [];
+          let pendingText = '';   // server'dan kelayotgan, lekin hali ekranda ko'rsatilmagan
+          let displayedText = ''; // hozir ekranda ko'rsatilgan
+          let streamEnded = false;
+          let streaming = false;
+          let typingTimer = null;
+
+          // Typing animatsiyasi: har tick ~30ms da 3-10 belgi qo'shamiz
+          // Agar buffer katta bo'lsa tezroq, kichik bo'lsa sekinroq
+          const tickTyping = () => {
+            if (!streaming) return;
+            const remaining = pendingText.length - displayedText.length;
+            if (remaining > 0) {
+              // Buffer katta bo'lsa katta qadam (tez yetkazish), kichik bo'lsa 1-2 belgi
+              const step = remaining > 200 ? Math.ceil(remaining / 20)
+                         : remaining > 50 ? 6
+                         : remaining > 10 ? 3 : 1;
+              displayedText = pendingText.slice(0, displayedText.length + step);
+              setMessages(m => {
+                const c = [...m];
+                c[c.length - 1] = {
+                  role: "assistant",
+                  content: displayedText,
+                  streaming: true,
+                  toolsUsed: seenTools.map(t => t.label),
+                  time: c[c.length - 1]?.time,
+                };
+                return c;
+              });
+            }
+            if (streamEnded && displayedText.length >= pendingText.length) {
+              clearInterval(typingTimer);
+              typingTimer = null;
+            }
+          };
+
+          const final = await AiAgentAPI.stream(agentMsg, trimmedHist, (evt) => {
+            if (evt.type === 'tool') {
+              const label = toolLabels[evt.data.name] || evt.data.name;
+              seenTools.push({ name: evt.data.name, label, input: evt.data.input });
+              if (streaming) return;
+              setMessages(m => {
+                const c = [...m];
+                c[c.length - 1] = {
+                  role: "assistant",
+                  content: "_Tahlil qilayapman..._\n\n" + seenTools.map(t => `• ${t.label}`).join('\n'),
+                  toolProgress: true,
+                  time: c[c.length - 1]?.time,
+                };
+                return c;
+              });
+            } else if (evt.type === 'delta' && typeof evt.data?.text === 'string') {
+              pendingText += evt.data.text;
+              if (!streaming) {
+                streaming = true;
+                typingTimer = setInterval(tickTyping, 25);
+              }
+            }
+          }, { signal: controller.signal });
+
+          streamEnded = true;
+          // Buffer qolganini sekin drainlash o'rniga darhol ko'rsatamiz
+          if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
+
+          setMessages(m => {
+            const c = [...m];
+            c[c.length - 1] = {
+              role: "assistant",
+              content: final?.reply || "(bo'sh javob)",
+              confidence: final?.confidence,
+              sourcesUsed: final?.sourcesUsed || [],
+              toolsUsed: seenTools.map(t => t.label),
+              time: c[c.length - 1]?.time,
+            };
+            return c;
+          });
           if (!hasPersonalKey && user && onAiUsed) onAiUsed();
         } catch (e) {
-          // Agent xato bo'lsa eski yo'lga tushib, oddiy AI
-          console.warn('[chat] agent xato, fallback:', e.message);
-          await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
-            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: chunk }; return c; });
-          }, controller.signal);
-          if (!hasPersonalKey && user && onAiUsed) onAiUsed();
+          if (e.name === 'AbortError') {
+            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "⏹ To'xtatildi" }; return c; });
+          } else {
+            console.warn('[chat] agent xato:', e.message);
+            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "❌ AI xato: " + e.message + "\n\nQayta urinib ko'ring yoki Sozlamalar → AI kalitini tekshiring." }; return c; });
+          }
         }
       } else {
         await callAI([systemPrompt, ...hist, { role: "user", content: fullMsg }], aiConfig, (chunk) => {
@@ -6823,14 +7070,14 @@ MAZMUN QOIDALARI:
 
   // Manba turiga qarab aqlli savollar
   const QUICK_BASE = [
-    { icon: "", text: "Umumiy biznes tahlili qil", cat: "tahlil", c: "#00C9BE" },
-    { icon: "", text: "Daromad tendensiyasini ko'rsat", cat: "tahlil", c: "#4ADE80" },
-    { icon: "", text: "Eng yaxshi va yomon ko'rsatkichlar", cat: "tahlil", c: "#FBBF24" },
-    { icon: "", text: "SWOT tahlili yoz", cat: "strategiya", c: "#A78BFA" },
-    { icon: "", text: "O'sish strategiyasi taklif qil", cat: "strategiya", c: "#60A5FA" },
-    { icon: "", text: "Xarajatlarni optimallashtirish", cat: "moliya", c: "#F87171" },
-    { icon: "", text: "3 oylik prognoz ber", cat: "prognoz", c: "#E879F9" },
-    { icon: "", text: "Tezkor xulosa: asosiy raqamlar", cat: "tahlil", c: "#FB923C" },
+    { icon: "📊", text: "Bugungi moliyaviy holat — asosiy raqamlar", cat: "tahlil", c: "#00C9BE" },
+    { icon: "💰", text: "Jami kirim, chiqim va sof foyda", cat: "tahlil", c: "#4ADE80" },
+    { icon: "📈", text: "Oylik daromad trendi — so'nggi 6 oy", cat: "tahlil", c: "#FBBF24" },
+    { icon: "🏆", text: "Top 10 mijoz — eng ko'p to'lov qilganlar", cat: "tahlil", c: "#A78BFA" },
+    { icon: "⚠️", text: "Anomaliyalar va xavfli tendensiyalar", cat: "tahlil", c: "#F87171" },
+    { icon: "💡", text: "Biznes o'sishi uchun 3 ta strategik tavsiya", cat: "strategiya", c: "#60A5FA" },
+    { icon: "🔮", text: "Keyingi 3 oy daromad prognozi", cat: "prognoz", c: "#E879F9" },
+    { icon: "📋", text: "To'liq moliyaviy hisobot yoz", cat: "hisobot", c: "#FB923C" },
   ];
   const QUICK_INSTAGRAM = [
     { icon: "", text: "Instagram engagement tahlili", cat: "instagram", c: "#E879F9" },
@@ -6853,14 +7100,14 @@ MAZMUN QOIDALARI:
     { icon: "", text: "Kanal engagement rate va tavsiyalar", cat: "telegram", c: "#00C9BE" },
   ];
   const QUICK_DATA = [
-    { icon: "", text: "Ma'lumotlar sifatini tekshir", cat: "tahlil", c: "#00C9BE" },
-    { icon: "", text: "Ustunlar bo'yicha statistika", cat: "tahlil", c: "#4ADE80" },
-    { icon: "", text: "Kelgusi 30 kun uchun prognoz ber", cat: "prognoz", c: "#A78BFA" },
-    { icon: "", text: "Anomaliyalar va og'ishlarni aniqla", cat: "tahlil", c: "#F87171" },
-    { icon: "", text: "Biznes rivojlanish strategiyasi tavsiya qil", cat: "strategiya", c: "#FBBF24" },
-    { icon: "", text: "Xarajatlarni optimallashtirish yo'llari", cat: "tahlil", c: "#60A5FA" },
-    { icon: "", text: "Raqobatchilar bilan solishtirma tahlil", cat: "strategiya", c: "#EC4899" },
-    { icon: "", text: "SWOT tahlil: kuchli/zaif tomonlar, imkoniyat/xavflar", cat: "strategiya", c: "#FB923C" },
+    { icon: "💰", text: "Jami kirim va chiqim — barcha manbalar", cat: "tahlil", c: "#00C9BE" },
+    { icon: "📊", text: "Oylik trend — so'nggi 6 oy grafigi", cat: "tahlil", c: "#4ADE80" },
+    { icon: "🏆", text: "Top mahsulotlar va kategoriyalar — daromad bo'yicha", cat: "tahlil", c: "#A78BFA" },
+    { icon: "👥", text: "Top mijozlar — eng ko'p to'lov qilganlar", cat: "tahlil", c: "#F87171" },
+    { icon: "⚠️", text: "Anomaliyalar — g'ayritabiiy raqamlarni aniqla", cat: "tahlil", c: "#FBBF24" },
+    { icon: "📉", text: "Xarajatlar tuzilmasi — qayerga eng ko'p ketmoqda?", cat: "moliya", c: "#60A5FA" },
+    { icon: "🔮", text: "3 oylik daromad va foyda prognozi", cat: "prognoz", c: "#EC4899" },
+    { icon: "💡", text: "Real raqamlarga asoslangan o'sish strategiyasi", cat: "strategiya", c: "#FB923C" },
   ];
   const QUICK_CRM = [
     { icon: "", text: "CRM umumiy tahlili — lidlar, guruhlar, o'quvchilar", cat: "crm", c: "#8B5CF6" },
@@ -6989,6 +7236,27 @@ MAZMUN QOIDALARI:
                   </div>
                 )}
                 {m.role === "assistant" ? <RenderMD text={m.content} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>}
+                {m.role === "assistant" && (m.confidence || m.sourcesUsed?.length > 0 || m.toolsUsed?.length > 0) && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", fontSize: 10 }}>
+                    {m.confidence && (
+                      <span title="Javob ishonchliligi" style={{
+                        padding: "2px 8px", borderRadius: 10, fontWeight: 600, fontFamily: "var(--fm)",
+                        background: m.confidence === 'high' ? 'rgba(16,185,129,0.15)' : m.confidence === 'medium' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: m.confidence === 'high' ? '#10B981' : m.confidence === 'medium' ? '#CA8A04' : '#EF4444',
+                      }}>
+                        {m.confidence === 'high' ? '✓ Yuqori ishonch' : m.confidence === 'medium' ? '~ O\'rtacha ishonch' : '? Past ishonch'}
+                      </span>
+                    )}
+                    {m.sourcesUsed?.map((s, j) => (
+                      <span key={j} title="Ishlatilgan manba" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(0,201,190,0.12)", color: "var(--teal)", fontWeight: 600 }}>📎 {s}</span>
+                    ))}
+                    {m.toolsUsed && m.toolsUsed.length > 0 && !m.toolProgress && (
+                      <span title="Bajarilgan amallar" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(148,163,184,0.12)", color: "var(--muted)" }}>
+                        🔧 {m.toolsUsed.length} ta amal
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -7117,15 +7385,31 @@ function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
     const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
 
-JAVOB QOIDALARI:
-1. O'ZBEK TILIDA, professional va chuqur
-2. ANIQ RAQAMLAR — "1,247 ta", "23.5%", "3.2M so'm" kabi. "Ko'p/kam" dema
-3. SOLISHTIRISH — o'tgan davr, o'rtacha, maqsad bilan
-4. MUAMMO + TAVSIYA — har bir muammoga aniq yechim
-5. PROGNOZ — kelgusi 1-3 oy uchun
-6. Sarlavhalar bilan bo'limlarga ajrat
-7. Biznes egasi QAROR QABUL QILISHI uchun foydali bo'lsin
-8. 300-500 so'z oralig'ida — ixcham lekin boy`;
+JAVOB FORMATI (QATIY):
+
+## 📊 Executive Xulosa
+> Eng muhim 2-3 topilma — Boss birinchi ko'rsin (masalan: Daromad 3.77B ↑12%, Muammo: Xarajat ↑18%)
+
+## 📈 KPI Jadvali
+| Ko'rsatkich | Joriy | O'tgan davr | O'zgarish | Holat |
+|-------------|-------|-------------|-----------|-------|
+| [Real raqam] | [qiymat] | [qiymat] | +X% ↑ / -X% ↓ | 🟢/🟡/🔴 |
+
+## 🔍 Chuqur Tahlil
+[Segment/kategoriya/vaqt bo'yicha breakdown — aniq raqamlar bilan]
+
+## ⚠️ Muammolar *(faqat mavjud bo'lsa)*
+> 🔴 [Muammo] — [raqam] — ta'sir: [XM so'm / X%]
+
+## 💡 Amaliy Qarorlar
+| # | Tavsiya | Asoslanishi | Natija | Muddat |
+|---|---------|-------------|--------|--------|
+| 1 | Aniq harakat | Real raqam | +X% | 2 hafta |
+
+## 🔮 Prognoz *(trend bo'lsa)*
+[Keyingi oy/kvartal — optimistik / realistik / pessimistik senariy raqamlar bilan]
+
+QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B so'm formati | Tahlil chuqurligi: CEO darajasi`;
     try {
       await callAI([{ role: "user", content: enrichedPrompt }], aiConfig, setResult);
       if (!isPersonal && onAiUsed) onAiUsed();
@@ -7139,37 +7423,50 @@ JAVOB QOIDALARI:
   const hasTG = connectedSources.some(s => s.type === "telegram");
 
   const BASE_MODS = [
-    { l: " Savdo Tahlili", p: "Savdo ko'rsatkichlarini tahlil qil. Daromad tendensiyasi, o'sish imkoniyatlari, zaif tomonlar. Jadval formatida ko'rsat.", cat: "biznes", color: "#4ADE80", icon: "" },
-    { l: " Mijozlar Tahlili", p: "Mijozlar bazasini tahlil qil. Segmentatsiya, LTV, churn risk, takroriy xaridlar.", cat: "biznes", color: "#60A5FA", icon: "" },
-    { l: " Xarajatlar Tahlili", p: "Xarajatlar tuzilmasini tahlil qil. Tejash imkoniyatlari, ROI, byudjet tavsiyalari.", cat: "moliya", color: "#FB923C", icon: "" },
-    { l: " Xodimlar KPI", p: "Xodimlar unumdorligi va KPI tahlili. Eng samarali va muammoli tomonlar.", cat: "biznes", color: "#A78BFA", icon: "" },
-    { l: " SWOT Tahlil", p: "To'liq SWOT tahlili yoz: kuchli tomonlar, zaif tomonlar, imkoniyatlar, xatarlar. Har birini 3-5 ta band bilan.", cat: "strategiya", color: "#E879F9", icon: "" },
-    { l: " 3 Oy Prognoz", p: "Mavjud trend asosida keyingi 3 oy uchun bashorat yoz. Aniq raqamlar bilan. Eng yaxshi va eng yomon senariylar.", cat: "prognoz", color: "#38BDF8", icon: "" },
-    { l: " KPI Dashboard", p: "Asosiy KPI ko'rsatkichlarini aniqlash va jadval formatida chiqarish. Har bir KPI uchun hozirgi holat, maqsad, farq.", cat: "biznes", color: "#00C9BE", icon: "" },
-    { l: " Tezkor Xulosa", p: "Ma'lumotlarning eng muhim 5-7 ta xulosasini ber. Qisqa, aniq, raqamlarga asoslangan.", cat: "tezkor", color: "#FBBF24", icon: "" },
+    { l: "📊 Moliyaviy Dashboard", p: "Biznesning to'liq moliyaviy holatini tahlil qil. Jami kirim, jami chiqim, sof foyda, foyda foizi — barchasi KPI jadval va trend bilan. Eng muhim 5 ko'rsatkich uchun holat (🟢🟡🔴) belgilash. Kirim manbalarini aniqlash. Xarajat tuzilmasini ko'rsatish. 2 ta eng muhim moliyaviy muammo + 2 ta aniq yechim.", cat: "biznes", color: "#4ADE80", icon: "📊" },
+    { l: "💰 Kirim-Chiqim Tahlili", p: "Barcha manbalardan kirim va chiqimni tahlil qil. Oylik dinamika (o'tgan oy bilan solishtir). Eng ko'p xarajat kategoriyalari top-5 jadval bilan. Daromad manbalari ulushi (%). Foyda marginini hisoblash. Qayerda pul yo'qolayapti — aniq raqam + sabab + tavsiya.", cat: "moliya", color: "#60A5FA", icon: "💰" },
+    { l: "🏆 Top Mijozlar & Mahsulotlar", p: "Top 10 mijoz (to'lov summasi bo'yicha) va top 10 mahsulot/xizmat (daromad bo'yicha) — jadval formatida raqamlar bilan. Har birining umumiy daromadga ulushi (%). Eng foydali segment vs eng kam foydali segment farqi. Qaysi mijoz/mahsulotni kuchaytirish kerak — aniq tavsiya.", cat: "biznes", color: "#FB923C", icon: "🏆" },
+    { l: "📈 Daromad Trendi", p: "So'nggi oylar bo'yicha daromad trendi tahlili — har oy uchun raqam. O'sish/kamayish foizi ↑↓. Mavsumiylik aniqlash. Eng yaxshi va eng yomon oylar + sababi. Agar trend salbiy — nima sababdan, nima qilish kerak. Trend davom etsa kelgusi 3 oy prognozi (optimistik/realistik/pessimistik).", cat: "tahlil", color: "#A78BFA", icon: "📈" },
+    { l: "⚠️ Anomaliya & Xavflar", p: "Barcha ma'lumotlarda anomaliyalarni top: kutilmagan kirim/chiqim o'zgarishlari (±20% dan ortiq), g'ayritabiiy raqamlar, keskin tushish. Har anomaliya uchun: [raqam] → [sabab taxmini] → [moliyaviy ta'sir XM so'm] → [darhol chora]. Risklar jadvali: Risk | Ehtimollik | Ta'sir | Yechim.", cat: "tahlil", color: "#F87171", icon: "⚠️" },
+    { l: "💡 O'sish Strategiyasi", p: "Real biznes raqamlariga asoslangan o'sish strategiyasi. Eng yuqori marja va potensial yo'nalishlarni aniqlash. Zaif tomonlar — har biri uchun aniq yechim + kutilgan natija. 3 ta harakat rejasi: [Nima qilish] → [Qanday] → [Qachon] → [Kutilgan +X% yoki +XM so'm]. 90 kunlik o'sish yo'l xaritasi.", cat: "strategiya", color: "#E879F9", icon: "💡" },
+    { l: "🔮 3 Oy Prognozi", p: "Mavjud trend va mavsumiylik asosida keyingi 3 oy uchun moliyaviy prognoz jadval: Oy | Optimistik | Realistik | Pessimistik. Har senariy uchun asoslanish. Qanday omillar prognozni o'zgartirishi mumkin (ichki/tashqi). Maqsadga yetish uchun nima kerak.", cat: "prognoz", color: "#38BDF8", icon: "🔮" },
+    { l: "📋 To'liq Hisobot", p: "Oylik to'liq biznes hisoboti yoz. Bo'limlar: 1) Executive Xulosa (top 3 raqam) 2) Moliyaviy natijalar KPI jadval bilan 3) Top mijozlar/mahsulotlar 4) Trend tahlili va prognoz 5) Anomaliyalar va xavflar 6) Keyingi davr strategiyasi — 3 ta aniq maqsad va KPI.", cat: "hisobot", color: "#00C9BE", icon: "📋" },
+    { l: "⚡ Tezkor KPI", p: "Eng muhim 7 ta KPI ni qisqa va aniq ko'rsat jadvalda: Ko'rsatkich | Raqam | O'zgarish | Holat. KPIlar: Jami Kirim, Jami Chiqim, Sof Foyda, Foyda Foizi, Top Mahsulot Daromadi, Top Mijoz Ulushi, O'sish Trendi. Holat: 🟢 yaxshi / 🟡 e'tibor / 🔴 muammo. Eng muhim 1 ta darhol chora.", cat: "tezkor", color: "#FBBF24", icon: "⚡" },
+
+    { l: "💸 Narx Optimizatsiyasi", p: "Narx strategiyasini tahlil qil. Mahsulot/xizmatlar bo'yicha marja jadval: Tovar/Xizmat | Narx | Tannarx | Marja | Marja%. Qaysi tovar eng yuqori, qaysi eng past marja bermoqda. Raqobat bilan narx taqqoslama (agar ma'lumot bo'lsa). Narxni oshirish mumkin bo'lgan pozitsiyalar — +X% oshirsa +XM so'm qo'shimcha foyda. Chegirma samaradorligini baholash.", cat: "strategiya", color: "#A78BFA", icon: "💸" },
+    { l: "🔄 Mijoz Saqlab Qolish", p: "Retention va churn tahlili. Qayta kelgan vs birinchi marta kelgan mijozlar nisbati (%). Churn rate (ketgan mijozlar foizi). LTV (Lifetime Value) hisoblash: o'rtacha chek × o'rtacha sotib olish chastotasi × davr. Qaysi segment eng ko'p ketmoqda — sababi. Retention oshirish uchun 3 ta amaliy strategiya — har biri +X% natija bilan.", cat: "tahlil", color: "#38BDF8", icon: "🔄" },
+    { l: "💳 Qarzdorlar & To'lovlar", p: "To'lov va qarzdorlik tahlili: umumiy qarzdorlik summasi, muddati o'tgan qarzlar, qarzdorlar ro'yxati top-10 (Mijoz | Summa | Muddat | Kechikish kunlari). To'lov usullari bo'yicha taqsimot (naqd/karta/click/payme). Kechikkan to'lovlarning cash flow ga ta'siri. Inkasso strategiyasi — qaysi qarzdordan qanday yondashish kerak.", cat: "moliya", color: "#F87171", icon: "💳" },
+    { l: "👥 Xodimlar Samaradorligi", p: "Xodimlar produktivligi tahlili: Xodim | Lavozim | Daromad (yaratgan) | Maosh | ROI% jadval. Bir xodim uchun o'rtacha daromad. Eng samarali va kam samarali xodimlar. Maosh/daromad nisbati anomaliyalari. Xodim boshiga yuk taqsimlash optimalmi. Rag'batlantirish tizimi tavsiyasi — natijaga yo'naltirilgan KPI.", cat: "strategiya", color: "#4ADE80", icon: "👥" },
+    { l: "🎯 Maqsad vs Haqiqat", p: "KPI maqsadlari va haqiqiy natijalar solishtirmasi jadval: KPI | Maqsad | Haqiqiy | Farq | Bajarilish% | Holat(🟢🟡🔴). Bajarilmagan maqsadlar — sababi va keyingi davr chorasi. Bajarilgan maqsadlar — nima to'g'ri qilindi. Keyingi davr uchun realisiik maqsad taklifi — trend asosida.", cat: "tahlil", color: "#FBBF24", icon: "🎯" },
+    { l: "📦 Mahsulot Portfeli", p: "Mahsulot/xizmat portfeli tahlili BCG matritsa bo'yicha: Yulduzlar (yuqori o'sish, yuqori ulush), Naqd sigirlari (past o'sish, yuqori ulush), Savol belgilari, Itlar. Har tovarning daromad ulushi va o'sish trendi. Bekor qilish yoki kuchaytirish kerak bo'lgan pozitsiyalar. Yangi mahsulot/xizmat taklifi imkoniyati.", cat: "strategiya", color: "#EC4899", icon: "📦" },
+    { l: "📱 Marketing Samaradorligi", p: "Marketing kanallari samaradorligi: Kanal (Instagram/Telegram/SMS/Referral) | Xarajat | Yangi mijozlar | CPL (xarajat/lead) | CAC (xarajat/mijoz) | ROI% jadval. Eng arzon va qimmat mijoz keltiruvchi kanal. Marketing byudjetini qayta taqsimlash tavsiyasi — qayerga ko'proq, qayerga kam. O'sish uchun yangi kanal taklifi.", cat: "tahlil", color: "#FB923C", icon: "📱" },
+    { l: "⏱️ Operatsion Samaradorlik", p: "Operatsion jarayonlar samaradorligi tahlili. Asosiy jarayonlar: Buyurtma → To'lov → Yetkazib berish — har bosqich vaqti va muammolari. Bottleneck (eng sekin bosqich) aniqlash. Xarajat tuzilmasida tejash imkoniyatlari — aniq summa. Avtomatlashtirish tavsiyalari — nima qo'lda qilinmoqda, AI/tizim bilan almashtirilsa qancha tejash.", cat: "strategiya", color: "#00C9BE", icon: "⏱️" },
+    { l: "🌱 Investitsiya & ROI", p: "Investitsiyalar rentabelligi tahlili: Investitsiya | Miqdor | Qaytim | ROI% | Muddat jadval (mashina, jihozlar, xodim, marketing, IT). Eng samarali va kam samarali investitsiyalar. Keyingi investitsiya tavsiyasi — qayerga, qancha, qachon, kutilgan ROI. 12 oylik investitsiya rejasi.", cat: "moliya", color: "#60A5FA", icon: "🌱" },
+    { l: "🏪 Inventar & Zahira", p: "Tovar zahirasi va inventar tahlili: Tovar | Qoldiq | O'rtacha sotuv/oy | Tugash muddati | Holat jadval. Haddan ortiq zahirada yotgan kapital (XM so'm). Yetishmay qolish xavfi bor tovarlar. Optimal buyurtma miqdori (EOQ). Inventar aylanma koeffitsienti va bozor o'rtacha bilan solishtirish.", cat: "tahlil", color: "#A78BFA", icon: "🏪" },
+    { l: "🔑 Unit Economics", p: "Biznesning unit economics tahlili: CAC (mijoz jalb qilish xarajati), LTV (umr bo'yi qiymat), LTV/CAC nisbati (3+ bo'lishi kerak), Payback period (xarajat qoplash muddati), Gross margin%, Contribution margin. Har ko'rsatkich sanoat o'rtacha bilan solishtirish. LTV/CAC 1 dan past bo'lsa — darhol chora taklifi.", cat: "moliya", color: "#E879F9", icon: "🔑" },
   ];
 
   const IG_MODS = [
-    { l: " Instagram Tahlil", p: "Instagram akkaunt tahlili: engagement rate, eng yaxshi postlar, auditoriya faolligi, kontent strategiyasi tavsiyalari.", cat: "instagram", color: "#E879F9", icon: "" },
-    { l: " Engagement Tahlil", p: "Har bir post uchun engagement rate hisoblash. Qaysi turdagi postlar (rasm, video, karusel) eng yaxshi ishlaydi? Jadval bilan.", cat: "instagram", color: "#F87171", icon: "" },
-    { l: " Post Vaqti Tahlil", p: "Qaysi kunlar va soatlarda postlar eng ko'p like/izoh oladi? Optimal post qilish jadvalini tavsiya qil.", cat: "instagram", color: "#4ADE80", icon: "" },
-    { l: " Kontent Strategiya", p: "Kontent turlarini tahlil qil. Qaysi mavzular va formatlar ishlaydi? 30 kunlik kontent kalendar taklif qil.", cat: "instagram", color: "#EC4899", icon: "" },
-    { l: " Raqobatchilar", p: "Shu sohada raqobatchilar tahlili uchun tavsiyalar. Nima qilish kerak o'sish uchun?", cat: "instagram", color: "#FB923C", icon: "" },
+    { l: " Instagram Tahlil", p: "Instagram akkaunt to'liq tahlili: Followers soni va o'sish trendi, o'rtacha engagement rate (likes+comments/followers×100%), eng yaxshi 5 post (raqamlar bilan), auditoriya faolligi qaysi vaqtda yuqori. KPI jadval: Followers | Reach | Engagement% | O'sish%. Kontent strategiyasi — nima ishlayapti, nima ishlamayapti.", cat: "instagram", color: "#E879F9", icon: "" },
+    { l: " Engagement Tahlil", p: "Har bir post uchun engagement rate hisoblash va jadval: Post | Likes | Comments | Views | ER%. Qaysi turdagi postlar (rasm, video, karusel) eng yuqori ER% beradi — solishtirma jadval. Eng yaxshi 3 post vs eng yomon 3 post — farq sababi. Engagement oshirish uchun 3 ta aniq tavsiya.", cat: "instagram", color: "#F87171", icon: "" },
+    { l: " Post Vaqti Tahlil", p: "Postlar chiqarilgan kun va soat bo'yicha engagement tahlili. Qaysi kunlar (Dushanba-Yakshanba) eng ko'p like/izoh oladi — jadval. Qaysi soatlar eng samarali. Optimal haftalik post jadvalini tavsiya qil: Kun | Soat | Kontent turi.", cat: "instagram", color: "#4ADE80", icon: "" },
+    { l: " Kontent Strategiya", p: "Kontent turlarini tahlil qil — raqamlar asosida qaysi mavzular va formatlar eng ko'p engagement beradi. Top 5 mavzu engagement bo'yicha. 30 kunlik kontent kalendar: Sana | Mavzu | Format | Maqsad. O'sish uchun 3 ta darhol amaliy qaror.", cat: "instagram", color: "#EC4899", icon: "" },
+    { l: " Followers O'sish", p: "Followers o'sish trendi tahlili — oylar bo'yicha jadval. Qanday postlardan keyin ko'proq obunachilar qo'shilgan? Eng samarali kontent toifasi. Keyingi 3 oyda followers maqsadiga yetish rejasi — raqamlar bilan.", cat: "instagram", color: "#FB923C", icon: "" },
   ];
 
   const TG_MODS = [
-    { l: " Kanal Tahlili", p: "Telegram kanal statistikasini tahlil qil: obunachilar, ko'rishlar, engagement rate, o'sish tendensiyasi. Qaysi kontent turi samaraliroq?", cat: "telegram", color: "#38BDF8", icon: "" },
-    { l: " Post Samaradorligi", p: "Kanal postlarini tahlil qil: qaysi postlar eng ko'p ko'rilgan va ulashilgan? Kontent turlari bo'yicha solishtir (matn/rasm/video). Optimal post uzunligi va chiqarish vaqtini aniqlash.", cat: "telegram", color: "#4ADE80", icon: "" },
-    { l: " Auditoriya Tahlili", p: "Telegram kanal auditoriyasi tahlili: obunachilar o'sishi, engagement rate trendi, ko'rish/obunachi nisbati. Auditoriyani ushlab turish strategiyalari.", cat: "telegram", color: "#E879F9", icon: "" },
+    { l: " Kanal Tahlili", p: "Telegram kanal to'liq tahlili: obunachilar soni va o'sish trendi, o'rtacha ko'rishlar, engagement rate (views/subscribers%), eng ko'p ko'rilgan 5 post. KPI jadval: Subscribers | Avg Views | ER% | O'sish%. Qaysi kontent turi (matn/rasm/video/anketa) samaraliroq — raqamlar bilan. 3 ta o'sish tavsiyasi.", cat: "telegram", color: "#38BDF8", icon: "" },
+    { l: " Post Samaradorligi", p: "Kanal postlarini tahlil qil: top-10 post ko'rishlar bo'yicha jadval (Post | Ko'rishlar | Reaktsiya | ER%). Kontent turlari bo'yicha o'rtacha ko'rish solishtirmasi. Optimal post uzunligi (qisqa/o'rta/uzun) qaysi biri ko'proq o'qiladi. Eng samarali post chiqarish vaqti.", cat: "telegram", color: "#4ADE80", icon: "" },
+    { l: " Auditoriya Tahlili", p: "Telegram kanal auditoriyasi tahlili: obunachilar oylik o'sish jadvali (Oy | Obunachilar | O'zgarish | ER%). Ko'rish/obunachi nisbati trendi. Qaysi postlardan keyin o'sish bo'lgan. Auditoriyani ushlab turish uchun 3 ta amaliy strategiya — har biri kutilgan natija bilan.", cat: "telegram", color: "#E879F9", icon: "" },
   ];
 
   const CRM_MODS = [
-    { l: " CRM Umumiy Tahlil", p: "O'quv markaz CRM ma'lumotlarini har tomonlama tahlil qil: lidlar konversiyasi, guruhlar to'liqligi, o'quvchilar soni, o'qituvchilar samaradorligi. Filiallar bo'yicha solishtir. Raqamlar va foizlar bilan.", cat: "crm", color: "#8B5CF6", icon: "" },
-    { l: " Lidlar Pipeline", p: "CRM dagi lidlar tahlili: qaysi bosqichda ko'p lid to'xtab qolmoqda, konversiya foizi qanday, qaysi manbalar eng ko'p lid keltirmoqda. Lidlarni guruhga aylantirish strategiyasi.", cat: "crm", color: "#F87171", icon: "" },
-    { l: " Guruhlar Tahlili", p: "Guruhlar to'liqligini tahlil qil: qaysi guruhlar to'la, qaysilari bo'sh. Narx strategiyasi, optimal guruh hajmi. Qaysi fan va filialda eng ko'p talab bor?", cat: "crm", color: "#4ADE80", icon: "" },
-    { l: " O'qituvchilar KPI", p: "O'qituvchilar samaradorligi: guruhlar soni, o'quvchilar soni, maosh/o'quvchi nisbati. Eng samarali va kam yukli o'qituvchilarni aniqlash. Maosh optimizatsiya tavsiyalari.", cat: "crm", color: "#FBBF24", icon: "" },
-    { l: " Moliyaviy Tahlil", p: "O'quv markaz moliyaviy tahlili: umumiy daromad, maosh xarajatlari, foyda foizi. Filiallar bo'yicha rentabellik. Narx optimizatsiya tavsiyalari.", cat: "crm", color: "#4ADE80", icon: "" },
-    { l: " Filiallar Solishtirma", p: "Filiallar bo'yicha batafsil solishtirma tahlil: o'quvchilar soni, guruhlar, o'qituvchilar, daromad. Eng yaxshi va yomon filiallarni aniqlash.", cat: "crm", color: "#60A5FA", icon: "" },
+    { l: " CRM Umumiy Tahlil", p: "O'quv markaz CRM to'liq tahlili. KPI jadval: Jami lidlar | Konversiya% | Faol o'quvchilar | Guruhlar to'liqligi% | Umumiy daromad. Lidlar pipeline — qaysi bosqichda to'xtab qolmoqda. Guruhlar to'liqligi holati (🟢🟡🔴). Eng samarali va past samarali o'qituvchilar. Filiallar solishtirmasi. Top-3 muammo + har biriga aniq yechim.", cat: "crm", color: "#8B5CF6", icon: "" },
+    { l: " Lidlar Pipeline", p: "CRM lidlar tahlili: Bosqich | Lidlar soni | Konversiya% | O'rtacha vaqt jadval. Qaysi bosqichda eng ko'p lid to'xtab qolmoqda — sababi va yechimi. Qaysi manba (Instagram/Telegram/Referral) eng sifatli lid bermoqda. Liddan o'quvchiga aylantirish konversiyasini oshirish — 3 ta aniq tavsiya + kutilgan +X% natija.", cat: "crm", color: "#F87171", icon: "" },
+    { l: " Guruhlar Tahlili", p: "Guruhlar to'liqligi tahlili: Guruh | Fan | O'qituvchi | O'quvchilar | Kapasite | To'liqlik% jadval. Qaysi guruhlar to'la (🟢), o'rta (🟡), bo'sh (🔴). Eng ko'p talab bo'lgan fan va filial. Bo'sh guruhlarni to'ldirish uchun 3 ta aniq chora. Yangi guruh ochish tavsiyasi — qaysi fanda, qaysi filialda.", cat: "crm", color: "#4ADE80", icon: "" },
+    { l: " O'qituvchilar KPI", p: "O'qituvchilar samaradorligi jadvali: O'qituvchi | Guruhlar | O'quvchilar | Daromad | Maosh | Rentabellik%. Eng samarali (yuksak rentabellik) va kam yukli o'qituvchilarni aniqlash. Maosh/o'quvchi nisbati anomaliyalari. Yuk taqsimlash tavsiyasi — kim ko'proq guruh olishi mumkin. Rag'batlantirish tizimi taklifi.", cat: "crm", color: "#FBBF24", icon: "" },
+    { l: " Moliyaviy Tahlil", p: "O'quv markaz moliyaviy tahlili: Umumiy daromad, maosh xarajatlari, ijara, foyda, foyda foizi — KPI jadval. Filiallar bo'yicha rentabellik solishtirma: Filial | Daromad | Xarajat | Foyda | Marja%. Qaysi filial zarar ko'rmoqda — sababi. To'lov qilinmagan qarzlar (nasiya) holati. Narx optimizatsiya — qaysi guruhlar narxini oshirish mumkin.", cat: "crm", color: "#4ADE80", icon: "" },
+    { l: " Filiallar Solishtirma", p: "Filiallar bo'yicha to'liq solishtirma tahlil jadvali: Filial | O'quvchilar | Guruhlar | O'qituvchilar | Daromad | Marja% | O'sish%. Eng yaxshi filial nima qilyapti to'g'ri — boshqalar uchun dars. Eng yomon filial muammosi — sababi + yechimi. Filiallar reytingi + har birining 1 ta prioritet vazifasi.", cat: "crm", color: "#60A5FA", icon: "" },
   ];
 
   const hasCRM = connectedSources.some(s => s.type === "crm");
@@ -7183,7 +7480,7 @@ JAVOB QOIDALARI:
 
   const modCats = [...new Set(allMods.map(m => m.cat))];
   const [modCat, setModCat] = useState("all");
-  const MOD_CAT_LABELS = { all: "Hammasi", biznes: "Biznes", moliya: "Moliya", strategiya: "Strategiya", prognoz: "Prognoz", tezkor: "Tezkor", instagram: "Instagram", telegram: "Telegram", crm: "CRM" };
+  const MOD_CAT_LABELS = { all: "Hammasi", biznes: "Biznes", moliya: "Moliya", tahlil: "Tahlil", strategiya: "Strategiya", prognoz: "Prognoz", tezkor: "Tezkor", instagram: "Instagram", telegram: "Telegram", crm: "CRM" };
   const filteredMods = modCat === "all" ? allMods : allMods.filter(m => m.cat === modCat);
 
   // Tahlil natijasi uchun mos chartlar
@@ -7455,16 +7752,32 @@ function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
     const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
     const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "") + `
 
-HISOBOT QOIDALARI:
-1. O'ZBEK TILIDA, professional biznes hisobot formati
-2. Biznes egasi uchun — texnik emas, TUSHUNARLI til
-3. ANIQ RAQAMLAR — har bir da'vo raqam bilan isbotlangan bo'lsin
-4. SOLISHTIRISH — o'tgan davr bilan, maqsad bilan, o'rtacha bilan
-5. MUAMMOLAR aniq ko'rsatilsin — qayerda pul yo'qolayapti, qayerda pasayish bor
-6. Har bir muammoga AMALIY TAVSIYA — nima qilish kerak, qanday yaxshilash
-7. PROGNOZ — kelgusi oy/kvartal uchun kutilayotgan natija
-8. Hisobot oxirida UMUMIY XULOSA — 3-5 gapda asosiy topilmalar
-9. Sarlavhalar, nuqtalar bilan professional format`;
+HISOBOT FORMATI (QATIY AMAL QILINSIN):
+
+## 📊 Executive Xulosa
+> 3 ta eng muhim raqam — birinchi ko'rish uchun (masalan: Daromad 3.77B ↑12%, Xarajat 2.1B ↑10%, Sof foyda 1.67B ↑14%)
+
+## 📈 KPI Jadvali
+| Ko'rsatkich | Joriy davr | O'tgan davr | O'zgarish | Holat |
+|-------------|-----------|-------------|-----------|-------|
+| [Real raqam] | [qiymat] | [qiymat] | +X% ↑ / -X% ↓ | 🟢/🟡/🔴 |
+
+## 🔍 Chuqur Tahlil
+[Segment / kategoriya / vaqt bo'yicha breakdown — aniq raqamlar bilan]
+
+## ⚠️ Muammolar va Xavflar *(faqat muammo bo'lsa)*
+> 🔴 [Muammo] — [raqam] — sabab: [...] — ta'sir: [XM so'm yo'qotish]
+
+## 💡 Amaliy Qarorlar
+| # | Tavsiya | Asoslanishi | Kutilgan natija |
+|---|---------|-------------|-----------------|
+| 1 | Aniq harakat | Real raqam | +X% yoki XM so'm |
+
+## 🔮 Prognoz
+[Keyingi oy/kvartal bashorat — trend asosida, raqam bilan]
+
+---
+QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | Raqam formati: 1500000→"1.5M so'm" | Holat: 🟢 yaxshi / 🟡 e'tibor / 🔴 muammo | Har tavsiya = harakat + natija + muddat`;
     try {
       let full = "";
       await callAI([{ role: "user", content: prompt }], aiConfig, c => { full = c; setReport(c); });
@@ -7648,6 +7961,46 @@ HISOBOT QOIDALARI:
       icon: "", l: "Strategik Reja", d: "Qisqa va uzoq muddatli strategiya", cat: "strategiya", color: "#FBBF24",
       fn: () => "Strategik reja hisoboti. Bo'limlar: 1) Hozirgi holat (SWOT jadval) 2) Qisqa muddatli maqsadlar (1-3 oy) 3) O'rta muddatli maqsadlar (3-6 oy) 4) Uzoq muddatli strategiya (6-12 oy) 5) Har maqsad uchun KPI va mas'ul shaxs."
     },
+    {
+      icon: "💸", l: "Narx Strategiyasi", d: "Narxlar, marja va raqobat tahlili", cat: "moliya", color: "#A78BFA",
+      fn: (today) => `Narx strategiyasi hisoboti (${today}). Bo'limlar: 1) Mahsulot/xizmatlar narx-marja jadvali: Tovar | Narx | Tannarx | Marja | Marja% 2) Qaysi pozitsiyada narxni oshirish mumkin — +X% oshirsa +XM so'm qo'shimcha foyda 3) Chegirma va aksiyalar samaradorligi tahlili 4) Raqobatchilar narxlari bilan solishtirma (sanoat o'rtacha) 5) Optimal narx modeli tavsiyasi.`
+    },
+    {
+      icon: "💳", l: "Qarzdorlar Hisoboti", d: "To'lovlar, qarzlar va muddatlar", cat: "moliya", color: "#F87171",
+      fn: (today) => `Qarzdorlar va to'lovlar hisoboti (${today}). Bo'limlar: 1) Umumiy qarzdorlik summasi va dinamikasi 2) Qarzdorlar ro'yxati top-10: Mijoz | Summa | Muddat | Kechikish kunlari | Holat(🟢🟡🔴) 3) Muddati o'tgan qarzlar — jami summa, ulushi % 4) To'lov usullari bo'yicha taqsimot (naqd/karta/online) 5) Inkasso harakatlari rejasi — qaysi qarzdordan qanday yondashuv.`
+    },
+    {
+      icon: "👥", l: "HR & Xodimlar", d: "Xodimlar samaradorligi va maosh tahlili", cat: "tahlil", color: "#4ADE80",
+      fn: (today) => `HR va xodimlar hisoboti (${today}). Bo'limlar: 1) Xodimlar KPI jadvali: Xodim | Lavozim | Yaratgan daromad | Maosh | ROI% 2) O'rtacha bir xodim uchun daromad va xarajat nisbati 3) Eng samarali va kam samarali xodimlar tahlili 4) Yuk taqsimoti optimalmi — kimda haddan ortiq, kimda kam yuk 5) Rag'batlantirish tizimi taklifi — natijaga yo'naltirilgan.`
+    },
+    {
+      icon: "🎯", l: "OKR & Maqsadlar", d: "Maqsad vs haqiqiy natijalar", cat: "strategiya", color: "#00C9BE",
+      fn: (today) => `OKR va KPI maqsadlar hisoboti (${today}). Bo'limlar: 1) KPI bajarilish jadvali: Maqsad | Ko'rsatkich | Haqiqiy | Bajarilish% | Holat(🟢🟡🔴) 2) To'liq bajarilgan maqsadlar — nima to'g'ri qilindi 3) Bajarilmagan maqsadlar — har birining sababi va keyingi davr chorasi 4) Keyingi davr uchun realistik maqsadlar — trend asosida 5) Jamoa uchun ustuvor 3 ta vazifa.`
+    },
+    {
+      icon: "🌱", l: "Investitsiya & ROI", d: "Investitsiyalar samaradorligi va reja", cat: "moliya", color: "#60A5FA",
+      fn: (today) => `Investitsiya va ROI hisoboti (${today}). Bo'limlar: 1) Investitsiyalar jadvali: Soha | Summa | Qaytim | ROI% | Payback muddati 2) Eng samarali va zarar investitsiyalar tahlili 3) Yangi investitsiya imkoniyatlari — har biri uchun kutilgan ROI va muddat 4) Kapital taqsimlash optimalmi — qayerga ko'proq yo'naltirish kerak 5) 12 oylik investitsiya rejasi.`
+    },
+    {
+      icon: "🔄", l: "Retention & Churn", d: "Mijozlar saqlab qolish tahlili", cat: "tahlil", color: "#38BDF8",
+      fn: (today) => `Mijozlar retention va churn hisoboti (${today}). Bo'limlar: 1) Retention rate (saqlab qolish foizi) va churn rate (ketish foizi) oylik dinamikasi 2) LTV hisoblash: o'rtacha chek × chastota × muddat 3) Qaysi segment ko'p ketmoqda — sababi tahlili 4) Qaytmagan mijozlar — qancha summa yo'qotildi 5) Retention oshirish strategiyasi — 3 ta amaliy chora + har biri kutilgan +X% natija.`
+    },
+    {
+      icon: "📱", l: "Marketing Samaradorligi", d: "Kanallar, CAC va ROI tahlili", cat: "tahlil", color: "#FB923C",
+      fn: (today) => `Marketing samaradorligi hisoboti (${today}). Bo'limlar: 1) Kanallar jadvali: Kanal | Xarajat | Lidlar | CPL | Mijozlar | CAC | ROI% 2) Eng arzon va qimmat mijoz keltiruvchi kanal 3) Marketing byudjeti taqsimlash optimalmi — qayerga ko'proq yo'naltirish 4) O'sish uchun yangi kanal imkoniyatlari 5) Keyingi oy marketing rejasi — byudjet bilan.`
+    },
+    {
+      icon: "📦", l: "Mahsulot Portfeli", d: "BCG matritsa va portfel tahlili", cat: "strategiya", color: "#EC4899",
+      fn: (today) => `Mahsulot/xizmat portfeli hisoboti (${today}). Bo'limlar: 1) Portfel jadvali: Tovar/Xizmat | Daromad | Ulush% | O'sish% | Marja% 2) BCG matritsa: Yulduzlar / Naqd sigirlari / Savol belgilari / Itlar 3) Bekor qilish yoki kuchaytirish kerak bo'lgan pozitsiyalar 4) Yangi mahsulot/xizmat imkoniyati — bozor talab tahlili 5) Portfelni optimallashtirish rejasi.`
+    },
+    {
+      icon: "🏆", l: "Yillik Yakun", d: "Yillik natijalar va keyingi yil rejasi", cat: "davr", color: "#FBBF24",
+      fn: (today) => `Yillik yakun hisoboti (${today}). Bo'limlar: 1) Yillik moliyaviy natijalar: Daromad | Xarajat | Foyda | Foyda% — oylar bo'yicha jadval 2) Eng muhim 5 ta yutuq va 3 ta muvaffaqiyatsizlik + sababi 3) KPI maqsadlar vs haqiqiy natijalar jadvali 4) Mijozlar, xodimlar, mahsulotlar bo'yicha yillik dinamika 5) Keyingi yil strategik maqsadlari — OKR formatida 6) Keyingi yil moliyaviy prognoz (3 senariy).`
+    },
+    {
+      icon: "⏱️", l: "Operatsion Samaradorlik", d: "Jarayonlar, bottlenecklar va tejash", cat: "tahlil", color: "#E879F9",
+      fn: (today) => `Operatsion samaradorlik hisoboti (${today}). Bo'limlar: 1) Asosiy biznes jarayonlari xaritasi — har bosqich vaqti va xarajati 2) Bottleneck (eng sekin/qimmat bosqich) tahlili — ta'sir XM so'm 3) Ortiqcha xarajatlar va tejash imkoniyatlari — har biri aniq summa bilan 4) Avtomatlashtirish mumkin jarayonlar — qo'lda vs tizim, tejash foizi 5) Operatsion samaradorlikni oshirish — 90 kunlik reja.`
+    },
   ];
 
   const IG_TYPES = [
@@ -7675,7 +8028,7 @@ HISOBOT QOIDALARI:
   ];
 
   const typeCats = [...new Set(allTypes.map(t => t.cat))];
-  const CAT_LABELS = { all: "Hammasi", davr: "Davriy", tahlil: "Tahlil", moliya: "Moliya", strategiya: "Strategiya", instagram: "Instagram", telegram: "Telegram" };
+  const CAT_LABELS = { all: "Hammasi", davr: "Davriy", tahlil: "Tahlil", moliya: "Moliya", strategiya: "Strategiya", instagram: "Instagram", telegram: "Telegram", crm: "CRM" };
   const filteredTypes = repCat === "all" ? allTypes : allTypes.filter(t => t.cat === repCat);
 
   // Aloqador chartlar
@@ -9028,6 +9381,166 @@ function MtprotoChannelPanel({ push, user }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// MEMORY PANEL — AI xotirasi (foydalanuvchi fakt'lari)
+// ─────────────────────────────────────────────────────────────
+function MemoryPanel({ push }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState("");
+  const [err, setErr] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await MemoryAPI.list();
+      setItems(r?.memories || []);
+    } catch (e) { setErr(e.message); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const add = async () => {
+    const text = input.trim();
+    if (!text) return;
+    try {
+      await MemoryAPI.add(text, 'fact', false);
+      setInput(""); load(); push("Xotiraga qo'shildi", "ok");
+    } catch (e) { push(e.message, "err"); }
+  };
+
+  const togglePin = async (it) => {
+    try { await MemoryAPI.update(it.id, { pinned: !it.pinned }); load(); } catch (e) { push(e.message, "err"); }
+  };
+
+  const remove = async (id) => {
+    if (!confirm("Ushbu xotirani o'chirishni tasdiqlaysizmi?")) return;
+    try { await MemoryAPI.remove(id); load(); } catch (e) { push(e.message, "err"); }
+  };
+
+  const clearAll = async () => {
+    if (!confirm("Pin qilingandan tashqari barcha xotirani o'chirasizmi?")) return;
+    try { await MemoryAPI.clear(true); load(); push("Xotira tozalandi", "ok"); } catch (e) { push(e.message, "err"); }
+  };
+
+  return (
+    <div className="card mb14">
+      <div className="flex aic jb mb10">
+        <div className="card-title" style={{ marginBottom: 0 }}>AI Xotirasi</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="btn btn-ghost btn-sm" onClick={load} disabled={loading}>↻ Yangilash</button>
+          {items.length > 0 && <button className="btn btn-ghost btn-sm" onClick={clearAll}>Hammasini tozalash</button>}
+        </div>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, lineHeight: 1.6 }}>
+        AI sizning kasbingiz, sohangiz, afzalliklaringizni eslab qoladi — keyingi suhbatlarda qayta so'ramaydi.
+        Faktlarni o'zingiz ham qo'shishingiz mumkin.
+      </div>
+      <div className="flex gap8 mb10">
+        <input className="field f1" placeholder="Masalan: Men matematika repetitorman, 30 ta o'quvchim bor"
+          value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') add(); }} />
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={!input.trim()}>Qo'shish</button>
+      </div>
+      {err && <div style={{ fontSize: 10, color: "var(--red)" }}>{err}</div>}
+      {items.length === 0 && !loading && (
+        <div style={{ fontSize: 11, color: "var(--muted)", padding: 14, textAlign: "center", border: "1px dashed var(--border)", borderRadius: 10 }}>
+          Hali xotira bo'sh. AI suhbat davomida o'zi to'ldiradi.
+        </div>
+      )}
+      {items.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {items.map(it => (
+            <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--s2)", borderRadius: 10, border: it.pinned ? "1px solid rgba(251,191,36,0.3)" : "1px solid var(--border)" }}>
+              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 6, background: it.source === 'manual' ? "rgba(0,201,190,0.12)" : "rgba(148,163,184,0.12)", color: it.source === 'manual' ? "var(--teal)" : "var(--muted)", fontWeight: 600 }}>
+                {it.source === 'manual' ? 'Siz' : 'AI'}
+              </span>
+              <div style={{ flex: 1, fontSize: 12, color: "var(--text)" }}>{it.content}</div>
+              <button className="btn btn-ghost btn-sm" onClick={() => togglePin(it)} title={it.pinned ? "Pinni olib tashlash" : "Pin qilish"} style={{ color: it.pinned ? "#FBBF24" : "var(--muted)" }}>📌</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => remove(it.id)} title="O'chirish" style={{ color: "var(--red)" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI BEHAVIOR PANEL — javob chuqurligi, auto-learn, push
+// ─────────────────────────────────────────────────────────────
+function AiBehaviorPanel({ push }) {
+  const [s, setS] = useState(null);
+
+  useEffect(() => {
+    UserSettingsAPI.get().then(setS).catch(() => setS({}));
+  }, []);
+
+  const update = async (patch) => {
+    const next = { ...(s || {}), ...patch };
+    setS(next);
+    try { await UserSettingsAPI.save(patch); } catch (e) { push(e.message, "err"); }
+  };
+
+  if (!s) return null;
+
+  const depths = [
+    { id: 'short', label: "Qisqa (2-4 jumla)" },
+    { id: 'adaptive', label: "Moslashuvchan" },
+    { id: 'detailed', label: "To'liq hisobot" },
+  ];
+
+  return (
+    <div className="card mb14">
+      <div className="card-title mb10">AI xulq-atvori</div>
+      <div style={{ display: "grid", gap: 12 }}>
+
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>Javob chuqurligi</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {depths.map(d => (
+              <button key={d.id} className="btn btn-ghost btn-sm"
+                style={s.response_depth === d.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}
+                onClick={() => update({ response_depth: d.id })}>
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+          <input type="checkbox" checked={!!s.memory_enabled} onChange={e => update({ memory_enabled: e.target.checked })} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>Xotira yoqilgan</div>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>AI sizni eslab qoladi va qayta so'ramaydi</div>
+          </div>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+          <input type="checkbox" checked={!!s.auto_learn} onChange={e => update({ auto_learn: e.target.checked })} />
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>Avtomatik o'rganish</div>
+            <div style={{ fontSize: 10, color: "var(--muted)" }}>Siz o'zingiz haqida aytgan muhim narsalar avtomatik saqlanadi</div>
+          </div>
+        </label>
+
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 6 }}>Push bildirishnomalar (Telegram)</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {Object.entries(s.push_settings || {}).map(([k, v]) => (
+              <label key={k} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 10, background: v ? "rgba(0,201,190,0.1)" : "var(--s2)", border: "1px solid var(--border)", cursor: "pointer", fontSize: 11 }}>
+                <input type="checkbox" checked={!!v} onChange={e => update({ push_settings: { ...(s.push_settings || {}), [k]: e.target.checked } })} />
+                {k}
+              </label>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey, hasGlobalAI, user }) {
   const uk = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
   const [keyInput, setKeyInput] = useState(aiConfig.apiKey);
@@ -9216,7 +9729,11 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
             return (
               <button key={lang.id} className="btn btn-ghost btn-sm"
                 style={curLang === lang.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}
-                onClick={() => { LS.set(uk("lang"), lang.id); push(`Til o'zgartirildi: ${lang.label}`, "ok"); }}>
+                onClick={() => {
+                  LS.set(uk("lang"), lang.id);
+                  UserSettingsAPI.save({ language: lang.id }).catch(() => {});
+                  push(`Til o'zgartirildi: ${lang.label}`, "ok");
+                }}>
                 {lang.flag} {lang.label}
               </button>
             );
@@ -9224,6 +9741,12 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         </div>
         <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>AI javoblari tanlangan tilda keladi. Interfeys hozircha O'zbek tilida.</div>
       </div>
+
+      {/* ── AI XOTIRASI (MEMORY) ── */}
+      <MemoryPanel push={push} />
+
+      {/* ── BOSHQA AI SOZLAMALAR ── */}
+      <AiBehaviorPanel push={push} />
 
       {/* ── TELEGRAM YORDAMCHI BOT ── */}
       <TelegramSettingsPanel push={push} user={user} />
@@ -10433,7 +10956,33 @@ function CardGrid({ cards, chartOverrides, setChartOverride, layoutKey, onRemove
 function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }) {
   const cType = chartOverrides[card.id] || card.chartType;
   const CARD_H = 440;
-  const [tableView, setTableView] = useState(false); // Jadval ko'rinishi toggle
+  const [tableView, setTableView] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const cardRef = useRef(null);
+
+  // PNG yuklab olish — SVG → Canvas → PNG
+  const downloadPng = () => {
+    const svg = cardRef.current?.querySelector("svg");
+    if (!svg) return;
+    const serializer = new XMLSerializer();
+    const svgStr = serializer.serializeToString(svg);
+    const w = svg.clientWidth || 600, h = svg.clientHeight || 400;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w * 2; canvas.height = h * 2;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(2, 2);
+      ctx.fillStyle = "#0F172A";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      const a = document.createElement("a");
+      a.download = (card.title || "chart").replace(/[^a-zA-Z0-9]/g, "_") + ".png";
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    };
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgStr);
+  };
 
   // Yaxshilangan Tooltip
   const CustomTip = ({ active, payload, label }) => {
@@ -10690,38 +11239,44 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
     ? Object.keys(tableData[0]).filter(k => !k.startsWith("_"))
     : [];
 
-  return (
-    <CardWrap>
-      {/* Tepada: sarlavha + jadval toggle + yashirish/o'chirish */}
+  const iconBtn = (title, onClick, children, extra = {}) => (
+    <button onClick={onClick} title={title}
+      style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s", ...extra }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = extra.border || "var(--border)"; e.currentTarget.style.color = extra.color || "var(--muted)"; }}>
+      {children}
+    </button>
+  );
+
+  const CardContent = ({ height = CARD_H, isFullscreen = false }) => (
+    <div ref={isFullscreen ? null : cardRef} style={{ display: "flex", flexDirection: "column", height: isFullscreen ? "100%" : height, padding: isFullscreen ? "20px 24px" : "18px 20px", overflow: "hidden" }}>
+      {/* Header */}
       <div className="flex aic jb mb6">
-        <div className="card-title" style={{ marginBottom: 0, fontSize: 12, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{card.icon} {card.title}</div>
-        <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 6 }}>
-          {/* Jadval toggle */}
-          {tableData.length > 0 && (
-            <button onClick={() => setTableView(v => !v)} title={tableView ? "Grafik ko'rinishi" : "Jadval ko'rinishi"}
-              style={{ width: 28, height: 28, borderRadius: 8, border: tableView ? "1px solid rgba(0,201,190,0.5)" : "1px solid var(--border)", background: tableView ? "rgba(0,201,190,0.12)" : "var(--s2)", color: tableView ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}>
-              {tableView
-                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></svg>
-              }
+        <div>
+          <div className="card-title" style={{ marginBottom: 0, fontSize: isFullscreen ? 15 : 12, fontWeight: 700 }}>{card.icon} {card.title}</div>
+          {card.analysis && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3, lineHeight: 1.5, maxWidth: isFullscreen ? 600 : 320 }}>{card.analysis}</div>}
+        </div>
+        <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+          {tableData.length > 0 && iconBtn(tableView ? "Grafik" : "Jadval", () => setTableView(v => !v),
+            tableView
+              ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+              : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></svg>
+          )}
+          {iconBtn("PNG yuklab olish", downloadPng, <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>)}
+          {!isFullscreen && iconBtn("Kattalashtirish", () => setFullscreen(true), <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>)}
+          {isFullscreen && iconBtn("Yopish", () => setFullscreen(false), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>)}
+          {!isFullscreen && onRemove && iconBtn("Yashirish", () => onRemove(card.id), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>)}
+          {!isFullscreen && onDelete && (
+            <button onClick={() => onDelete(card.id)} title="O'chirish"
+              style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           )}
-          {onRemove && <button onClick={() => onRemove(card.id)} title="Yashirish"
-            style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-          </button>}
-          {onDelete && <button onClick={() => onDelete(card.id)} title="O'chirish"
-            style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.4)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; e.currentTarget.style.borderColor = "rgba(248,113,113,0.2)"; }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-          </button>}
         </div>
       </div>
-
-      {/* O'rtada: grafik yoki jadval */}
+      {/* Chart/Table */}
       <div style={{ flex: 1, minHeight: 0, overflow: tableView ? "auto" : "hidden" }}>
         {tableView ? (
           <div style={{ overflowX: "auto", overflowY: "auto", height: "100%" }}>
@@ -10768,7 +11323,24 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
           })}
         </div>
       )}
-    </CardWrap>
+    </div>
+  );
+
+  return (
+    <>
+      <CardWrap>
+        <CardContent height={CARD_H} />
+      </CardWrap>
+      {fullscreen && createPortal(
+        <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setFullscreen(false); }}>
+          <div ref={cardRef} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 18, width: "min(92vw,1100px)", height: "min(88vh,720px)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 24px 80px rgba(0,0,0,0.6)" }}>
+            <CardContent height={undefined} isFullscreen={true} />
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -13100,6 +13672,24 @@ function AppContent() {
     setShowOnboarding(false);
     push(`Rahmat, ${onbData.bizName || user?.name}! Tizim sizga moslashtirildi`, "ok");
   };
+
+  // ── Instagram OAuth callback handle ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const igConnected = params.get("ig_connected");
+    const igError     = params.get("ig_error");
+    const sourceId    = params.get("sourceId");
+    if (igConnected) {
+      push(`Instagram muvaffaqiyatli ulandi! Ma'lumotlar yuklanmoqda...`, "ok");
+      history.replaceState(null, "", window.location.pathname);
+      // Sources ni qayta yuklash
+      setTimeout(() => { SourcesAPI.list().then(data => { if (data?.sources) setSources(data.sources); }).catch(() => {}); }, 1500);
+      setPage("data");
+    } else if (igError) {
+      push(`Instagram ulanishda xato: ${decodeURIComponent(igError)}`, "error");
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   // ── Auth handlers ──
   const handleAuth = (authUser) => {
