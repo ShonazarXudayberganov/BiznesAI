@@ -1259,6 +1259,30 @@ select.field{cursor:pointer;-webkit-appearance:none}
 /* ═══ CHAT ═══ */
 .chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px - 56px);overflow:hidden}
 .chat-msgs-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
+/* ═══ CHAT HISTORY PANEL (ChatGPT-style left sidebar) ═══ */
+.chat-hub{display:grid;grid-template-columns:280px 1fr;gap:12px;height:100%;min-height:0;transition:grid-template-columns .25s var(--ease)}
+.chat-hub.collapsed{grid-template-columns:0 1fr;gap:0}
+.chat-hub.collapsed .chat-history{display:none}
+.chat-history{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.chat-history-new{padding:10px 14px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--fh);box-shadow:var(--shadow-sm);transition:all .15s}
+.chat-history-new:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
+.chat-history-search{padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.chat-history-search input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:var(--fh)}
+.chat-history-search input::placeholder{color:var(--muted)}
+.chat-history-list{flex:1;overflow-y:auto;margin:0 -4px;padding:0 4px}
+.chat-history-label{font-family:var(--fm);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 8px 4px;display:flex;align-items:center;gap:4px}
+.chat-thread{padding:9px 10px;border-radius:7px;cursor:pointer;margin-bottom:2px;position:relative;transition:background .1s;display:flex;flex-direction:column;gap:3px}
+.chat-thread:hover{background:var(--s2)}
+.chat-thread.active{background:var(--gold-glow);border:1px solid rgba(212,168,83,0.25)}
+.chat-thread-title{font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-thread-meta{font-size:10px;color:var(--muted);font-family:var(--fm);display:flex;align-items:center;gap:6px}
+.chat-thread-src{background:var(--s3);padding:1px 6px;border-radius:3px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-thread-actions{position:absolute;top:7px;right:6px;display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.chat-thread:hover .chat-thread-actions,.chat-thread.active .chat-thread-actions{opacity:1}
+.chat-thread-action{width:22px;height:22px;border:none;background:var(--s3);border-radius:5px;cursor:pointer;color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .12s}
+.chat-thread-action:hover{background:var(--s4);color:var(--text)}
+.chat-thread-action.pinned{color:var(--gold)}
+@media (max-width:920px){.chat-hub{grid-template-columns:1fr}.chat-history{display:none}.chat-history.mobile-open{display:flex;position:fixed;inset:56px 0 0 0;z-index:50;border-radius:0}}
 .chat-msgs{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:6px 2px 14px;}
 .chat-msgs::-webkit-scrollbar{width:3px}
 .hide-scroll{scrollbar-width:none;-ms-overflow-style:none}.hide-scroll::-webkit-scrollbar{display:none}
@@ -5485,6 +5509,10 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
   );
   // Hammasini ochish/yig'ish — {v: boolean, ts: timestamp} (ts — useEffect trigger uchun)
   const [bulkExpand, setBulkExpand] = useState(null);
+  // YANGI: status filter (all/active/inactive/stale) + view mode (cards/table)
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [viewMode, setViewMode] = useState(() => LS.get("sources_view_mode", "table"));
+  useEffect(() => { LS.set("sources_view_mode", viewMode); }, [viewMode]);
 
   // Faol bo'lim o'zgarsa — yangi manba formasida ham default aktiv bo'lsin
   useEffect(() => {
@@ -5566,22 +5594,110 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
   const connectedSources = sources.filter(s => s.connected && s.active);
   const totalRows = connectedSources.reduce((a, s) => a + (s.data?.length || 0), 0);
 
+  // YANGI: staleness hisoblash (24+ soat yangilanmagan)
+  const isStale = (s) => {
+    if (!s.connected) return false;
+    const last = s.lastSync || s.updatedAt || s.createdAt;
+    if (!last) return false;
+    const d = new Date(last);
+    if (isNaN(d)) return false;
+    return (Date.now() - d.getTime()) > 24 * 60 * 60 * 1000;
+  };
+  const staleSources = sources.filter(isStale);
+  const activeSources = sources.filter(s => s.connected && s.active && !isStale(s));
+  const inactiveSources = sources.filter(s => !s.connected || !s.active);
+
+  // Oxirgi sinxron (eng yangi yangilangan manba)
+  const newest = [...connectedSources].sort((a, b) => {
+    const da = new Date(a.lastSync || a.updatedAt || a.createdAt || 0).getTime();
+    const db = new Date(b.lastSync || b.updatedAt || b.createdAt || 0).getTime();
+    return db - da;
+  })[0];
+  const lastSyncStr = (() => {
+    if (!newest) return "—";
+    const d = new Date(newest.lastSync || newest.updatedAt || newest.createdAt || 0);
+    if (isNaN(d)) return "—";
+    const diff = Date.now() - d.getTime();
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return "hozir";
+    if (min < 60) return `${min} daq oldin`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} soat oldin`;
+    return `${Math.floor(hr / 24)} kun oldin`;
+  })();
+
+  // Filterlangan ro'yxat
+  const filteredSources = (() => {
+    if (statusFilter === "active") return activeSources;
+    if (statusFilter === "inactive") return inactiveSources;
+    if (statusFilter === "stale") return staleSources;
+    return sources;
+  })();
+
   return (
     <div>
-      {/* Stats */}
-      <div className="g4 mb20">
+      {/* Stats — 4 tile */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
         {[
-          { l: "Jami Manbalar", v: sources.length, c: "var(--teal)", i: "" },
-          { l: "Aktiv Manbalar", v: connectedSources.length, c: "var(--green)", i: "✓" },
-          { l: "Jami Yozuvlar", v: totalRows.toLocaleString(), c: "var(--gold)", i: "" },
-          { l: "Manba Turlari", v: [...new Set(sources.map(s => s.type))].length, c: "var(--purple)", i: "" },
+          { l: "Jami manbalar", v: sources.length, sub: `${[...new Set(sources.map(s => s.type))].length} xil turdan`, c: "var(--text)" },
+          { l: "Faol manbalar", v: activeSources.length, sub: "So'nggi 24 soatda", c: "var(--green)" },
+          { l: "Jami yozuvlar", v: totalRows.toLocaleString(), sub: staleSources.length ? `${staleSources.length} eskirgan` : "Hammasi yangi", c: "var(--gold)" },
+          { l: "Oxirgi sinxron", v: lastSyncStr, sub: newest ? newest.name : "—", c: "var(--text)", small: true },
         ].map((c, i) => (
-          <div key={i} className="card" style={{ marginBottom: 0 }}>
-            <div className="card-title">{c.i} {c.l}</div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: 20, fontWeight: 700, color: c.c }}>{c.v}</div>
+          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
+            <div style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>{c.l}</div>
+            <div style={{ fontFamily: "var(--fh)", fontSize: c.small ? 17 : 26, fontWeight: 800, color: c.c, letterSpacing: "-0.5px", lineHeight: 1.1 }}>{c.v}</div>
+            <div style={{ fontSize: 11, marginTop: 4, fontFamily: "var(--fm)", color: "var(--muted)" }}>{c.sub}</div>
           </div>
         ))}
       </div>
+
+      {/* Filter tabs + view toggle */}
+      {sources.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 9 }}>
+            {[
+              { id: "all", lbl: "Barchasi", count: sources.length },
+              { id: "active", lbl: "Faol", count: activeSources.length },
+              { id: "inactive", lbl: "Nofaol", count: inactiveSources.length },
+              { id: "stale", lbl: "Eskirgan", count: staleSources.length },
+            ].map(t => (
+              <div key={t.id} onClick={() => setStatusFilter(t.id)}
+                style={{
+                  padding: "6px 12px", fontSize: 12.5, cursor: "pointer", borderRadius: 6,
+                  background: statusFilter === t.id ? "var(--s1)" : "transparent",
+                  color: statusFilter === t.id ? "var(--text)" : "var(--text2)",
+                  fontWeight: statusFilter === t.id ? 600 : 500,
+                  boxShadow: statusFilter === t.id ? "var(--shadow-sm)" : "none",
+                  fontFamily: "var(--fh)", display: "flex", alignItems: "center", gap: 5, transition: "all .15s",
+                }}>
+                {t.lbl}
+                <span style={{ fontFamily: "var(--fm)", fontSize: 10, opacity: 0.7 }}>{t.count}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ flex: 1 }}></div>
+          {/* View toggle: cards | table */}
+          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 9 }}>
+            {[
+              { id: "table", lbl: "☰ Jadval" },
+              { id: "cards", lbl: "⊞ Kartalar" },
+            ].map(v => (
+              <div key={v.id} onClick={() => setViewMode(v.id)}
+                style={{
+                  padding: "6px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6,
+                  background: viewMode === v.id ? "var(--s1)" : "transparent",
+                  color: viewMode === v.id ? "var(--text)" : "var(--muted)",
+                  fontWeight: viewMode === v.id ? 600 : 500,
+                  boxShadow: viewMode === v.id ? "var(--shadow-sm)" : "none",
+                  fontFamily: "var(--fh)", transition: "all .15s",
+                }}>
+                {v.lbl}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Manba qo'shish */}
       {!adding ? (
@@ -5814,16 +5930,33 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
               </button>
             </div>
           )}
-          {sources.map(src => (
-            <SourceItem
-              key={src.id}
-              src={src}
+          {viewMode === "cards" ? (
+            filteredSources.map(src => (
+              <SourceItem
+                key={src.id}
+                src={src}
+                onUpdate={updateSource}
+                onDelete={deleteSource}
+                push={push}
+                bulkExpand={bulkExpand}
+              />
+            ))
+          ) : (
+            <SourcesTable
+              sources={filteredSources}
+              isStale={isStale}
               onUpdate={updateSource}
               onDelete={deleteSource}
               push={push}
+              setBulkExpand={setBulkExpand}
               bulkExpand={bulkExpand}
             />
-          ))}
+          )}
+          {filteredSources.length === 0 && sources.length > 0 && (
+            <div style={{ padding: 32, textAlign: "center", background: "var(--s1)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--muted)", fontSize: 13 }}>
+              Tanlangan filtr bo'yicha manba topilmadi
+            </div>
+          )}
         </>
       )}
 
@@ -5850,6 +5983,355 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
         </div>
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// SOURCES TABLE — table-view (redesign Faza 3.2)
+// ─────────────────────────────────────────────────────────────
+function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpand, bulkExpand }) {
+  const [expandedId, setExpandedId] = useState(null);
+
+  const fmtDate = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d)) return "—";
+    return d.toLocaleDateString("uz-UZ", { day: "2-digit", month: "short" }) + ", " + d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const getHealth = (s) => {
+    if (!s.connected) return { lbl: "Nofaol", cls: "inactive", dotColor: "var(--muted)" };
+    if (isStale(s)) return { lbl: "Eskirgan", cls: "stale", dotColor: "var(--orange)" };
+    return { lbl: "Sog'lom", cls: "ok", dotColor: "var(--green)" };
+  };
+
+  return (
+    <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+      {/* Header row */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "16px 1fr 140px 120px 110px 52px 110px",
+        alignItems: "center", gap: 16, padding: "12px 20px",
+        background: "var(--s2)", borderBottom: "1px solid var(--border)",
+        fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)",
+      }}>
+        <span></span>
+        <span>Nomi</span>
+        <span>Tur</span>
+        <span>Yozuvlar</span>
+        <span>Holat</span>
+        <span>Yoq</span>
+        <span></span>
+      </div>
+
+      {sources.map(src => {
+        const st = SOURCE_TYPES[src.type] || {};
+        const h = getHealth(src);
+        const isOpen = expandedId === src.id;
+        const last = src.lastSync || src.updatedAt || src.createdAt;
+
+        return (
+          <div key={src.id}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "16px 1fr 140px 120px 110px 52px 110px",
+              alignItems: "center", gap: 16, padding: "14px 20px",
+              borderBottom: "1px solid var(--border)", transition: "background .12s",
+              cursor: "default",
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+
+              {/* Status dot with halo */}
+              <div style={{
+                width: 8, height: 8, borderRadius: "50%", background: h.dotColor,
+                boxShadow: `0 0 0 3px ${h.dotColor}22`,
+              }} />
+
+              {/* Name + meta */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {src.name}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>
+                  Oxirgi yangilanish: {fmtDate(last)}
+                </div>
+              </div>
+
+              {/* Type pill */}
+              <div>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "4px 10px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 6,
+                  fontSize: 11.5, fontFamily: "var(--fm)", color: "var(--text2)",
+                }}>
+                  <span>{st.icon || "📁"}</span>
+                  <span>{st.label || src.type}</span>
+                </span>
+              </div>
+
+              {/* Rows count */}
+              <div style={{ fontFamily: "var(--fm)", fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                {src.data?.length ? src.data.length.toLocaleString() : "—"}
+                {src.data?.length ? <span style={{ fontSize: 10, color: "var(--muted)", fontWeight: 400, marginLeft: 4 }}>qator</span> : null}
+              </div>
+
+              {/* Health badge */}
+              <div>
+                <span style={{
+                  fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase",
+                  padding: "4px 8px", borderRadius: 5, fontWeight: 600, display: "inline-block", textAlign: "center",
+                  background: h.cls === "ok" ? "rgba(52,211,153,0.12)" : h.cls === "stale" ? "rgba(251,146,60,0.12)" : "var(--s3)",
+                  color: h.cls === "ok" ? "var(--green)" : h.cls === "stale" ? "var(--orange)" : "var(--muted)",
+                }}>
+                  {h.lbl}
+                </span>
+              </div>
+
+              {/* Toggle active */}
+              <div onClick={() => onUpdate({ ...src, active: !src.active })} title={src.active ? "O'chirish" : "Yoqish"}
+                style={{
+                  width: 34, height: 20, background: src.active ? "var(--green)" : "var(--s3)",
+                  borderRadius: 10, position: "relative", cursor: "pointer", transition: "all .15s",
+                }}>
+                <div style={{
+                  position: "absolute", top: 3, left: src.active ? 17 : 3,
+                  width: 14, height: 14, background: "#fff", borderRadius: "50%",
+                  transition: "all .15s", boxShadow: "var(--shadow-sm)",
+                }} />
+              </div>
+
+              {/* Manage button */}
+              <button onClick={() => setExpandedId(isOpen ? null : src.id)}
+                style={{
+                  padding: "7px 12px", fontSize: 12, fontFamily: "var(--fh)", fontWeight: 500,
+                  background: "var(--s2)", border: "1px solid var(--border)", color: "var(--text2)",
+                  borderRadius: 7, cursor: "pointer", transition: "all .12s",
+                  display: "flex", alignItems: "center", gap: 5,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; e.currentTarget.style.color = "var(--text)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text2)"; }}>
+                {isOpen ? "Yopish" : "Boshqarish"}
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ transition: "transform .2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Expanded panel — existing SourceItem full editor */}
+            {isOpen && (
+              <div style={{ padding: "0 20px 16px", background: "var(--s2)", borderBottom: "1px solid var(--border)" }}>
+                <SourceItem
+                  src={src}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  push={push}
+                  bulkExpand={{ v: true, ts: Date.now() }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// ONBOARDING MODAL — Yangi foydalanuvchi uchun 3-qadamli sehrgar
+// ─────────────────────────────────────────────────────────────
+function OnboardingModal({ open, onClose, onGoSources, onGoDemo }) {
+  const [step, setStep] = useState(0);
+  const [pickedType, setPickedType] = useState(null);
+
+  if (!open) return null;
+
+  const SOURCE_OPTIONS = [
+    { id: "excel",     icon: "📊", name: "Excel / CSV",    desc: "Fayl yuklash" },
+    { id: "sheets",    icon: "📑", name: "Google Sheets",  desc: "Havola orqali" },
+    { id: "instagram", icon: "📷", name: "Instagram",       desc: "Akkaunt ulash" },
+    { id: "telegram",  icon: "✈️", name: "Telegram Bot",    desc: "Tezkor ma'lumot" },
+    { id: "crm",       icon: "🏫", name: "CRM Tizim",       desc: "Integratsiya" },
+    { id: "manual",    icon: "✏️", name: "Qo'lda kiritish", desc: "Oddiy jadval" },
+  ];
+
+  const STEPS = [
+    { label: "Xush kelibsiz", title: "ANALIX'ga xush kelibsiz! 👋", sub: "3 daqiqada birinchi tahlilingizni oling" },
+    { label: "Manba ulang",    title: "Birinchi manbangizni tanlang", sub: "ANALIX ma'lumotlaringizni o'qib, avtomatik tahlil qiladi" },
+    { label: "Boshlash",       title: "Tayyormisiz?",                  sub: "Manba ulagach — AI'dan har qanday biznes savolingizni so'rang" },
+  ];
+
+  const next = () => step < STEPS.length - 1 ? setStep(step + 1) : onClose();
+  const back = () => step > 0 && setStep(step - 1);
+  const current = STEPS[step];
+
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 24,
+      animation: "fadeIn .2s ease",
+    }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{
+        width: "min(700px, 100%)", background: "var(--s1)", borderRadius: 20, overflow: "hidden",
+        border: "1px solid var(--border)", boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+        animation: "slideUp .3s ease",
+      }}>
+        {/* HEAD */}
+        <div style={{
+          padding: "28px 32px 20px",
+          background: "linear-gradient(135deg, var(--gold-glow) 0%, var(--s1) 100%)",
+          borderBottom: "1px solid var(--border)", position: "relative",
+        }}>
+          <button onClick={onClose} title="Yopish"
+            style={{
+              position: "absolute", top: 16, right: 16, width: 32, height: 32,
+              background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              color: "var(--muted)", fontSize: 16,
+            }}>×</button>
+
+          {/* Progress pills */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            {STEPS.map((_, i) => (
+              <div key={i} style={{
+                height: 4, flex: 1, borderRadius: 2, overflow: "hidden",
+                background: i < step ? "var(--green)" : "var(--s3)",
+              }}>
+                {i === step && <div style={{ height: "100%", width: "50%", background: "var(--gold)", borderRadius: 2 }} />}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontFamily: "var(--fm)", fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: "var(--gold)", marginBottom: 8, fontWeight: 600 }}>
+            Qadam {step + 1} / {STEPS.length} · {current.label}
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.7px", marginBottom: 6 }}>
+            {current.title}
+          </div>
+          <div style={{ fontSize: 14, color: "var(--text2)" }}>{current.sub}</div>
+        </div>
+
+        {/* BODY */}
+        <div style={{ padding: "24px 32px" }}>
+          {step === 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              {[
+                { icon: "📊", title: "Chuqur tahlil", desc: "Sotuv, moliya, mijoz bo'yicha AI tahlil" },
+                { icon: "🤖", title: "AI Maslahatchi", desc: "Har qanday savolingizga javob" },
+                { icon: "📈", title: "Avtomatik hisobot", desc: "Haftalik va oylik xulosalar" },
+              ].map((f, i) => (
+                <div key={i} style={{
+                  padding: "18px 16px", background: "var(--s2)", border: "1px solid var(--border)",
+                  borderRadius: 12, textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>{f.icon}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{f.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}>{f.desc}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {step === 1 && (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 18 }}>
+                {SOURCE_OPTIONS.map(o => (
+                  <div key={o.id} onClick={() => setPickedType(o.id)}
+                    style={{
+                      padding: "16px 14px", background: pickedType === o.id ? "var(--gold-glow)" : "var(--s2)",
+                      border: `1.5px solid ${pickedType === o.id ? "var(--gold)" : "var(--border)"}`,
+                      borderRadius: 10, cursor: "pointer", textAlign: "center", transition: "all .15s",
+                    }}
+                    onMouseEnter={e => { if (pickedType !== o.id) e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+                    onMouseLeave={e => { if (pickedType !== o.id) e.currentTarget.style.borderColor = "var(--border)"; }}>
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>{o.icon}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{o.name}</div>
+                    <div style={{ fontSize: 10, color: "var(--muted)" }}>{o.desc}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{
+                padding: "14px 16px", background: "var(--s2)", border: "1px solid var(--border)",
+                borderRadius: 10, display: "flex", alignItems: "center", gap: 12,
+              }}>
+                <div style={{ width: 36, height: 36, background: "var(--blue)", color: "#fff", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                  🚀
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>Sinab ko'rmoqchimisiz? Demo ma'lumot bilan boshlang</div>
+                  <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Haqiqiy ma'lumot yuklamasdan ANALIX'ni o'rganing</div>
+                </div>
+                <button onClick={() => { onGoDemo && onGoDemo(); onClose(); }}
+                  style={{
+                    padding: "8px 14px", background: "var(--blue)", color: "#fff", border: "none",
+                    borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "var(--fh)",
+                  }}>Demo ochish</button>
+              </div>
+            </>
+          )}
+
+          {step === 2 && (
+            <div>
+              <div style={{
+                padding: "20px 22px", background: "var(--gold-glow)", border: "1px solid var(--gold)",
+                borderRadius: 12, marginBottom: 14,
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, color: "var(--gold)" }}>✓ Hammasi tayyor!</div>
+                <div style={{ fontSize: 13, color: "var(--text2)", lineHeight: 1.6 }}>
+                  Endi <b>Manbalar</b> sahifasiga o'tib, birinchi ma'lumotingizni yuklang.
+                  Keyin <b>AI Maslahatchi</b>'ga kirib istalgan savolingizni bering — masalan
+                  "Bu oy sotuv qanday?" yoki "Eng yaxshi mijozlarim kim?"
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { k: "⌘K", d: "Tezkor qidiruv / buyruqlar" },
+                  { k: "G D", d: "Bosh sahifaga o'tish" },
+                  { k: "G A", d: "Tahlilga o'tish" },
+                  { k: "?",   d: "Bu panelni qayta ochish" },
+                ].map((s, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "var(--fm)", fontSize: 11, padding: "3px 8px", background: "var(--s3)", border: "1px solid var(--border)", borderRadius: 5, fontWeight: 600 }}>{s.k}</span>
+                    <span style={{ fontSize: 12, color: "var(--text2)" }}>{s.d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div style={{
+          padding: "16px 32px", borderTop: "1px solid var(--border)", background: "var(--s2)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <button onClick={onClose}
+            style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12.5, fontFamily: "var(--fh)" }}>
+            Keyinroq
+          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {step > 0 && (
+              <button onClick={back}
+                style={{ padding: "8px 16px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "var(--fh)", fontWeight: 500, color: "var(--text2)" }}>
+                ← Orqa
+              </button>
+            )}
+            {step === STEPS.length - 1 ? (
+              <button onClick={() => { onGoSources && onGoSources(); onClose(); }}
+                style={{ padding: "8px 18px", background: "var(--gold)", color: "#000", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "var(--fh)", fontWeight: 700 }}>
+                Manbalarga o'tish →
+              </button>
+            ) : (
+              <button onClick={next}
+                style={{ padding: "8px 18px", background: "var(--gold)", color: "#000", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontFamily: "var(--fh)", fontWeight: 700 }}>
+                Davom etish →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -6583,6 +7065,19 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     }
   };
   const [showSessions, setShowSessions] = useState(false);
+  // YANGI: pinned sessions + search (ChatGPT-style)
+  const pinnedKey = "u_" + uid + "_chat_pinned";
+  const [pinnedIds, setPinnedIds] = useState(() => LS.get(pinnedKey, []));
+  const [threadSearch, setThreadSearch] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(() => {
+    // Mobilda default yopiq
+    try { return window.innerWidth >= 920; } catch { return true; }
+  });
+  const togglePin = (sid) => {
+    const next = pinnedIds.includes(sid) ? pinnedIds.filter(x => x !== sid) : [...pinnedIds, sid];
+    setPinnedIds(next);
+    LS.set(pinnedKey, next);
+  };
 
   // ── Chat sessiyalar tizimi ──
   const nowTS = () => new Date().toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -7116,8 +7611,95 @@ MAZMUN QOIDALARI:
   const scrollToTop = () => topRef.current?.scrollIntoView({ behavior: "smooth" });
   const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 
+  // Thread groupingi (Bugun / Kecha / Bu hafta / Eski)
+  const groupSession = (s) => {
+    const diff = Date.now() - s.createdAt;
+    const day = 86400000;
+    if (diff < day) return "Bugun";
+    if (diff < 2 * day) return "Kecha";
+    if (diff < 7 * day) return "Bu hafta";
+    return "Eski";
+  };
+  // Search bilan filterlangan sessiyalar
+  const searchedSessions = threadSearch.trim()
+    ? sessions.filter(s => (s.title || "").toLowerCase().includes(threadSearch.toLowerCase())
+      || (s.messages || []).some(m => (m.content || "").toLowerCase().includes(threadSearch.toLowerCase())))
+    : sessions;
+  const pinnedSessions = searchedSessions.filter(s => pinnedIds.includes(s.id));
+  const unpinnedSessions = searchedSessions.filter(s => !pinnedIds.includes(s.id));
+  // Guruhlash
+  const groups = { "Bugun": [], "Kecha": [], "Bu hafta": [], "Eski": [] };
+  for (const s of unpinnedSessions) groups[groupSession(s)].push(s);
+
+  // Session manbasini topish (eng birinchi user message'dan)
+  const getSessionSource = (s) => {
+    // activeSrcIds session'ga tegishli emas — faqat hozirgi aktivlar
+    // Placeholder: birinchi manbani qaytaramiz
+    return connectedSources[0]?.name || "";
+  };
+
+  const ThreadItem = ({ s }) => {
+    const isActive = s.id === activeSessionId;
+    const isPinned = pinnedIds.includes(s.id);
+    return (
+      <div className={`chat-thread ${isActive ? "active" : ""}`} onClick={() => selectSession(s.id)}>
+        <div className="chat-thread-title">{s.title || "Yangi suhbat"}</div>
+        <div className="chat-thread-meta">
+          <span>{new Date(s.createdAt).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })}</span>
+          <span>· {s.messages?.length || 0} xabar</span>
+        </div>
+        <div className="chat-thread-actions">
+          <button className={`chat-thread-action ${isPinned ? "pinned" : ""}`}
+            title={isPinned ? "Yechish" : "Pin"}
+            onClick={e => { e.stopPropagation(); togglePin(s.id); }}>
+            {isPinned ? "📌" : "📍"}
+          </button>
+          <button className="chat-thread-action"
+            title="O'chirish"
+            onClick={e => { e.stopPropagation(); deleteSession(s.id); }}>✕</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="chat-wrap">
+    <div className={`chat-hub ${historyOpen ? "" : "collapsed"}`}>
+      {/* ═══ CHAT HISTORY (ChatGPT-style chap panel) ═══ */}
+      <aside className={`chat-history ${historyOpen ? "" : "mobile-closed"}`}>
+        <button className="chat-history-new" onClick={newSession}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yangi suhbat
+        </button>
+        <div className="chat-history-search">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input placeholder="Suhbatlarni qidirish..." value={threadSearch} onChange={e => setThreadSearch(e.target.value)} />
+          {threadSearch && <span style={{ cursor: "pointer", color: "var(--muted)", fontSize: 11 }} onClick={() => setThreadSearch("")}>✕</span>}
+        </div>
+        <div className="chat-history-list">
+          {pinnedSessions.length > 0 && (
+            <>
+              <div className="chat-history-label">📌 Pin qilingan</div>
+              {pinnedSessions.map(s => <ThreadItem key={s.id} s={s} />)}
+            </>
+          )}
+          {["Bugun", "Kecha", "Bu hafta", "Eski"].map(g => (
+            groups[g].length > 0 && (
+              <div key={g}>
+                <div className="chat-history-label">{g}</div>
+                {groups[g].map(s => <ThreadItem key={s.id} s={s} />)}
+              </div>
+            )
+          ))}
+          {searchedSessions.length === 0 && (
+            <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
+              {threadSearch ? "Hech narsa topilmadi" : "Suhbatlar yo'q"}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* ═══ CHAT MAIN ═══ */}
+      <div className="chat-wrap">
       {/* ── AI provayder info + export tugmalari ── */}
       <div className="flex aic gap8" style={{ padding: "8px 12px", background: "var(--s2)", borderRadius: 10, border: `1px solid ${prov.color}25`, flexShrink: 0 }}>
         <span style={{ color: prov.color, fontSize: 15 }}>{prov.icon}</span>
@@ -7138,8 +7720,9 @@ MAZMUN QOIDALARI:
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Yangi
         </button>
-        <button onClick={() => setShowSessions(p => !p)}
-          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: showSessions ? "var(--s3)" : "var(--s2)", color: "var(--text2)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}>
+        <button onClick={() => setHistoryOpen(p => !p)}
+          title="Tarix panelini ochish/yopish"
+          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: historyOpen ? "var(--s3)" : "var(--s2)", color: "var(--text2)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
           Tarix ({sessions.length})
         </button>
@@ -7170,29 +7753,7 @@ MAZMUN QOIDALARI:
         ))}
       </div>
 
-      {/* ── Chat xabarlar (wrapper with floating scroll buttons) ── */}
-      {/* ── Sessiyalar paneli (ixcham, 1 qator scroll) ── */}
-      {showSessions && (
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, marginBottom: 8, flexShrink: 0 }} className="hide-scroll">
-          {sessions.map(s => {
-            const isActive = s.id === activeSessionId;
-            const age = Math.floor((Date.now() - s.createdAt) / 86400000);
-            return (
-              <div key={s.id} onClick={() => selectSession(s.id)}
-                style={{ padding: "6px 12px", borderRadius: 8, cursor: "pointer", background: isActive ? "var(--s3)" : "var(--s1)", border: `1px solid ${isActive ? "var(--teal)" : "var(--border)"}`, transition: "all .15s", flexShrink: 0, minWidth: 120, maxWidth: 180, display: "flex", alignItems: "center", gap: 6 }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.borderColor = "var(--border-hi)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.borderColor = "var(--border)"; }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: isActive ? 700 : 400, color: isActive ? "var(--teal)" : "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                  <div style={{ fontSize: 8, color: "var(--muted)", fontFamily: "var(--fm)" }}>{s.messages?.length || 0} xabar {age > 0 ? `· ${age}k` : ""}</div>
-                </div>
-                <button onClick={e => { e.stopPropagation(); deleteSession(s.id); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10, padding: 0, flexShrink: 0, lineHeight: 1 }}>✕</button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
+      {/* Chat history endi chap panel'da (chat-history) */}
       <div className="chat-msgs-wrap">
         <div className="chat-msgs">
           <div ref={topRef} />
@@ -7311,6 +7872,7 @@ MAZMUN QOIDALARI:
         ) : (
           <button className="chat-send-btn" onClick={() => sendMsg()} disabled={!input.trim() && !attachedFile}>➤</button>
         )}
+      </div>
       </div>
     </div>
   );
@@ -7454,8 +8016,25 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
 
   const modCats = [...new Set(allMods.map(m => m.cat))];
   const [modCat, setModCat] = useState("all");
-  const MOD_CAT_LABELS = { all: "Hammasi", biznes: "Biznes", moliya: "Moliya", tahlil: "Tahlil", strategiya: "Strategiya", prognoz: "Prognoz", tezkor: "Tezkor", instagram: "Instagram", telegram: "Telegram", crm: "CRM" };
-  const filteredMods = modCat === "all" ? allMods : allMods.filter(m => m.cat === modCat);
+  const MOD_CAT_LABELS = { all: "Hammasi", biznes: "Biznes", moliya: "Moliya", tahlil: "Tahlil", strategiya: "Strategiya", prognoz: "Prognoz", tezkor: "Tezkor", instagram: "Instagram", telegram: "Telegram", crm: "CRM", hisobot: "Hisobot" };
+  // YANGI: Favorites (sevimli modullar) — LocalStorage
+  const favKey = "u_" + (user?.id || "anon") + "_fav_mods";
+  const [favMods, setFavMods] = useState(() => LS.get(favKey, []));
+  const toggleFav = (modLabel) => {
+    const next = favMods.includes(modLabel) ? favMods.filter(x => x !== modLabel) : [...favMods, modLabel];
+    setFavMods(next);
+    LS.set(favKey, next);
+  };
+  // Filter: kategoriya + "fav" alohida
+  const filteredMods = (() => {
+    if (modCat === "fav") return allMods.filter(m => favMods.includes(m.l));
+    if (modCat === "all") return allMods;
+    return allMods.filter(m => m.cat === modCat);
+  })();
+  // Favoritlarni yuqoriga ko'tarish (all ko'rinishda)
+  const sortedMods = modCat === "all"
+    ? [...filteredMods].sort((a, b) => (favMods.includes(b.l) ? 1 : 0) - (favMods.includes(a.l) ? 1 : 0))
+    : filteredMods;
 
   // Tahlil natijasi uchun mos chartlar
   const relatedCharts = useMemo(() => {
@@ -7515,42 +8094,102 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
           </div>
         )}
 
-        {/* Kategoriya filtrlari */}
-        <div className="flex gap5 mb12 flex-wrap">
-          {["all", ...modCats].map(c => (
-            <button key={c} className="qcat" onClick={() => setModCat(c)}
-              style={modCat === c ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.1)", padding: "5px 12px", fontSize: 10 } : { padding: "5px 12px", fontSize: 10 }}>
-              {MOD_CAT_LABELS[c] || c}
-            </button>
-          ))}
+        {/* Kategoriya filter chiplari (pill-style, redesign) */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          {["all", "fav", ...modCats].map(c => {
+            const active = modCat === c;
+            const isFav = c === "fav";
+            const label = isFav ? `⭐ Sevimli${favMods.length ? ` · ${favMods.length}` : ""}` : (MOD_CAT_LABELS[c] || c);
+            return (
+              <button key={c} onClick={() => setModCat(c)}
+                style={{
+                  padding: "7px 14px", borderRadius: 18, fontSize: 12, cursor: "pointer",
+                  background: active ? "var(--text)" : "var(--s1)",
+                  color: active ? "var(--bg)" : "var(--text2)",
+                  border: `1px solid ${active ? "var(--text)" : "var(--border)"}`,
+                  fontWeight: active ? 600 : 500, fontFamily: "var(--fh)",
+                  transition: "all .15s",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.borderColor = "var(--border)"; }}>
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* ── Tahlil modullari grid ── */}
-        <div className="section-hd mb10">Tayyor Tahlil Modullari</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 10, marginBottom: 18 }}>
-          {filteredMods.map((m, i) => (
-            <button key={i} disabled={loading} onClick={() => run(m)}
-              style={{
-                background: loading && activeLabel === m.l ? `${m.color}15` : "var(--s2)",
-                border: `1px solid ${loading && activeLabel === m.l ? m.color + "50" : "var(--border)"}`,
-                borderRadius: 12, padding: "16px 18px", cursor: loading ? "not-allowed" : "pointer",
-                textAlign: "left", transition: "all .25s var(--ease)", position: "relative", overflow: "hidden",
-              }}
-              onMouseEnter={e => { if (!loading) { e.currentTarget.style.borderColor = m.color + "50"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 4px 16px ${m.color}15`; } }}
-              onMouseLeave={e => { if (!loading) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; } }}
-            >
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg,transparent,${m.color}60,transparent)` }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 22 }}>{m.icon}</span>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: loading && activeLabel === m.l ? m.color : "var(--text)" }}>{m.l.replace(/^[^\s]+\s/, "")}</div>
-              </div>
-              <div style={{ fontSize: 10.5, color: "var(--muted)", lineHeight: 1.6 }}>{m.p.substring(0, 80)}...</div>
-              {loading && activeLabel === m.l && (
-                <div style={{ position: "absolute", top: 10, right: 12 }}><div className="typing-ind"><span /><span /><span /></div></div>
-              )}
-            </button>
-          ))}
+        {/* ── Tahlil modullari grid (favoritlar yuqorida) ── */}
+        <div className="section-hd mb10">
+          {modCat === "fav" ? "Sevimli Tahlil Modullari" : "Tayyor Tahlil Modullari"}
+          <span style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)", fontWeight: 400, marginLeft: 8 }}>· {sortedMods.length} ta</span>
         </div>
+        {sortedMods.length === 0 ? (
+          <div style={{ padding: 32, textAlign: "center", background: "var(--s1)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--muted)", fontSize: 13, marginBottom: 18 }}>
+            {modCat === "fav" ? "⭐ Sevimli modullar yo'q — har modul ustidagi yulduzchani bosing" : "Bu kategoriyada modul topilmadi"}
+          </div>
+        ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 14, marginBottom: 18 }}>
+          {sortedMods.map((m, i) => {
+            const isFav = favMods.includes(m.l);
+            const isLoading = loading && activeLabel === m.l;
+            const cleanTitle = m.l.replace(/^[^\s]+\s/, "");
+            return (
+              <div key={i}
+                style={{
+                  background: "var(--s1)",
+                  border: `1px solid ${isLoading ? m.color + "60" : "var(--border)"}`,
+                  borderRadius: 12, padding: "16px 18px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  transition: "all .2s var(--ease)", position: "relative",
+                  display: "flex", flexDirection: "column", gap: 10,
+                }}
+                onClick={() => !loading && run(m)}
+                onMouseEnter={e => { if (!loading) { e.currentTarget.style.borderColor = m.color + "50"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${m.color}18`; } }}
+                onMouseLeave={e => { if (!loading) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; } }}>
+                {/* Head: icon box + title + fav star */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9,
+                    background: m.color + "1A", color: m.color,
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0,
+                  }}>{m.icon || "📊"}</div>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 13.5, fontWeight: 700, color: isLoading ? m.color : "var(--text)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{cleanTitle}</div>
+                  <button onClick={(e) => { e.stopPropagation(); toggleFav(m.l); }}
+                    title={isFav ? "Sevimlidan chiqarish" : "Sevimli qilish"}
+                    style={{
+                      background: "none", border: "none", cursor: "pointer", fontSize: 16,
+                      color: isFav ? "var(--gold)" : "var(--muted2)", padding: 2,
+                      transition: "transform .15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.15)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
+                    {isFav ? "★" : "☆"}
+                  </button>
+                </div>
+                {/* Desc */}
+                <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55, minHeight: 32 }}>
+                  {m.p.substring(0, 95)}...
+                </div>
+                {/* Footer: tag + CTA */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                  <span style={{ fontFamily: "var(--fm)", fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                    {MOD_CAT_LABELS[m.cat] || m.cat}
+                  </span>
+                  {isLoading ? (
+                    <div className="typing-ind" style={{ display: "flex", gap: 3 }}>
+                      <span style={{ background: m.color }} /><span style={{ background: m.color }} /><span style={{ background: m.color }} />
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 11.5, color: m.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      Boshlash <span style={{ fontSize: 13 }}>→</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        )}
 
         {/* ── Loading holati ── */}
         <AiProgressBar loading={loading} />
@@ -11459,6 +12098,20 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
 // DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────────
 function DashboardPage({ sources, aiConfig, setPage, user, orgContext, activeDepartmentId, setActiveDepartmentId, setOpenDept }) {
+  // YANGI: Onboarding modal (yangi foydalanuvchi uchun)
+  const onboardingKey = "u_" + (user?.id || "anon") + "_onboarding_done";
+  const [onboardingOpen, setOnboardingOpen] = useState(() => {
+    try {
+      if (LS.get(onboardingKey, false)) return false;
+      // Yangi foydalanuvchi: manbasi yo'q va onboarding tugatilmagan
+      return (sources?.length || 0) === 0;
+    } catch { return false; }
+  });
+  const closeOnboarding = () => {
+    setOnboardingOpen(false);
+    LS.set(onboardingKey, true);
+  };
+
   const [anomalyOpen, setAnomalyOpen] = useState(false);
   const [readAnomalies, setReadAnomalies] = useState(() => {
     try { return LS.get("u_" + (user?.id || "anon") + "_read_anomalies", []); } catch { return []; }
@@ -11641,6 +12294,13 @@ FAQAT JSON.`;
 
   return (
     <div>
+      {/* ── Onboarding modal (yangi foydalanuvchi) ── */}
+      <OnboardingModal
+        open={onboardingOpen}
+        onClose={closeOnboarding}
+        onGoSources={() => { setPage && setPage("datahub"); }}
+        onGoDemo={() => { setPage && setPage("datahub"); }}
+      />
       {/* ── Bo'sh holat — manba ulanmagan ── */}
       {connected.length === 0 && (
         <div className="card" style={{
@@ -14000,6 +14660,16 @@ function AppContent() {
         const key = e.key.toLowerCase();
         const map = { d: "dashboard", m: "datahub", c: "chat", a: "analytics", g: "charts", r: "reports", o: "alerts", s: "settings" };
         if (map[key]) { e.preventDefault(); setPage(map[key]); gPressed = false; }
+      }
+      // ? tugmasi — Onboarding qayta ochish (Shift + /)
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        try {
+          const uid = user?.id || "anon";
+          LS.del("u_" + uid + "_onboarding_done");
+          setPage("dashboard");
+          setTimeout(() => window.location.reload(), 50);
+        } catch {}
       }
     };
     window.addEventListener("keydown", handler);
