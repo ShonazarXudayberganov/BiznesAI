@@ -277,14 +277,13 @@ router.post('/complete', requireAuth, checkPermission('can_use_ai'), checkAiRate
   if (!prompt) return res.status(400).json({ error: 'prompt kerak' });
 
   try {
-    // Max 30KB prompt — DeepSeek/Claude token limiti uchun
-    const safePrompt = prompt.length > 30000 ? prompt.slice(0, 30000) + "\n...[qisqartirildi]" : prompt;
+    const safePrompt = prompt.length > 40000 ? prompt.slice(0, 20000) + "\n...[o'rta qismi qisqartirildi]...\n" + prompt.slice(-8000) : prompt;
     const r = await chatComplete({
       userId: req.userId,
-      systemPrompt: 'Sen biznes tahlilchi AI assistantsan. Faqat JSON format qaytarasan.',
+      systemPrompt: 'Sen biznes tahlilchi AI assistantsan. FAQAT sof JSON qaytarasan — hech qanday tushuntirish, markdown yoki kod blok yozma. Javob to\'g\'ridan {"cards":[...]} bilan boshlanishi kerak.',
       message: safePrompt,
       history: [],
-      maxTokens: 3000,
+      maxTokens: 6000,
     });
     console.log(`[ai/complete] provider=${r.provider}, model=${r.model}, promptLen=${prompt.length}`);
     res.json({ ok: true, result: r.reply });

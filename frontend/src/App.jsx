@@ -6275,10 +6275,18 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
         await callAI([{ role: "user", content: prompt }], aiConfig, (chunk) => { result = chunk; });
       }
 
-      // JSON parse + validatsiya
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI javob noto'g'ri formatda qaytdi. Qayta urinib ko'ring.");
-      const parsed = JSON.parse(jsonMatch[0]);
+      // JSON parse + validatsiya (markdown blok, qisman javob ham ishlaydi)
+      let parsed = null;
+      const stripped = result.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+      const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[0]); } catch {
+          // Kesilgan JSON — oxirgi to'liq ] gacha qisqartirib urinish
+          const fixed = jsonMatch[0].replace(/,\s*$/, '').replace(/,\s*\]/, ']');
+          try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : ']}') ); } catch {}
+        }
+      }
+      if (!parsed) throw new Error("AI javob noto'g'ri formatda qaytdi. Qayta urinib ko'ring.");
       const rawCards = parsed.cards || [];
 
       if (rawCards.length === 0) throw new Error("AI hech qanday chart yarata olmadi. Manba ma'lumotlarini tekshiring.");
