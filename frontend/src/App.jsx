@@ -11683,6 +11683,135 @@ FAQAT JSON.`;
         </div>
       )}
 
+      {/* ════════════════════════════════════════════
+          YANGI REDESIGN: Health Hero + AI Insights
+          ════════════════════════════════════════════ */}
+      {connected.length > 0 && (() => {
+        // Health score hisoblash — manbalar faolligi + anomaliyalar
+        const totalRows = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
+        const activeSrcs = connected.filter(s => {
+          const last = s.lastSync ? new Date(s.lastSync) : null;
+          return last && (Date.now() - last.getTime()) < 24 * 3600 * 1000;
+        }).length;
+        const anomaliesCount = (typeof alerts !== 'undefined' ? alerts : []).length || 0;
+        const financeScore = Math.round(Math.min(100, (activeSrcs / Math.max(1, connected.length)) * 100));
+        const customerScore = Math.round(Math.min(100, 60 + (totalRows / 1000) * 0.5));
+        const growthScore = Math.round(Math.min(100, 50 + activeSrcs * 8));
+        const opsScore = Math.round(Math.max(30, 100 - anomaliesCount * 10));
+        const overallScore = Math.round((financeScore + customerScore + growthScore + opsScore) / 4);
+        const scoreColor = overallScore >= 75 ? "var(--green)" : overallScore >= 50 ? "var(--gold)" : "var(--red)";
+        const scoreLabel = overallScore >= 75 ? "Yaxshi" : overallScore >= 50 ? "O'rtacha" : "Diqqat talab qiladi";
+        const now = new Date();
+        const days = ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
+        const monthNames = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
+        const dateStr = `${days[now.getDay()]}, ${now.getDate()} ${monthNames[now.getMonth()]}`;
+        // Gauge SVG (stroke-dashoffset bilan arc)
+        const R = 60, C = 2 * Math.PI * R;
+        const offset = C - (overallScore / 100) * C;
+        return (
+          <div style={{
+            display: "grid", gridTemplateColumns: "auto 1fr", gap: 24,
+            padding: "22px 24px", marginBottom: 20,
+            background: "linear-gradient(135deg, var(--s1) 0%, var(--gold-glow) 100%)",
+            border: "1px solid var(--border)", borderRadius: 14,
+            position: "relative", overflow: "hidden",
+          }}>
+            {/* Radial glow */}
+            <div style={{ position: "absolute", top: "-50%", right: "-10%", width: 400, height: 400, background: "radial-gradient(circle, var(--teal-glow) 0%, transparent 60%)", pointerEvents: "none" }} />
+            {/* Gauge */}
+            <div style={{ position: "relative", width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: "rotate(-90deg)" }}>
+                <defs>
+                  <linearGradient id="hero-gauge" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="var(--teal)" />
+                    <stop offset="100%" stopColor="var(--gold)" />
+                  </linearGradient>
+                </defs>
+                <circle cx="70" cy="70" r={R} stroke="var(--s3)" strokeWidth="10" fill="none" />
+                <circle cx="70" cy="70" r={R} stroke="url(#hero-gauge)" strokeWidth="10" fill="none" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 1s ease" }} />
+              </svg>
+              <div style={{ position: "absolute", textAlign: "center" }}>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 38, fontWeight: 800, letterSpacing: -1.5, lineHeight: 1, color: "var(--text)" }}>{overallScore}</div>
+                <div style={{ fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)", marginTop: 4 }}>/ 100</div>
+              </div>
+            </div>
+            {/* Body */}
+            <div style={{ position: "relative", zIndex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: "var(--fm)", fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase", color: "var(--gold)", marginBottom: 6, fontWeight: 600 }}>
+                Xayrli kun, {firstName || user?.name || "Boss"} · {dateStr}
+              </div>
+              <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 700, letterSpacing: -0.4, marginBottom: 6, color: "var(--text)" }}>
+                Biznes salomatligi — <span style={{ color: scoreColor }}>{scoreLabel}</span>
+              </div>
+              <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 14, maxWidth: 580, lineHeight: 1.55 }}>
+                Umumiy ko'rsatkich: <b style={{ color: "var(--text)" }}>{overallScore}/100</b>.
+                {activeSrcs < connected.length && <> {connected.length - activeSrcs} ta manba 24+ soat yangilanmagan.</>}
+                {anomaliesCount > 0 && <> {anomaliesCount} ta anomaliya aniqlangan.</>}
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {[
+                  { lbl: "Moliya",    val: financeScore,  color: financeScore >= 70 ? "var(--green)" : financeScore >= 40 ? "var(--gold)" : "var(--red)" },
+                  { lbl: "Mijozlar",  val: customerScore, color: customerScore >= 70 ? "var(--green)" : customerScore >= 40 ? "var(--gold)" : "var(--red)" },
+                  { lbl: "O'sish",    val: growthScore,   color: growthScore >= 70 ? "var(--green)" : growthScore >= 40 ? "var(--gold)" : "var(--red)" },
+                  { lbl: "Operatsion", val: opsScore,     color: opsScore >= 70 ? "var(--green)" : opsScore >= 40 ? "var(--gold)" : "var(--red)" },
+                ].map(p => (
+                  <div key={p.lbl} style={{ padding: "7px 12px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11.5, display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--fh)" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color }} />
+                    <span style={{ color: "var(--text2)" }}>{p.lbl}</span>
+                    <span style={{ fontFamily: "var(--fm)", fontWeight: 600, color: "var(--text)" }}>{p.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── AI Proactive Insights (agar manba bor bo'lsa) ── */}
+      {connected.length > 0 && (() => {
+        const totalRows = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
+        const insights = [
+          {
+            tag: "DIQQAT", tagColor: "var(--orange)", tagBg: "rgba(242,169,59,0.12)",
+            text: <>Sizda <b style={{ color: "var(--gold)" }}>{connected.length} ta manba</b> ulangan va tahlilga tayyor. Umumiy biznes tahlilini boshlang.</>,
+            action: "AI dan so'rash →", onClick: () => setPage("chat"),
+          },
+          {
+            tag: "IMKONIYAT", tagColor: "var(--green)", tagBg: "rgba(47,191,113,0.12)",
+            text: <><b style={{ color: "var(--gold)" }}>{totalRows.toLocaleString()} qator</b> ma'lumotdan AI avtomatik tahlil yaratadi. Tahlil modullarini sinab ko'ring.</>,
+            action: "Modullar →", onClick: () => setPage("analytics"),
+          },
+          {
+            tag: "TREND", tagColor: "var(--blue)", tagBg: "rgba(96,165,250,0.12)",
+            text: <>Grafiklar bo'limida ma'lumotlaringiz bo'yicha <b style={{ color: "var(--gold)" }}>vizual xaritalar</b> tayyor. Bir bosish bilan chart yarating.</>,
+            action: "Grafiklar →", onClick: () => setPage("charts"),
+          },
+        ];
+        return (
+          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px", marginBottom: 20, boxShadow: "var(--shadow-sm)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, var(--purple), var(--gold))", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 15, fontWeight: 700 }}>✦</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", fontFamily: "var(--fh)", letterSpacing: -0.1 }}>AI sizga tavsiya qiladi</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>Ma'lumotlaringiz asosida avtomatik yaratildi</div>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+              {insights.map((ins, i) => (
+                <div key={i} onClick={ins.onClick}
+                  style={{ padding: "14px 16px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all .18s var(--ease)" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  <div style={{ display: "inline-block", padding: "2px 8px", fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 700, color: ins.tagColor, background: ins.tagBg, borderRadius: 4, marginBottom: 10 }}>{ins.tag}</div>
+                  <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--text)", marginBottom: 10 }}>{ins.text}</div>
+                  <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>{ins.action}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Manba tanlash ── */}
       {connected.length > 0 && (
         <div className="flex gap6 mb16 aic flex-wrap">
