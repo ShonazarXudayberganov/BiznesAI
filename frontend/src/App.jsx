@@ -903,117 +903,102 @@ async function callAI(messages, config, onChunk, signal) {
 // CSS STYLES
 // ─────────────────────────────────────────────────────────────
 const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ═══════════════════════════════════════════════════════
+   ANALIX DESIGN TOKENS — 4 mavzu
+   Dark: Obsidian (premium gold), Midnight (cyan tech)
+   Light: Sandstone (warm editorial), Porcelain (cool minimalist)
+   ═══════════════════════════════════════════════════════ */
+
 :root,[data-theme="obsidian"]{
-  --bg:#05060C;--s1:#0A0C15;--s2:#0E1019;--s3:#12141F;--s4:#181B28;
-  --glass:rgba(10,12,21,0.92);
-  --border:rgba(255,255,255,0.10);--border2:rgba(255,255,255,0.06);--border-hi:rgba(255,255,255,0.22);
-  --gold:#D4A853;--gold2:#E8C47A;--gold-glow:rgba(212,168,83,0.15);
-  --teal:#00D4C8;--teal2:#00F5E5;--teal-glow:rgba(0,212,200,0.12);
-  --green:#34D399;--red:#FB7185;--purple:#A78BFA;--blue:#60A5FA;--orange:#FB923C;
-  --accent1:#D4A853;--accent2:#00D4C8;
-  --text:#F1F5FA;--text2:#C5D2E3;--muted:#8493AC;--muted2:#4A5772;
-  --fh:'Inter',system-ui,-apple-system,sans-serif;
+  /* ─── OBSIDIAN — Premium dark gold ─── */
+  --bg:#0a0d0c;--s1:#0f1411;--s2:#141a17;--s3:#1a211d;--s4:#1f2925;
+  --glass:rgba(15,20,17,0.92);
+  --border:rgba(232,240,234,0.08);--border2:rgba(232,240,234,0.04);--border-hi:rgba(212,169,82,0.25);
+  --gold:#d4a952;--gold2:#e8c47a;--gold-glow:rgba(212,169,82,0.15);
+  --teal:#2fbf71;--teal2:#34d399;--teal-glow:rgba(47,191,113,0.12);
+  --green:#2fbf71;--red:#ef5a5a;--purple:#9d7aff;--blue:#60A5FA;--orange:#f2a93b;
+  --accent1:#d4a952;--accent2:#2fbf71;
+  --text:#e8f0ea;--text2:#c5d2c8;--muted:#8a9690;--muted2:#5a6560;
+  --fh:'Manrope',system-ui,-apple-system,sans-serif;
   --fm:'JetBrains Mono','Fira Code',monospace;
-  --fs:'Space Grotesk',sans-serif;
+  --fs:'Manrope',sans-serif;
   --shadow-sm:0 1px 3px rgba(0,0,0,0.3),0 1px 2px rgba(0,0,0,0.2);
   --shadow-md:0 4px 16px rgba(0,0,0,0.4),0 2px 4px rgba(0,0,0,0.2);
   --shadow-lg:0 10px 40px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
-  --shadow-glow-gold:0 0 20px rgba(212,168,83,0.15),0 0 60px rgba(212,168,83,0.05);
-  --shadow-glow-teal:0 0 20px rgba(0,212,200,0.12),0 0 60px rgba(0,212,200,0.04);
-  --radius:10px;--radius-lg:16px;--radius-xl:20px;
+  --shadow-glow-gold:0 0 20px rgba(212,169,82,0.15),0 0 60px rgba(212,169,82,0.05);
+  --shadow-glow-teal:0 0 20px rgba(47,191,113,0.12),0 0 60px rgba(47,191,113,0.04);
+  --radius:10px;--radius-lg:14px;--radius-xl:20px;
   --ease:cubic-bezier(0.4,0,0.2,1);
   --ease-spring:cubic-bezier(0.175,0.885,0.32,1.275);
-  --chart-grid:rgba(100,160,180,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(15,23,42,0.95);--chart-tip-border:rgba(0,201,190,0.2);
+  --chart-grid:rgba(100,160,180,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(15,23,42,0.95);--chart-tip-border:rgba(212,169,82,0.2);
   --bg-pattern:none;
+  --is-light:0;
 }
-/* ═══ MIDNIGHT — Chuqur zangori, yashil neon aksent ═══ */
+
+/* ═══ MIDNIGHT — Tech cyan dark ═══ */
 [data-theme="midnight"]{
-  --bg:#080E1A;--s1:#0C1527;--s2:#101C34;--s3:#162340;--s4:#1C2B4D;
-  --glass:rgba(12,21,39,0.94);
-  --border:rgba(56,189,248,0.08);--border2:rgba(56,189,248,0.04);--border-hi:rgba(56,189,248,0.14);
+  --bg:#0b1220;--s1:#111a2e;--s2:#1a2540;--s3:#233052;--s4:#2c3b63;
+  --glass:rgba(17,26,46,0.94);
+  --border:rgba(56,189,248,0.08);--border2:rgba(56,189,248,0.04);--border-hi:rgba(56,189,248,0.18);
   --gold:#38BDF8;--gold2:#7DD3FC;--gold-glow:rgba(56,189,248,0.14);
   --teal:#34D399;--teal2:#6EE7B7;--teal-glow:rgba(52,211,153,0.12);
   --green:#34D399;--red:#FB7185;--purple:#818CF8;--blue:#38BDF8;--orange:#FB923C;
   --accent1:#38BDF8;--accent2:#34D399;
-  --text:#E0F2FE;--text2:#94A3B8;--muted:#4B6A8A;--muted2:#2D4A6A;
+  --text:#E2E8F0;--text2:#CBD5E1;--muted:#94A3B8;--muted2:#64748B;
   --shadow-sm:0 1px 3px rgba(0,15,40,0.45);--shadow-md:0 4px 16px rgba(0,15,40,0.4);--shadow-lg:0 10px 40px rgba(0,15,40,0.5);
   --shadow-glow-gold:0 0 24px rgba(56,189,248,0.12);--shadow-glow-teal:0 0 24px rgba(52,211,153,0.1);
-  --chart-grid:rgba(56,189,248,0.06);--chart-label:#5A8BAA;--chart-tip-bg:rgba(12,21,39,0.96);--chart-tip-border:rgba(52,211,153,0.25);
+  --chart-grid:rgba(56,189,248,0.06);--chart-label:#5A8BAA;--chart-tip-bg:rgba(17,26,46,0.96);--chart-tip-border:rgba(52,211,153,0.25);
   --bg-pattern:
     radial-gradient(circle at 15% 85%,rgba(56,189,248,0.04) 0%,transparent 40%),
     radial-gradient(circle at 85% 15%,rgba(52,211,153,0.03) 0%,transparent 40%);
+  --is-light:0;
 }
-/* ═══ AURORA — Shimoliy yorug'lik, shaffof fon ═══ */
-[data-theme="aurora"]{
-  --bg:#06101A;--s1:rgba(10,20,35,0.85);--s2:rgba(15,28,48,0.8);--s3:rgba(20,36,58,0.8);--s4:rgba(28,46,70,0.8);
-  --glass:rgba(10,20,35,0.88);
-  --border:rgba(110,231,183,0.1);--border2:rgba(110,231,183,0.04);--border-hi:rgba(110,231,183,0.16);
-  --gold:#6EE7B7;--gold2:#A7F3D0;--gold-glow:rgba(110,231,183,0.15);
-  --teal:#22D3EE;--teal2:#67E8F9;--teal-glow:rgba(34,211,238,0.12);
-  --green:#6EE7B7;--red:#FCA5A5;--purple:#C4B5FD;--blue:#67E8F9;--orange:#FDBA74;
-  --accent1:#6EE7B7;--accent2:#22D3EE;
-  --text:#ECFDF5;--text2:#A7F3D0;--muted:#4A8068;--muted2:#2D5A45;
-  --shadow-sm:0 1px 3px rgba(0,10,20,0.5);--shadow-md:0 4px 16px rgba(0,10,20,0.45);--shadow-lg:0 10px 40px rgba(0,10,20,0.5);
-  --shadow-glow-gold:0 0 30px rgba(110,231,183,0.15);--shadow-glow-teal:0 0 30px rgba(34,211,238,0.12);
-  --chart-grid:rgba(110,231,183,0.06);--chart-label:#5EA888;--chart-tip-bg:rgba(10,20,35,0.96);--chart-tip-border:rgba(110,231,183,0.3);
+
+/* ═══ SANDSTONE — Warm editorial light (YANGI) ═══ */
+[data-theme="sandstone"]{
+  --bg:#fafaf7;--s1:#ffffff;--s2:#f5f4ef;--s3:#eeece4;--s4:#e5dfd1;
+  --glass:rgba(255,255,255,0.85);
+  --border:#e8e5da;--border2:#ede9dd;--border-hi:#c4a55a;
+  --gold:#c4a55a;--gold2:#e8d7a0;--gold-glow:rgba(196,165,90,0.15);
+  --teal:#16a764;--teal2:#a8e6c7;--teal-glow:rgba(22,167,100,0.12);
+  --green:#16a764;--red:#e8614d;--purple:#7c5cd4;--blue:#3a7ac4;--orange:#e89530;
+  --accent1:#c4a55a;--accent2:#16a764;
+  --text:#1a1f1c;--text2:#3d4640;--muted:#5c665f;--muted2:#8a9690;
+  --shadow-sm:0 1px 2px rgba(28,24,15,0.04);
+  --shadow-md:0 4px 12px rgba(28,24,15,0.06),0 2px 4px rgba(28,24,15,0.04);
+  --shadow-lg:0 12px 32px rgba(28,24,15,0.08),0 4px 8px rgba(28,24,15,0.04);
+  --shadow-glow-gold:0 0 20px rgba(196,165,90,0.12);
+  --shadow-glow-teal:0 0 20px rgba(22,167,100,0.1);
+  --chart-grid:rgba(196,165,90,0.12);--chart-label:#8a9690;--chart-tip-bg:rgba(255,255,255,0.98);--chart-tip-border:rgba(196,165,90,0.25);
   --bg-pattern:
-    radial-gradient(ellipse 120% 40% at 20% 0%,rgba(34,211,238,0.1) 0%,transparent 50%),
-    radial-gradient(ellipse 80% 35% at 55% 5%,rgba(110,231,183,0.08) 0%,transparent 45%),
-    radial-gradient(ellipse 60% 40% at 80% 10%,rgba(167,139,250,0.06) 0%,transparent 50%),
-    radial-gradient(ellipse 40% 60% at 50% 100%,rgba(6,16,26,0.6) 0%,transparent 50%);
+    radial-gradient(circle at 92% 8%,rgba(196,165,90,0.08) 0%,transparent 45%),
+    radial-gradient(circle at 8% 92%,rgba(22,167,100,0.06) 0%,transparent 45%);
+  --is-light:1;
 }
-/* ═══ ROSE — Ochiq kulrang-bronza (LIGHT) ═══ */
-[data-theme="rose"]{
-  --bg:#EEEDED;--s1:#FAFAFA;--s2:#E4E3E3;--s3:#D8D6D6;--s4:#CCCACA;
-  --glass:rgba(250,250,250,0.92);
-  --border:rgba(100,85,60,0.1);--border2:rgba(100,85,60,0.05);--border-hi:rgba(100,85,60,0.18);
-  --gold:#7A5A18;--gold2:#8B6914;--gold-glow:rgba(122,90,24,0.08);
-  --teal:#6A5828;--teal2:#806A30;--teal-glow:rgba(106,88,40,0.06);
-  --green:#4A7030;--red:#9A3A30;--purple:#6A5A4A;--blue:#5A6535;--orange:#906828;
-  --accent1:#7A5A18;--accent2:#6A5828;
-  --text:#1E1A10;--text2:#4A4030;--muted:#8A8070;--muted2:#B0A898;
-  --shadow-sm:0 1px 3px rgba(40,35,20,0.06);--shadow-md:0 4px 16px rgba(40,35,20,0.06);--shadow-lg:0 10px 40px rgba(40,35,20,0.08);
-  --shadow-glow-gold:0 0 20px rgba(122,90,24,0.08);--shadow-glow-teal:0 0 20px rgba(106,88,40,0.06);
-  --chart-grid:rgba(122,90,24,0.08);--chart-label:#7A7060;--chart-tip-bg:rgba(250,250,250,0.96);--chart-tip-border:rgba(122,90,24,0.2);
+
+/* ═══ PORCELAIN — Cool minimalist light (YANGI) ═══ */
+[data-theme="porcelain"]{
+  --bg:#f8f9fb;--s1:#ffffff;--s2:#f1f3f7;--s3:#e8ecf2;--s4:#dde3ec;
+  --glass:rgba(255,255,255,0.88);
+  --border:#dde3ec;--border2:#e8ecf2;--border-hi:#1e3a5f;
+  --gold:#1e3a5f;--gold2:#2e5186;--gold-glow:rgba(30,58,95,0.15);
+  --teal:#6b9080;--teal2:#95b9ab;--teal-glow:rgba(107,144,128,0.12);
+  --green:#6b9080;--red:#c84a5b;--purple:#8b7ab8;--blue:#3a7ac4;--orange:#d4896a;
+  --accent1:#1e3a5f;--accent2:#6b9080;
+  --text:#0f1a2e;--text2:#2a3548;--muted:#4a5973;--muted2:#8a95a8;
+  --shadow-sm:0 1px 2px rgba(15,26,46,0.04);
+  --shadow-md:0 4px 12px rgba(15,26,46,0.06),0 2px 4px rgba(15,26,46,0.04);
+  --shadow-lg:0 12px 32px rgba(15,26,46,0.08),0 4px 8px rgba(15,26,46,0.04);
+  --shadow-glow-gold:0 0 20px rgba(30,58,95,0.10);
+  --shadow-glow-teal:0 0 20px rgba(107,144,128,0.08);
+  --chart-grid:rgba(30,58,95,0.08);--chart-label:#8a95a8;--chart-tip-bg:rgba(255,255,255,0.98);--chart-tip-border:rgba(30,58,95,0.2);
   --bg-pattern:
-    radial-gradient(ellipse 80% 50% at 80% 90%,rgba(180,150,80,0.05) 0%,transparent 50%),
-    radial-gradient(ellipse 60% 40% at 20% 10%,rgba(200,170,100,0.04) 0%,transparent 45%);
-}
-/* ═══ MINT — Ochiq yashil-ko'k pastel (LIGHT) ═══ */
-[data-theme="mint"]{
-  --bg:#ECF4E8;--s1:#FFFFFF;--s2:#E2F0DC;--s3:#D4E8CC;--s4:#C4DDB8;
-  --glass:rgba(255,255,255,0.92);
-  --border:rgba(80,130,80,0.12);--border2:rgba(80,130,80,0.06);--border-hi:rgba(80,130,80,0.2);
-  --gold:#2D8A4E;--gold2:#3A9D5E;--gold-glow:rgba(45,138,78,0.1);
-  --teal:#4A8A8C;--teal2:#5A9DA0;--teal-glow:rgba(74,138,140,0.08);
-  --green:#2D8A4E;--red:#C0392B;--purple:#6A7B90;--blue:#4A8A8C;--orange:#C07830;
-  --accent1:#2D8A4E;--accent2:#4A8A8C;
-  --text:#1A2E1A;--text2:#3D5A3D;--muted:#7A9A7A;--muted2:#A0BCA0;
-  --shadow-sm:0 1px 3px rgba(0,30,0,0.06);--shadow-md:0 4px 16px rgba(0,30,0,0.06);--shadow-lg:0 10px 40px rgba(0,30,0,0.08);
-  --shadow-glow-gold:0 0 20px rgba(45,138,78,0.08);--shadow-glow-teal:0 0 20px rgba(74,138,140,0.06);
-  --chart-grid:rgba(45,138,78,0.08);--chart-label:#5A8A5A;--chart-tip-bg:rgba(255,255,255,0.96);--chart-tip-border:rgba(45,138,78,0.2);
-  --bg-pattern:
-    radial-gradient(ellipse 90% 50% at 80% 85%,rgba(171,231,178,0.15) 0%,transparent 50%),
-    radial-gradient(ellipse 70% 40% at 15% 10%,rgba(147,191,199,0.1) 0%,transparent 45%);
-}
-/* ═══ OLIVE — Ochiq zaytun-krem elegantlik (LIGHT) ═══ */
-[data-theme="olive"]{
-  --bg:#F8F3E1;--s1:#FFFFFF;--s2:#EDE8D4;--s3:#E3DBBB;--s4:#D4CCA8;
-  --glass:rgba(255,255,255,0.92);
-  --border:rgba(100,90,50,0.1);--border2:rgba(100,90,50,0.05);--border-hi:rgba(100,90,50,0.18);
-  --gold:#5A6030;--gold2:#6B7040;--gold-glow:rgba(90,96,48,0.1);
-  --teal:#8A7B50;--teal2:#A09060;--teal-glow:rgba(138,123,80,0.06);
-  --green:#5A6030;--red:#A04030;--purple:#7A6A50;--blue:#6A7A4A;--orange:#A08040;
-  --accent1:#5A6030;--accent2:#8A7B50;
-  --text:#2A2810;--text2:#4A4530;--muted:#8A8460;--muted2:#B0AA90;
-  --shadow-sm:0 1px 3px rgba(30,28,10,0.06);--shadow-md:0 4px 16px rgba(30,28,10,0.06);--shadow-lg:0 10px 40px rgba(30,28,10,0.08);
-  --shadow-glow-gold:0 0 20px rgba(90,96,48,0.08);--shadow-glow-teal:0 0 20px rgba(138,123,80,0.06);
-  --chart-grid:rgba(90,96,48,0.08);--chart-label:#7A7550;--chart-tip-bg:rgba(255,255,255,0.96);--chart-tip-border:rgba(90,96,48,0.2);
-  --bg-pattern:
-    radial-gradient(ellipse 80% 50% at 75% 90%,rgba(174,183,132,0.12) 0%,transparent 50%),
-    radial-gradient(ellipse 60% 40% at 20% 15%,rgba(227,219,187,0.1) 0%,transparent 45%);
+    radial-gradient(circle at 88% 12%,rgba(30,58,95,0.05) 0%,transparent 45%),
+    radial-gradient(circle at 12% 88%,rgba(107,144,128,0.05) 0%,transparent 45%);
+  --is-light:1;
 }
 html,body,#root{height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
@@ -1380,82 +1365,53 @@ select.field{cursor:pointer;-webkit-appearance:none}
 [data-theme="midnight"] .sidebar{border-right-color:rgba(56,189,248,0.06)}
 [data-theme="midnight"] .nav-btn.active{border-left-color:#38BDF8}
 
-/* AURORA — shaffof kartalar, shimoliy yorug'lik fon */
-[data-theme="aurora"] .logo-main span{color:#6EE7B7}
-[data-theme="aurora"] .grad{background:linear-gradient(135deg,#6EE7B7,#22D3EE);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="aurora"] .btn-primary{background:linear-gradient(135deg,#10B981,#059669);box-shadow:0 2px 12px rgba(16,185,129,0.3)}
-[data-theme="aurora"] .sidebar{background:rgba(10,20,35,0.88);backdrop-filter:blur(20px);border-right-color:rgba(110,231,183,0.06)}
-[data-theme="aurora"] .topbar{background:rgba(10,20,35,0.82);backdrop-filter:blur(16px)}
-[data-theme="aurora"] .card{background:rgba(10,20,35,0.75);backdrop-filter:blur(12px);border-color:rgba(110,231,183,0.08)}
-[data-theme="aurora"] .content{background:transparent}
-[data-theme="aurora"] .field{background:rgba(15,28,48,0.7);backdrop-filter:blur(8px)}
-[data-theme="aurora"] .nav-btn.active{border-left-color:#6EE7B7}
+/* ═══ SANDSTONE — Warm editorial light ═══ */
+[data-theme="sandstone"] .logo-main span{color:#c4a55a}
+[data-theme="sandstone"] .grad{background:linear-gradient(135deg,#c4a55a,#16a764);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="sandstone"] .btn-primary{background:linear-gradient(135deg,#c4a55a,#a8873f);color:#fff;box-shadow:0 2px 12px rgba(196,165,90,0.3)}
+[data-theme="sandstone"] .card{background:#ffffff;border-color:#e8e5da;box-shadow:0 1px 3px rgba(28,24,15,0.04),0 2px 8px rgba(28,24,15,0.03)}
+[data-theme="sandstone"] .card:hover{border-color:#d6d2c2;box-shadow:0 4px 12px rgba(28,24,15,0.06)}
+[data-theme="sandstone"] .sidebar{background:#ffffff;border-right-color:#e8e5da}
+[data-theme="sandstone"] .topbar{background:rgba(255,255,255,0.85);backdrop-filter:blur(10px);border-bottom-color:#e8e5da}
+[data-theme="sandstone"] .field{background:#f5f4ef;border-color:#e8e5da;color:#1a1f1c}
+[data-theme="sandstone"] .field:focus{border-color:#c4a55a;box-shadow:0 0 0 3px rgba(196,165,90,0.15)}
+[data-theme="sandstone"] .nav-btn{color:#5c665f}
+[data-theme="sandstone"] .nav-btn:hover{background:#f5f4ef;color:#1a1f1c}
+[data-theme="sandstone"] .nav-btn.active{background:rgba(196,165,90,0.12);color:#8a7230;border-left-color:#c4a55a}
+[data-theme="sandstone"] .btn-ghost{border-color:#e8e5da;color:#3d4640}
+[data-theme="sandstone"] .btn-ghost:hover{background:#f5f4ef;border-color:#d6d2c2}
+[data-theme="sandstone"] .msg .bubble{background:#f5f4ef;border-color:#e8e5da}
+[data-theme="sandstone"] .msg.user .bubble{background:#faf5e6;border-color:#e8d7a0}
+[data-theme="sandstone"] .landing{background:#fafaf7}
+[data-theme="sandstone"] .land-nav{background:rgba(250,250,247,0.92)}
+[data-theme="sandstone"] .modal-overlay{background:rgba(28,24,15,0.35)}
+[data-theme="sandstone"] .modal-box{background:#ffffff;border-color:#e8e5da;box-shadow:0 24px 64px rgba(28,24,15,0.12)}
+[data-theme="sandstone"] .notif{background:#ffffff;border-color:#e8e5da;box-shadow:0 4px 12px rgba(28,24,15,0.06)}
+[data-theme="sandstone"] .drop-zone{border-color:#d6d2c2;background:linear-gradient(135deg,rgba(196,165,90,0.03),rgba(196,165,90,0.06))}
 
-/* ROSE — ochiq bronza-krem (light mode) */
-[data-theme="rose"] .logo-main span{color:#8B6914}
-[data-theme="rose"] .grad{background:linear-gradient(135deg,#8B6914,#7A6530);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="rose"] .btn-primary{background:linear-gradient(135deg,#8B6914,#7A5A10);color:#fff;box-shadow:0 2px 12px rgba(139,105,20,0.25)}
-[data-theme="rose"] .card{background:#FAFAFA;border-color:rgba(122,90,24,0.08);box-shadow:0 1px 4px rgba(40,35,20,0.05)}
-[data-theme="rose"] .sidebar{background:#FAFAFA;border-right-color:rgba(122,90,24,0.08)}
-[data-theme="rose"] .topbar{background:rgba(250,250,250,0.9);border-bottom-color:rgba(122,90,24,0.06)}
-[data-theme="rose"] .field{background:#E4E3E3;border-color:rgba(122,90,24,0.12);color:#1E1A10}
-[data-theme="rose"] .nav-btn{color:#4A4030}
-[data-theme="rose"] .nav-btn:hover{background:rgba(122,90,24,0.05);color:#7A5A18}
-[data-theme="rose"] .nav-btn.active{background:rgba(122,90,24,0.07);color:#7A5A18;border-left-color:#7A5A18}
-[data-theme="rose"] .btn-ghost{border-color:rgba(122,90,24,0.12);color:#4A4030}
-[data-theme="rose"] .btn-ghost:hover{background:rgba(122,90,24,0.05)}
-[data-theme="rose"] .msg .bubble{background:#E4E3E3;border-color:rgba(122,90,24,0.08)}
-[data-theme="rose"] .msg.user .bubble{background:rgba(122,90,24,0.05);border-color:rgba(122,90,24,0.1)}
-[data-theme="rose"] .landing{background:#EEEDED}
-[data-theme="rose"] .land-nav{background:rgba(238,237,237,0.92)}
-[data-theme="rose"] .modal-overlay{background:rgba(30,26,16,0.2)}
-[data-theme="rose"] .modal-box{background:#FAFAFA;border-color:rgba(122,90,24,0.1)}
-[data-theme="rose"] .notif{background:#FAFAFA;border-color:rgba(122,90,24,0.08)}
-[data-theme="rose"] .drop-zone{border-color:rgba(122,90,24,0.15);background:linear-gradient(135deg,rgba(122,90,24,0.02),rgba(122,90,24,0.04))}
-
-/* MINT — ochiq yashil (light mode) */
-[data-theme="mint"] .logo-main span{color:#2D8A4E}
-[data-theme="mint"] .grad{background:linear-gradient(135deg,#2D8A4E,#4A8A8C);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="mint"] .btn-primary{background:linear-gradient(135deg,#2D8A4E,#238040);color:#fff;box-shadow:0 2px 12px rgba(45,138,78,0.25)}
-[data-theme="mint"] .card{background:#FFFFFF;border-color:rgba(45,138,78,0.1);box-shadow:0 1px 4px rgba(0,30,0,0.05)}
-[data-theme="mint"] .sidebar{background:#FFFFFF;border-right-color:rgba(45,138,78,0.1)}
-[data-theme="mint"] .topbar{background:rgba(255,255,255,0.9);border-bottom-color:rgba(45,138,78,0.08)}
-[data-theme="mint"] .field{background:#E8F4E2;border-color:rgba(45,138,78,0.15);color:#1A2E1A}
-[data-theme="mint"] .nav-btn{color:#3D5A3D}
-[data-theme="mint"] .nav-btn:hover{background:rgba(45,138,78,0.06);color:#2D8A4E}
-[data-theme="mint"] .nav-btn.active{background:rgba(45,138,78,0.08);color:#2D8A4E;border-left-color:#2D8A4E}
-[data-theme="mint"] .btn-ghost{border-color:rgba(45,138,78,0.15);color:#3D5A3D}
-[data-theme="mint"] .btn-ghost:hover{background:rgba(45,138,78,0.06)}
-[data-theme="mint"] .msg .bubble{background:#E8F4E2;border-color:rgba(45,138,78,0.1)}
-[data-theme="mint"] .msg.user .bubble{background:rgba(45,138,78,0.08);border-color:rgba(45,138,78,0.15)}
-[data-theme="mint"] .landing{background:#ECF4E8}
-[data-theme="mint"] .land-nav{background:rgba(236,244,232,0.92)}
-[data-theme="mint"] .modal-overlay{background:rgba(0,30,0,0.25)}
-[data-theme="mint"] .modal-box{background:#FFFFFF;border-color:rgba(45,138,78,0.12)}
-[data-theme="mint"] .notif{background:#FFFFFF;border-color:rgba(45,138,78,0.1)}
-[data-theme="mint"] .drop-zone{border-color:rgba(45,138,78,0.2);background:linear-gradient(135deg,rgba(45,138,78,0.03),rgba(45,138,78,0.06))}
-
-/* OLIVE — ochiq zaytun-krem (light mode) */
-[data-theme="olive"] .logo-main span{color:#5A6030}
-[data-theme="olive"] .grad{background:linear-gradient(135deg,#5A6030,#8A7B50);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="olive"] .btn-primary{background:linear-gradient(135deg,#5A6030,#4A5020);color:#fff;box-shadow:0 2px 12px rgba(90,96,48,0.25)}
-[data-theme="olive"] .card{background:#FFFFFF;border-color:rgba(90,96,48,0.1);box-shadow:0 1px 4px rgba(30,28,10,0.05)}
-[data-theme="olive"] .sidebar{background:#FFFFFF;border-right-color:rgba(90,96,48,0.1)}
-[data-theme="olive"] .topbar{background:rgba(255,255,255,0.9);border-bottom-color:rgba(90,96,48,0.08)}
-[data-theme="olive"] .field{background:#EDE8D4;border-color:rgba(90,96,48,0.15);color:#2A2810}
-[data-theme="olive"] .nav-btn{color:#4A4530}
-[data-theme="olive"] .nav-btn:hover{background:rgba(90,96,48,0.06);color:#5A6030}
-[data-theme="olive"] .nav-btn.active{background:rgba(90,96,48,0.08);color:#5A6030;border-left-color:#5A6030}
-[data-theme="olive"] .btn-ghost{border-color:rgba(90,96,48,0.15);color:#4A4530}
-[data-theme="olive"] .btn-ghost:hover{background:rgba(90,96,48,0.06)}
-[data-theme="olive"] .msg .bubble{background:#EDE8D4;border-color:rgba(90,96,48,0.1)}
-[data-theme="olive"] .msg.user .bubble{background:rgba(90,96,48,0.08);border-color:rgba(90,96,48,0.15)}
-[data-theme="olive"] .landing{background:#F8F3E1}
-[data-theme="olive"] .land-nav{background:rgba(248,243,225,0.92)}
-[data-theme="olive"] .modal-overlay{background:rgba(30,28,10,0.25)}
-[data-theme="olive"] .modal-box{background:#FFFFFF;border-color:rgba(90,96,48,0.12)}
-[data-theme="olive"] .notif{background:#FFFFFF;border-color:rgba(90,96,48,0.1)}
-[data-theme="olive"] .drop-zone{border-color:rgba(90,96,48,0.2);background:linear-gradient(135deg,rgba(90,96,48,0.03),rgba(90,96,48,0.06))}
+/* ═══ PORCELAIN — Cool minimalist light ═══ */
+[data-theme="porcelain"] .logo-main span{color:#1e3a5f}
+[data-theme="porcelain"] .grad{background:linear-gradient(135deg,#1e3a5f,#6b9080);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+[data-theme="porcelain"] .btn-primary{background:linear-gradient(135deg,#1e3a5f,#2e5186);color:#fff;box-shadow:0 2px 12px rgba(30,58,95,0.25)}
+[data-theme="porcelain"] .card{background:#ffffff;border-color:#dde3ec;box-shadow:0 1px 3px rgba(15,26,46,0.04),0 2px 8px rgba(15,26,46,0.03)}
+[data-theme="porcelain"] .card:hover{border-color:#c4cbd9;box-shadow:0 4px 12px rgba(15,26,46,0.06)}
+[data-theme="porcelain"] .sidebar{background:#ffffff;border-right-color:#dde3ec}
+[data-theme="porcelain"] .topbar{background:rgba(255,255,255,0.88);backdrop-filter:blur(10px);border-bottom-color:#dde3ec}
+[data-theme="porcelain"] .field{background:#f1f3f7;border-color:#dde3ec;color:#0f1a2e}
+[data-theme="porcelain"] .field:focus{border-color:#1e3a5f;box-shadow:0 0 0 3px rgba(30,58,95,0.12)}
+[data-theme="porcelain"] .nav-btn{color:#4a5973}
+[data-theme="porcelain"] .nav-btn:hover{background:#f1f3f7;color:#0f1a2e}
+[data-theme="porcelain"] .nav-btn.active{background:rgba(30,58,95,0.08);color:#1e3a5f;border-left-color:#1e3a5f}
+[data-theme="porcelain"] .btn-ghost{border-color:#dde3ec;color:#2a3548}
+[data-theme="porcelain"] .btn-ghost:hover{background:#f1f3f7;border-color:#c4cbd9}
+[data-theme="porcelain"] .msg .bubble{background:#f1f3f7;border-color:#dde3ec}
+[data-theme="porcelain"] .msg.user .bubble{background:rgba(30,58,95,0.06);border-color:rgba(30,58,95,0.15)}
+[data-theme="porcelain"] .landing{background:#f8f9fb}
+[data-theme="porcelain"] .land-nav{background:rgba(248,249,251,0.92)}
+[data-theme="porcelain"] .modal-overlay{background:rgba(15,26,46,0.4)}
+[data-theme="porcelain"] .modal-box{background:#ffffff;border-color:#dde3ec;box-shadow:0 24px 64px rgba(15,26,46,0.15)}
+[data-theme="porcelain"] .notif{background:#ffffff;border-color:#dde3ec;box-shadow:0 4px 12px rgba(15,26,46,0.08)}
+[data-theme="porcelain"] .drop-zone{border-color:#c4cbd9;background:linear-gradient(135deg,rgba(30,58,95,0.03),rgba(107,144,128,0.04))}
 
 @media(max-width:768px){
   .hamburger-btn{display:flex;align-items:center}
@@ -10624,16 +10580,25 @@ function AiProgressBar({ loading }) {
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: "obsidian", name: "Obsidian", desc: "Klassik qora", icon: "◆" },
-  { id: "midnight", name: "Midnight", desc: "Tungi ko'k", icon: "◇" },
-  { id: "aurora", name: "Aurora", desc: "Shimoliy shu'la", icon: "✦" },
-  { id: "rose", name: "Rose", desc: "Ochiq bronza krem", icon: "✧" },
-  { id: "mint", name: "Mint", desc: "Ochiq yashil pastel", icon: "❋" },
-  { id: "olive", name: "Olive", desc: "Ochiq zaytun krem", icon: "✿" },
+  { id: "obsidian",  name: "Obsidian",  desc: "Premium qorong'u oltin",  icon: "◆", group: "dark"  },
+  { id: "midnight",  name: "Midnight",  desc: "Texnologik cyan",          icon: "◇", group: "dark"  },
+  { id: "sandstone", name: "Sandstone", desc: "Iliq editorial krem",     icon: "✦", group: "light" },
+  { id: "porcelain", name: "Porcelain", desc: "Sovuq minimalist navy",    icon: "✧", group: "light" },
 ];
 
 function useTheme() {
-  const [theme, setThemeState] = useState(() => localStorage.getItem("bai_theme") || "obsidian");
+  const [theme, setThemeState] = useState(() => {
+    const saved = localStorage.getItem("bai_theme");
+    const valid = THEMES.some(t => t.id === saved);
+    if (!valid && saved) {
+      // Eski theme migration: aurora/rose/mint/olive → yangi theme
+      const migration = { aurora: "midnight", rose: "sandstone", mint: "sandstone", olive: "sandstone" };
+      const next = migration[saved] || "obsidian";
+      localStorage.setItem("bai_theme", next);
+      return next;
+    }
+    return saved || "obsidian";
+  });
   const setTheme = useCallback((t) => {
     setThemeState(t);
     localStorage.setItem("bai_theme", t);
@@ -10648,12 +10613,10 @@ function useTheme() {
 }
 
 const THEME_PREVIEWS = {
-  obsidian: { grad: "linear-gradient(135deg,#D4A853,#00D4C8)", accent: "#D4A853" },
-  midnight: { grad: "linear-gradient(135deg,#38BDF8,#34D399)", accent: "#38BDF8" },
-  aurora: { grad: "linear-gradient(135deg,#6EE7B7,#22D3EE)", accent: "#6EE7B7" },
-  rose: { grad: "linear-gradient(135deg,#B89A50,#EEEDED)", accent: "#7A5A18" },
-  mint: { grad: "linear-gradient(135deg,#ABE7B2,#93BFC7)", accent: "#ABE7B2" },
-  olive: { grad: "linear-gradient(135deg,#AEB784,#E3DBBB)", accent: "#AEB784" },
+  obsidian:  { grad: "linear-gradient(135deg,#d4a952,#2fbf71)", accent: "#d4a952" },
+  midnight:  { grad: "linear-gradient(135deg,#38BDF8,#34D399)", accent: "#38BDF8" },
+  sandstone: { grad: "linear-gradient(135deg,#c4a55a,#16a764)", accent: "#c4a55a" },
+  porcelain: { grad: "linear-gradient(135deg,#1e3a5f,#6b9080)", accent: "#1e3a5f" },
 };
 
 function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
@@ -10677,32 +10640,40 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
       {open && createPortal(
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 99998 }} onClick={() => setOpen(false)} />
-          <div style={{ position: "fixed", top: getPos().top, right: getPos().right, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 8, width: 220, boxShadow: "0 20px 60px rgba(0,0,0,0.5)", animation: "fadeIn .15s ease" }}>
-            {THEMES.map(t => {
-              const tp = THEME_PREVIEWS[t.id];
-              const active = theme === t.id;
-              return (
-                <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
-                  style={{
-                    width: "100%", padding: "10px 14px", borderRadius: 12, border: active ? `1px solid ${tp.accent}40` : "1px solid transparent",
-                    background: active ? `${tp.accent}0C` : "transparent",
-                    cursor: "pointer", marginBottom: 4, display: "flex", alignItems: "center", gap: 12, transition: "all .2s",
-                  }}
-                  onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--s2)"; e.currentTarget.style.borderColor = `${tp.accent}20`; }}
-                  onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } }}>
-                  <div style={{ width: 28, height: 28, borderRadius: 8, background: tp.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#000", fontWeight: 800, boxShadow: active ? `0 0 16px ${tp.accent}35` : "0 2px 6px rgba(0,0,0,0.3)" }}>
-                    {t.icon}
-                  </div>
-                  <div style={{ textAlign: "left", flex: 1 }}>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 12, fontWeight: 600, color: active ? tp.accent : "var(--text)" }}>{t.name}</div>
-                    <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{t.desc}</div>
-                  </div>
-                  {active && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tp.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  )}
-                </button>
-              );
-            })}
+          <div style={{ position: "fixed", top: getPos().top, right: getPos().right, zIndex: 99999, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 16, padding: 10, width: 240, boxShadow: "var(--shadow-lg)", animation: "fadeIn .15s ease" }}>
+            {["dark", "light"].map(group => (
+              <div key={group} style={{ marginBottom: group === "dark" ? 8 : 0 }}>
+                <div style={{ fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)", padding: "6px 10px 4px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{group === "dark" ? "🌙" : "☀️"}</span>
+                  <span>{group === "dark" ? "Qorong'u" : "Yorug'"}</span>
+                </div>
+                {THEMES.filter(t => t.group === group).map(t => {
+                  const tp = THEME_PREVIEWS[t.id];
+                  const active = theme === t.id;
+                  return (
+                    <button key={t.id} onClick={() => { setTheme(t.id); setOpen(false); }}
+                      style={{
+                        width: "100%", padding: "9px 12px", borderRadius: 10, border: active ? `1px solid ${tp.accent}60` : "1px solid transparent",
+                        background: active ? `${tp.accent}12` : "transparent",
+                        cursor: "pointer", marginBottom: 3, display: "flex", alignItems: "center", gap: 11, transition: "all .18s var(--ease)",
+                      }}
+                      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = "var(--s2)"; e.currentTarget.style.borderColor = `${tp.accent}22`; } }}
+                      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = "transparent"; } }}>
+                      <div style={{ width: 30, height: 30, borderRadius: 9, background: tp.grad, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff", fontWeight: 800, boxShadow: active ? `0 0 14px ${tp.accent}40` : "var(--shadow-sm)" }}>
+                        {t.icon}
+                      </div>
+                      <div style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "var(--fh)", fontSize: 12.5, fontWeight: 700, color: active ? tp.accent : "var(--text)", letterSpacing: -0.1 }}>{t.name}</div>
+                        <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.desc}</div>
+                      </div>
+                      {active && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tp.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </>,
         document.body
