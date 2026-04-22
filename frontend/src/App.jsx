@@ -10683,6 +10683,128 @@ function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// COMMAND PALETTE — global ⌘K search
+// ─────────────────────────────────────────────────────────────
+function CommandPalette({ open, onClose, onNavigate, onNewChat, onNewSource, sources = [], departments = [], setActiveDepartmentId }) {
+  const [query, setQuery] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setQuery("");
+      setActiveIdx(0);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  const commands = [
+    { group: "Tezkor buyruqlar", items: [
+      { id: "new-chat",   title: "Yangi AI suhbat boshlash", desc: "Darhol AI bilan gaplashish", icon: "💬", kbd: "⌘N", run: () => { onNewChat?.(); onClose(); } },
+      { id: "new-source", title: "Yangi manba ulash",         desc: "Excel, Sheets, Instagram",   icon: "📁", kbd: "⌘U", run: () => { onNewSource?.(); onClose(); } },
+    ]},
+    { group: "Sahifalar", items: [
+      { id: "dashboard", title: "Bosh sahifa",   desc: "Umumiy holat",      icon: "🏠", kbd: "G D", run: () => { onNavigate("dashboard"); onClose(); } },
+      { id: "datahub",   title: "Manbalar",      desc: "Ma'lumot manbalari", icon: "📁", kbd: "G M", run: () => { onNavigate("datahub"); onClose(); } },
+      { id: "chat",      title: "AI Maslahatchi", desc: "Suhbat",            icon: "💬", kbd: "G C", run: () => { onNavigate("chat"); onClose(); } },
+      { id: "analytics", title: "Tahlil",        desc: "AI modullar",       icon: "📊", kbd: "G A", run: () => { onNavigate("analytics"); onClose(); } },
+      { id: "charts",    title: "Grafiklar",     desc: "Vizualizatsiya",    icon: "📈", kbd: "G G", run: () => { onNavigate("charts"); onClose(); } },
+      { id: "reports",   title: "Hisobotlar",    desc: "Avtomatik",         icon: "📋", kbd: "G R", run: () => { onNavigate("reports"); onClose(); } },
+      { id: "alerts",    title: "Ogohlantirishlar", desc: "AI xabarlar",    icon: "🔔", kbd: "G O", run: () => { onNavigate("alerts"); onClose(); } },
+      { id: "settings",  title: "Sozlamalar",    desc: "AI + tizim",         icon: "⚙️", kbd: "G S", run: () => { onNavigate("settings"); onClose(); } },
+    ]},
+    ...(departments.length > 0 ? [{ group: "Bo'limga o'tish", items: [
+      { id: "dept-all", title: "Umumiy (barchasi)", desc: "Hamma bo'limlar", icon: "🏢", run: () => { setActiveDepartmentId?.(null); onClose(); } },
+      ...departments.filter(d => d.name !== "Umumiy").map(d => ({
+        id: "dept-" + d.id,
+        title: d.name,
+        desc: "Bo'limga filterlash",
+        icon: d.icon || "📁",
+        run: () => { setActiveDepartmentId?.(d.id); onClose(); },
+      })),
+    ]}] : []),
+    ...(sources.length > 0 ? [{ group: "Manbalar", items: sources.slice(0, 8).map(s => ({
+      id: "src-" + s.id,
+      title: s.name || "Manba",
+      desc: `${s.data?.length || 0} qator · ${s.type || "data"}`,
+      icon: "📊",
+      run: () => { onNavigate("datahub"); onClose(); },
+    }))}] : []),
+  ];
+
+  // Filter bo'yicha
+  const q = query.trim().toLowerCase();
+  const filtered = commands.map(g => ({
+    ...g,
+    items: q ? g.items.filter(it => it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q)) : g.items,
+  })).filter(g => g.items.length > 0);
+
+  const flatItems = filtered.flatMap(g => g.items);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, flatItems.length - 1)); }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+      if (e.key === "Enter")     { e.preventDefault(); flatItems[activeIdx]?.run(); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, activeIdx, flatItems.length, onClose]);
+
+  if (!open) return null;
+
+  let idx = -1;
+  return createPortal(
+    <div onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", zIndex: 10000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "12vh", animation: "fadeIn .15s ease" }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width: "min(640px, 90vw)", background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 14, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setActiveIdx(0); }}
+            placeholder="Sahifa, manba, buyruq yoki so'rov..."
+            style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, fontFamily: "var(--fh)", color: "var(--text)" }} />
+          <span style={{ fontFamily: "var(--fm)", fontSize: 10, padding: "3px 7px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--muted)" }}>ESC</span>
+        </div>
+        <div style={{ maxHeight: 420, overflowY: "auto", padding: "6px 0" }}>
+          {filtered.length === 0 && (
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>Natija topilmadi</div>
+          )}
+          {filtered.map(g => (
+            <div key={g.group}>
+              <div style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", padding: "8px 18px 4px" }}>{g.group}</div>
+              {g.items.map(it => {
+                idx++;
+                const isActive = idx === activeIdx;
+                return (
+                  <div key={it.id} onClick={() => it.run()} onMouseEnter={() => setActiveIdx(idx)}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 18px", cursor: "pointer", background: isActive ? "var(--gold-glow)" : "transparent", transition: "background .1s" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--s2)", border: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0 }}>{it.icon}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{it.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)", marginTop: 1 }}>{it.desc}</div>
+                    </div>
+                    {it.kbd && <span style={{ fontFamily: "var(--fm)", fontSize: 10, padding: "2px 6px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text2)", flexShrink: 0 }}>{it.kbd}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "9px 18px", borderTop: "1px solid var(--border)", background: "var(--s2)", fontSize: 10.5, color: "var(--muted)", fontFamily: "var(--fm)" }}>
+          <span><b style={{ color: "var(--text2)" }}>↑↓</b> harakat</span>
+          <span><b style={{ color: "var(--text2)" }}>↵</b> tanlash</span>
+          <span><b style={{ color: "var(--text2)" }}>esc</b> yopish</span>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // LIVE CLOCK — real-time soat + sana
 // ─────────────────────────────────────────────────────────────
 function LiveClock() {
@@ -13530,9 +13652,11 @@ function AppContent() {
   const [orgContext, setOrgContext] = useState(null); // { organization, departments, permissions, ai_usage }
   // Faol bo'lim filtri — null = hamma bo'lim (CEO), aks holda bo'lim IDsi
   const [activeDepartmentId, setActiveDepartmentId] = useState(null);
-  // Ochiq dropdown — bir vaqtda faqat bittasi (accordion)
-  // null | deptId
+  // Ochiq dropdown — bir vaqtda faqat bittasi (accordion) — legacy, yangi dizaynda ishlatilmaydi
   const [openDept, setOpenDept] = useState(null);
+  // Yangi sidebar: workspace dropdown + command palette
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const [alerts, setAlerts] = useState(() => LS.get("u_" + (Auth.getSession()?.id || "anon") + "_alerts", []));
   const [aiConfig, setAiConfig] = useState(() => {
     const uid = Auth.getSession()?.id || "anon";
@@ -13722,6 +13846,36 @@ function AppContent() {
     setSuperAdminMode(false);
     push("Chiqildi", "info");
   };
+
+  // Global keyboard shortcuts: ⌘K / Ctrl+K (search), G+X (nav)
+  useEffect(() => {
+    if (!user) return;
+    let gPressed = false;
+    let gTimer = null;
+    const handler = (e) => {
+      // Ignore when typing in inputs/textarea (except for ⌘K)
+      const isInput = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen(v => !v);
+        return;
+      }
+      if (isInput) return;
+      if (e.key === "g" || e.key === "G") {
+        gPressed = true;
+        clearTimeout(gTimer);
+        gTimer = setTimeout(() => { gPressed = false; }, 800);
+        return;
+      }
+      if (gPressed) {
+        const key = e.key.toLowerCase();
+        const map = { d: "dashboard", m: "datahub", c: "chat", a: "analytics", g: "charts", r: "reports", o: "alerts", s: "settings" };
+        if (map[key]) { e.preventDefault(); setPage(map[key]); gPressed = false; }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => { window.removeEventListener("keydown", handler); clearTimeout(gTimer); };
+  }, [user]);
 
   // Super-admin tashkilotga kirib ko'rish (impersonation)
   const enterOrganization = async (orgId, orgName) => {
@@ -14026,189 +14180,203 @@ function AppContent() {
       <style>{CSS}</style>
       <NotifBanner notifs={notifs} remove={remove} />
       {onboardingModal}
+      <CommandPalette
+        open={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        onNavigate={(p) => setPage(p)}
+        onNewChat={() => setPage("chat")}
+        onNewSource={() => setPage("datahub")}
+        sources={sources}
+        departments={orgContext?.departments || []}
+        setActiveDepartmentId={setActiveDepartmentId}
+      />
       <div className="app">
         {/* Mobile overlay */}
         {sidebarOpen && <div className="mob-overlay" onClick={() => setSidebarOpen(false)} />}
 
-        {/* SIDEBAR */}
+        {/* SIDEBAR — Flat redesign */}
         <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
+          {/* Brand */}
           <div className="logo-wrap">
             <div className="logo-main">ANA<span>LIX</span></div>
-            <div className="logo-sub">Strategik Agent v2</div>
+            <div className="logo-sub">Strategik Agent</div>
             <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
           </div>
 
-          {/* Tashkilot ma'lumoti */}
-          {orgContext?.organization && (
-            <div style={{
-              margin: "10px 10px 4px", padding: "9px 12px",
-              borderRadius: 10,
-              background: (orgContext.organization.color || "var(--teal)") + "12",
-              border: `1px solid ${(orgContext.organization.color || "var(--teal)")}25`,
-              display: "flex", alignItems: "center", gap: 9,
-            }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 8,
-                background: (orgContext.organization.color || "var(--teal)") + "20",
-                border: `1px solid ${(orgContext.organization.color || "var(--teal)")}30`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "var(--fh)", fontSize: 12, fontWeight: 800,
-                color: orgContext.organization.color || "var(--teal)", flexShrink: 0,
-              }}>{orgContext.organization.name?.charAt(0).toUpperCase() || "?"}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 11.5, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {orgContext.organization.name}
+          {/* Workspace selector — bo'lim filtri */}
+          {orgContext?.organization && (() => {
+            const activeDept = orgContext.departments?.find(d => d.id === activeDepartmentId);
+            const displayName = activeDept ? activeDept.name : orgContext.organization.name;
+            const displayIcon = activeDept?.icon || orgContext.organization.name?.charAt(0).toUpperCase() || "?";
+            const totalRows = sources.reduce((a, s) => a + (s.data?.length || 0), 0);
+            return (
+              <div
+                onClick={() => setWorkspaceOpen(v => !v)}
+                style={{
+                  margin: "10px 10px 8px", padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg, var(--gold-glow), var(--s2))",
+                  border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", gap: 10,
+                  cursor: "pointer", transition: "all .18s var(--ease)",
+                  position: "relative",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  background: "linear-gradient(135deg, var(--gold), var(--accent2))",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontFamily: "var(--fh)", fontSize: 13, fontWeight: 800,
+                  color: "#fff", flexShrink: 0,
+                  boxShadow: "var(--shadow-sm)",
+                }}>{displayIcon}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "var(--fh)", fontSize: 12.5, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: -0.1 }}>
+                    {displayName}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, fontFamily: "var(--fm)" }}>
+                    {connCount} manba · {totalRows.toLocaleString()} qator
+                  </div>
                 </div>
-                <div style={{ fontSize: 9.5, color: "var(--muted)", marginTop: 1, textTransform: "uppercase", letterSpacing: 1.5 }}>
-                  {user.role === "super_admin" ? "⭐ Super-admin" : user.role === "ceo" ? "CEO" : user.role === "employee" ? "Xodim" : user.role}
-                  {orgContext.my_department_ids?.length > 0 && orgContext.departments?.length > 0 && user.role === "employee" && (
-                    <> · {orgContext.departments.filter(d => orgContext.my_department_ids.includes(d.id)).map(d => d.name).join(", ")}</>
-                  )}
+                <span style={{ color: "var(--muted)", fontSize: 10 }}>▾</span>
+
+                {workspaceOpen && (
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 100, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 12, padding: 6, boxShadow: "var(--shadow-lg)" }}>
+                    <button onClick={() => { setActiveDepartmentId(null); setWorkspaceOpen(false); }}
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: activeDepartmentId === null ? "var(--gold-glow)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: activeDepartmentId === null ? "var(--gold)" : "var(--text)", fontWeight: activeDepartmentId === null ? 700 : 500, fontFamily: "var(--fh)", textAlign: "left", marginBottom: 2 }}>
+                      <span>🏢</span>
+                      <span style={{ flex: 1 }}>Umumiy (barchasi)</span>
+                      {activeDepartmentId === null && <span style={{ color: "var(--gold)" }}>✓</span>}
+                    </button>
+                    {(orgContext.departments || []).filter(d => d.name !== "Umumiy").map(d => (
+                      <button key={d.id} onClick={() => { setActiveDepartmentId(d.id); setWorkspaceOpen(false); }}
+                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: activeDepartmentId === d.id ? "var(--gold-glow)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: activeDepartmentId === d.id ? "var(--gold)" : "var(--text)", fontWeight: activeDepartmentId === d.id ? 700 : 500, fontFamily: "var(--fh)", textAlign: "left", marginBottom: 2 }}>
+                        <span>{d.icon || "📁"}</span>
+                        <span style={{ flex: 1 }}>{d.name}</span>
+                        {activeDepartmentId === d.id && <span style={{ color: "var(--gold)" }}>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Search / Command palette trigger */}
+          <div onClick={() => setCmdOpen(true)}
+            style={{
+              margin: "0 10px 8px", padding: "9px 12px",
+              background: "var(--s2)", border: "1px solid var(--border)",
+              borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
+              cursor: "pointer", color: "var(--muted)", fontSize: 12.5,
+              transition: "all .15s var(--ease)",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; e.currentTarget.style.background = "var(--s3)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--s2)"; }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span style={{ flex: 1 }}>Qidirish yoki buyruq...</span>
+            <span style={{ fontFamily: "var(--fm)", fontSize: 9.5, padding: "2px 6px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text2)" }}>⌘K</span>
+          </div>
+
+          {/* Flat nav */}
+          <div className="nav">
+            {[
+              { id: "dashboard", lbl: "Bosh sahifa",       icon: "🏠" },
+              { id: "datahub",   lbl: "Manbalar",          icon: "📁", badge: connCount },
+              { id: "chat",      lbl: "AI Maslahatchi",    icon: "💬", hot: true },
+              { id: "analytics", lbl: "Tahlil",            icon: "📊" },
+              { id: "charts",    lbl: "Grafiklar",         icon: "📈" },
+              { id: "reports",   lbl: "Hisobotlar",        icon: "📋" },
+              { id: "alerts",    lbl: "Ogohlantirishlar",  icon: "🔔", badge: unreadAlerts, badgeAlert: true },
+            ].map(item => (
+              <div key={item.id}
+                className={`ni ${page === item.id ? "active" : ""}`}
+                onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>{item.icon}</span>
+                <span style={{ flex: 1 }}>{item.lbl}</span>
+                {item.hot && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent2)", boxShadow: "0 0 8px var(--accent2)" }} />}
+                {item.badge != null && item.badge > 0 && (
+                  <span className={`ni-badge ${item.badgeAlert ? "warn" : ""}`}>{item.badge}</span>
+                )}
+              </div>
+            ))}
+
+            {/* Boshqaruv */}
+            {isCeoOrAbove && (
+              <div style={{ marginTop: 14 }}>
+                <div className="nav-group-label">Boshqaruv</div>
+                <div className={`ni ${page === "team" ? "active" : ""}`}
+                  onClick={() => { setPage("team"); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>👥</span>
+                  <span>Jamoam</span>
+                </div>
+                <div className={`ni ${page === "settings" ? "active" : ""}`}
+                  onClick={() => { setPage("settings"); if (window.innerWidth < 768) setSidebarOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                  <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>⚙️</span>
+                  <span>Sozlamalar</span>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="nav">
-            {/* Plan badge in sidebar */}
-            <div style={{ margin: "6px 4px 4px", padding: "8px 10px", borderRadius: 8, background: currentPlan.color + "10", border: `1px solid ${currentPlan.color}25`, display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: currentPlan.color, flexShrink: 0 }} />
-              <span style={{ fontFamily: "var(--fh)", fontSize: 11, fontWeight: 600, color: currentPlan.color, flex: 1 }}>{currentPlan.nameUz}</span>
-              {user.plan === "free" && <span style={{ fontSize: 9, color: "var(--muted)", cursor: "pointer" }} onClick={() => setPage("profile")}> Yangilash</span>}
-            </div>
-
-            {/* ═════ TOP: Bosh sahifa, Manbalar (iconkasiz) ═════ */}
-            {TOP_ITEMS.map(item => {
-              const count = item.badge === "sources" ? connCount : null;
-              const isActive = page === item.id && !WORKSPACE_ITEMS.some(w => w.id === page);
-              return (
-                <div key={item.id}
-                  className={`ni ${isActive ? "active" : ""}`}
-                  onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
-                  <span>{item.lbl}</span>
-                  {count != null && count > 0 && <span className="ni-badge ml-auto">{count}</span>}
-                </div>
-              );
-            })}
-
-            {/* ═════ BO'LIMLAR (dropdown'lar — accordion: bitta ochiq, faqat sub-item active) ═════ */}
-            {orgContext?.departments?.length > 0 && orgContext.departments.map(d => {
-              // CEO uchun "Umumiy" — hamma manbalar (null filter)
-              const isUmumiyForCeo = isCeoOrAbove && d.name === "Umumiy";
-              const deptScopeId = isUmumiyForCeo ? null : d.id;
-              const isActiveDept = isUmumiyForCeo
-                ? (activeDepartmentId === null)
-                : (activeDepartmentId === d.id);
-              const isOpen = openDept === d.id;
-              return (
-                <SidebarDropdown
-                  key={d.id}
-                  title={d.name}
-                  active={false}
-                  open={isOpen}
-                  onClick={() => {
-                    if (isOpen) {
-                      setOpenDept(null);
-                    } else {
-                      setActiveDepartmentId(deptScopeId);
-                      setOpenDept(d.id);
-                    }
-                    if (window.innerWidth < 768) setSidebarOpen(false);
-                  }}
-                  rightBadge={isActiveDept ? (
-                    <span style={{
-                      width: 6, height: 6, borderRadius: "50%",
-                      background: "var(--gold)", marginRight: 2,
-                    }} />
-                  ) : null}
-                >
-                  {isUmumiyForCeo && (
-                    <div style={{
-                      padding: "4px 10px 6px 26px",
-                      fontSize: 10, color: "var(--gold)", fontFamily: "var(--fh)",
-                      fontWeight: 600, letterSpacing: 0.5, opacity: 0.8,
-                    }}>
-                      barcha bo'limlar bo'yicha
-                    </div>
-                  )}
-                  {WORKSPACE_ITEMS.map(item => {
-                    const count = item.badge === "alerts" ? unreadAlerts : null;
-                    const isActive = isActiveDept && page === item.id;
-                    return (
-                      <SidebarSubItem
-                        key={item.id}
-                        label={item.lbl}
-                        active={isActive}
-                        onClick={() => {
-                          setActiveDepartmentId(deptScopeId);
-                          setOpenDept(d.id);
-                          setPage(item.id);
-                          if (window.innerWidth < 768) setSidebarOpen(false);
-                        }}
-                        badge={count != null && count > 0 ? (
-                          <span className={`ni-badge ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>
-                        ) : null}
-                      />
-                    );
-                  })}
-                </SidebarDropdown>
-              );
-            })}
-
-            {/* ═════ BOSHQARUV (Sozlamalar, Jamoam) — ceoOnly filtrlanadi ═════ */}
-            {Object.entries(groupedNav).map(([group, items]) => {
-              const visibleItems = items.filter(item => !item.ceoOnly || isCeoOrAbove);
-              if (visibleItems.length === 0) return null;
-              return (
-                <div key={group} style={{ marginTop: 10 }}>
-                  <div className="nav-group-label">{group}</div>
-                  {visibleItems.map(item => {
-                    const count = item.badge === "sources" ? connCount : item.badge === "alerts" ? unreadAlerts : null;
-                    return (
-                      <div key={item.id} className={`ni ${page === item.id ? "active" : ""}`}
-                        onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}>
-                        <span>{item.lbl}</span>
-                        {count != null && count > 0 && <span className={`ni-badge ml-auto ${item.badge === "alerts" ? "warn" : ""}`}>{count}</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-
-            {/* Super-admin tugmasi — Shonazar uchun (birlashtirilgan panel) */}
+            {/* Super-admin */}
             {(user.role === "super_admin" || user.role === "admin" || orgContext?.permissions?.is_super_admin) && (
-              <>
+              <div style={{ marginTop: 10 }}>
                 <div className="nav-group-label">Tizim</div>
-                <div className="ni" style={{ color: "var(--gold)", borderColor: "rgba(212,168,83,0.2)", background: "rgba(212,168,83,0.04)" }}
+                <div className="ni" style={{ color: "var(--gold)", borderColor: "rgba(212,168,83,0.2)", background: "rgba(212,168,83,0.04)", display: "flex", alignItems: "center", gap: 11 }}
                   onClick={() => setSuperAdminMode(true)}>
-                  <span>⭐ Super Admin</span>
+                  <span style={{ fontSize: 14, width: 18, display: "inline-flex", justifyContent: "center" }}>⭐</span>
+                  <span>Super Admin</span>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
-          {/* Provider pill — faqat CEO/super_admin uchun (AI sozlamalari) */}
+          {/* AI Status — pulse */}
           {isCeoOrAbove && (
-            <div className="prov-pill" onClick={() => setPage("settings")}>
-              <div className="pulse-dot" style={{ background: prov.color }} />
-              <div className="f1">
-                <div style={{ fontSize: 11, fontWeight: 600, color: prov.color, fontFamily: "var(--fh)" }}>{prov.name}</div>
-                <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "✓ Ulangan" : " Kalit kerak"}</div>
+            <div onClick={() => setPage("settings")}
+              style={{
+                margin: "8px 10px", padding: "9px 11px",
+                background: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal-glow)" : "rgba(232,97,77,0.08)",
+                border: `1px solid ${(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)"}30`,
+                borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
+                cursor: "pointer", transition: "all .15s var(--ease)",
+              }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)",
+                boxShadow: `0 0 8px ${(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)"}`,
+                flexShrink: 0, animation: "pulse-voice 2s ease infinite",
+              }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)", fontFamily: "var(--fh)" }}>{prov.name}</div>
+                <div style={{ fontSize: 9.5, color: "var(--muted)", fontFamily: "var(--fm)" }}>
+                  {(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "✓ Ulangan" : "Kalit kerak"}
+                </div>
               </div>
-              <span style={{ fontSize: 11, color: prov.color }}></span>
+              <span style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>almashtirish</span>
             </div>
           )}
 
           {/* User footer */}
           <div className="sidebar-footer" style={{ cursor: "pointer" }} onClick={() => setPage("profile")}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: currentPlan.color + "25", border: `1px solid ${currentPlan.color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--fh)", fontSize: 11, fontWeight: 800, color: currentPlan.color, flexShrink: 0 }}>
-                {user.name.charAt(0).toUpperCase()}
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%",
+                background: "linear-gradient(135deg, var(--gold), var(--accent2))",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "var(--fh)", fontSize: 13, fontWeight: 800,
+                color: "#fff", flexShrink: 0,
+              }}>{user.name.charAt(0).toUpperCase()}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, color: "var(--text2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
-                <div style={{ fontSize: 9, color: "var(--muted)" }}>{connCount} manba · {sources.reduce((a, s) => a + (s.data?.length || 0), 0).toLocaleString()} qator</div>
+                <div style={{ fontSize: 12.5, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+                <div style={{ fontSize: 9.5, color: "var(--muted)", fontFamily: "var(--fm)", textTransform: "uppercase", letterSpacing: 1 }}>
+                  {user.role === "super_admin" ? "Super-Admin" : user.role === "ceo" ? "CEO" : user.role === "employee" ? "Xodim" : user.role}
+                </div>
               </div>
             </div>
           </div>
@@ -14216,59 +14384,48 @@ function AppContent() {
 
         {/* MAIN */}
         <div className="main">
-          {/* TOPBAR */}
+          {/* TOPBAR — breadcrumb + title */}
           <div className="topbar">
-            <div className="flex aic gap10">
+            <div className="flex aic gap10" style={{ flex: 1, minWidth: 0 }}>
               <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
-              <div className="page-title">{PAGE_TITLES[page] || page}</div>
-              {/* Faol bo'lim chip */}
-              {activeDepartmentId && orgContext?.departments && (() => {
-                const d = orgContext.departments.find(x => x.id === activeDepartmentId);
-                if (!d) return null;
-                const c = d.color || "var(--teal)";
-                return (
-                  <div style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "4px 10px 4px 8px", borderRadius: 8,
-                    background: c + "12", border: `1px solid ${c}30`,
-                    fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, color: c,
-                  }} className="hide-mobile">
-                    <span style={{ fontSize: 13 }}>{d.icon || "📁"}</span>
-                    <span>{d.name}</span>
-                    {isCeoOrAbove && (
-                      <span onClick={() => setActiveDepartmentId(null)}
-                        style={{ marginLeft: 4, cursor: "pointer", opacity: 0.6, fontSize: 12 }}
-                        title="Filterni olib tashlash">×</span>
-                    )}
-                  </div>
-                );
-              })()}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontFamily: "var(--fm)", fontSize: 10.5, color: "var(--muted)", letterSpacing: 0.3, marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }} className="hide-mobile">
+                  {(() => {
+                    const activeDept = orgContext?.departments?.find(d => d.id === activeDepartmentId);
+                    const ws = activeDept ? activeDept.name : (orgContext?.organization?.name || "Analix");
+                    return (
+                      <>
+                        <span>{ws}</span>
+                        <span style={{ color: "var(--muted2)" }}>/</span>
+                        <span>{PAGE_TITLES[page] || page}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="page-title" style={{ fontSize: 19, fontWeight: 700, letterSpacing: -0.3, color: "var(--text)" }}>{PAGE_TITLES[page] || page}</div>
+              </div>
             </div>
 
             <div className="topbar-right">
               {bgTaskCount > 0 && (
                 <div className="tb-item" onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
-                  style={{ borderColor: "rgba(0,201,190,0.2)", color: "var(--teal)", fontWeight: 600, animation: "pulse-voice 2s ease infinite" }}>
+                  style={{ borderColor: "var(--teal)30", color: "var(--teal)", fontWeight: 600, animation: "pulse-voice 2s ease infinite" }}>
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--teal)", animation: "pulse-voice 1s ease infinite" }} />
                   AI ({bgTaskCount})
                 </div>
               )}
-              {unreadAlerts > 0 && (
-                <div className="tb-item" onClick={() => setPage("alerts")} style={{ borderColor: "rgba(212,168,83,0.2)", color: "var(--gold)", fontWeight: 600 }}>
-                  {unreadAlerts}
-                </div>
-              )}
-              {isCeoOrAbove && (
-                <div className="tb-item" onClick={() => setPage("settings")} style={{ borderColor: prov.color + "20" }}>
-                  <span style={{ color: prov.color }}>{prov.icon}</span>
-                  <span style={{ color: prov.color, fontWeight: 600 }} className="hide-mobile">{prov.name}</span>
-                  <span style={{ color: "var(--muted)" }}>·</span>
-                  <span style={{ fontSize: 10, color: "var(--muted)" }} className="hide-mobile">{aiConfig.model.split("-").slice(1, 3).join("-")}</span>
-                </div>
-              )}
+              <div className="tb-item hide-mobile" onClick={() => setCmdOpen(true)} title="Qidiruv (⌘K)" style={{ padding: "0 10px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </div>
+              <div className="tb-item" onClick={() => setPage("alerts")} title="Bildirishnomalar" style={{ padding: "0 10px", position: "relative" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                {unreadAlerts > 0 && (
+                  <span style={{ position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: "50%", background: "var(--red)", border: "2px solid var(--bg)" }} />
+                )}
+              </div>
               <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
               <LiveClock />
-              <div className="tb-item" onClick={handleLogout} style={{ borderColor: "rgba(248,113,113,0.2)", color: "#FB7185", fontWeight: 600 }}>
+              <div className="tb-item" onClick={handleLogout} title="Chiqish" style={{ borderColor: "var(--red)30", color: "var(--red)", fontWeight: 600 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                 <span className="hide-mobile">Chiqish</span>
               </div>
