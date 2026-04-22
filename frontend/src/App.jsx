@@ -7167,8 +7167,8 @@ MAZMUN QOIDALARI:
         <span style={{ color: prov.color, fontSize: 15 }}>{prov.icon}</span>
         <span className="text-xs text-muted">Faol:</span>
         <span style={{ fontSize: 11.5, color: prov.color, fontFamily: "var(--fh)", fontWeight: 600 }}>{prov.name} — {aiConfig.model}</span>
-        {!aiConfig.apiKey && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
-        {aiConfig.apiKey && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
+        {!(aiConfig.apiKey || GlobalAI.get()?.apiKey) && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
+        {(aiConfig.apiKey || GlobalAI.get()?.apiKey) && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
         <div style={{ marginLeft: aiConfig.apiKey ? "8px" : "auto", display: "flex", gap: 4 }}>
           <button className="chat-export-btn" onClick={copyChat} title="Nusxalash">Nusxa</button>
           <button className="chat-export-btn" onClick={downloadChat} title="TXT yuklab olish">TXT</button>
@@ -14223,7 +14223,7 @@ function AppContent() {
               <div className="pulse-dot" style={{ background: prov.color }} />
               <div className="f1">
                 <div style={{ fontSize: 11, fontWeight: 600, color: prov.color, fontFamily: "var(--fh)" }}>{prov.name}</div>
-                <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{aiConfig.apiKey ? "✓ Ulangan" : " Kalit kerak"}</div>
+                <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 1 }}>{(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "✓ Ulangan" : " Kalit kerak"}</div>
               </div>
               <span style={{ fontSize: 11, color: prov.color }}></span>
             </div>
