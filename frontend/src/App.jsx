@@ -6880,17 +6880,27 @@ MAZMUN QOIDALARI:
           }));
 
           // Streaming: tool-call'larni real-time ko'rsatamiz
-          const toolLabels = {
-            list_sources: "📚 Manbalar ro'yxati",
-            search_rows: "🔎 Qatorlarni qidirish",
-            aggregate: "🧮 Hisoblash",
-            group_by: "📊 Guruhlash",
-            get_distinct_values: "🔣 Noyob qiymatlar",
-            cross_source_search: "🌐 Hamma manbalarda qidiruv",
-            get_source_schema: "🗂 Manba sxemasi",
-            time_series: "📈 Vaqt bo'yicha trend",
-            query_data: "⚡ Kuchli so'rov",
-            save_memory: "💾 Eslab qolish",
+          const getToolLabel = (name, input = {}) => {
+            const src = input.sourceId || input.source_id || '';
+            const col = input.column || input.dateColumn || '';
+            const op  = input.operation || '';
+            const q   = input.query || input.searchQuery || '';
+            const grp = input.groupBy || input.group_by || '';
+            const lim = input.limit ? `top ${input.limit}` : '';
+            const srcLabel = src ? ` · ${src}` : '';
+            switch (name) {
+              case 'list_sources':        return `📚 Manbalar ro'yxati`;
+              case 'get_source_schema':   return `🗂 Sxema${srcLabel}`;
+              case 'search_rows':         return `🔎 Qidiruv${srcLabel}${q ? `: "${q.slice(0,20)}"` : ''}`;
+              case 'aggregate':           return `🧮 ${op||'Hisob'}${srcLabel}${col ? ` [${col}]` : ''}`;
+              case 'group_by':            return `📊 Guruhlash${srcLabel}${grp ? ` [${grp}]` : ''}`;
+              case 'get_distinct_values': return `🔣 Noyob${srcLabel}${col ? ` [${col}]` : ''}`;
+              case 'cross_source_search': return `🌐 Umumiy qidiruv${q ? `: "${q.slice(0,20)}"` : ''}`;
+              case 'time_series':         return `📈 Trend${srcLabel}${col ? ` [${col}]` : ''}`;
+              case 'query_data':          return `⚡ So'rov${srcLabel}${grp ? ` [${grp}]` : col ? ` [${col}]` : ''}${lim ? ` ${lim}` : ''}`;
+              case 'save_memory':         return `💾 Eslab qolish`;
+              default:                    return `🔧 ${name}`;
+            }
           };
           const seenTools = [];
           let pendingText = '';   // server'dan kelayotgan, lekin hali ekranda ko'rsatilmagan
@@ -6930,7 +6940,7 @@ MAZMUN QOIDALARI:
 
           const final = await AiAgentAPI.stream(agentMsg, trimmedHist, (evt) => {
             if (evt.type === 'tool') {
-              const label = toolLabels[evt.data.name] || evt.data.name;
+              const label = getToolLabel(evt.data.name, evt.data.input || {});
               seenTools.push({ name: evt.data.name, label, input: evt.data.input });
               if (streaming) return;
               setMessages(m => {
@@ -11646,27 +11656,46 @@ FAQAT JSON.`;
       </div>
 
       {/* ── Bo'limlar (tashkilot) ── */}
-      {orgContext?.departments?.length > 0 && (
+      {(() => {
+        const isCeoRole = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
+        const umumiyActive = activeDepartmentId === null;
+        const otherDepts = (orgContext?.departments || []).filter(d => d.name !== "Umumiy");
+        return (
         <div style={{ marginBottom: 20 }}>
           <div className="flex aic jb mb10">
             <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Bo'limlar</div>
             <div style={{ fontSize: 10, color: "var(--muted)" }}>Bosing → o'sha bo'limga kirish</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
-            {orgContext.departments.map(d => {
+            {/* Umumiy — har doim birinchi */}
+            <div
+              onClick={() => { if (setActiveDepartmentId) setActiveDepartmentId(null); if (setOpenDept) setOpenDept(null); }}
+              style={{
+                background: umumiyActive ? "#00D4C820" : "var(--s1)",
+                border: `1px solid ${umumiyActive ? "#00D4C840" : "var(--border)"}`,
+                borderRadius: 12, padding: "14px 16px",
+                cursor: "pointer", transition: "all .2s",
+                display: "flex", alignItems: "center", gap: 12,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#00D4C840"; e.currentTarget.style.background = "#00D4C808"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = umumiyActive ? "#00D4C840" : "var(--border)"; e.currentTarget.style.background = umumiyActive ? "#00D4C820" : "var(--s1)"; }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#00D4C820", border: "1px solid #00D4C840", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🏢</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: umumiyActive ? "#00D4C8" : "var(--text)" }}>Umumiy</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>Barchasi · {sources.length} manba</div>
+              </div>
+              {umumiyActive && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00D4C8", flexShrink: 0 }} />}
+            </div>
+            {otherDepts.map(d => {
               const c = d.color || "#6B7280";
-              const isActive = activeDepartmentId === d.id;
-              // Shu bo'limga tegishli manbalar soni (source_departments asosida)
               const deptSourceCount = sources.filter(s =>
                 Array.isArray(s.department_ids) && s.department_ids.includes(d.id)
               ).length;
-              const isUmumiyForCeo = d.name === "Umumiy" && (user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin");
-              const deptScopeId = isUmumiyForCeo ? null : d.id;
-              const activeForThis = isUmumiyForCeo ? (activeDepartmentId === null) : (activeDepartmentId === d.id);
+              const activeForThis = activeDepartmentId === d.id;
               return (
                 <div key={d.id}
                   onClick={() => {
-                    if (setActiveDepartmentId) setActiveDepartmentId(deptScopeId);
+                    if (setActiveDepartmentId) setActiveDepartmentId(d.id);
                     if (setOpenDept) setOpenDept(d.id);
                   }}
                   style={{
@@ -11689,9 +11718,7 @@ FAQAT JSON.`;
                       {d.name}
                     </div>
                     <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-                      {isUmumiyForCeo
-                        ? `Barchasi · ${sources.length} manba`
-                        : `${deptSourceCount} manba · ${d.employee_count || 0} xodim`}
+                      {deptSourceCount} manba · {d.employee_count || 0} xodim
                     </div>
                   </div>
                   {activeForThis && (
@@ -11702,7 +11729,8 @@ FAQAT JSON.`;
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Anomaliya Aniqlash (avtomatik, collapse) ── */}
       {(() => {

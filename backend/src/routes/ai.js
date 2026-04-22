@@ -19,7 +19,9 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
       message,
       organizationId: orgId,
       userId: req.userId,
-      history: Array.isArray(history) ? history.slice(-6) : [],
+      history: Array.isArray(history)
+        ? history.slice(-6).map(h => ({ ...h, content: String(h.content || '').slice(0, 4000) }))
+        : [],
     });
 
     // Chat history saqlash + 90 kundan eski yozuvlarni tozalash
@@ -87,7 +89,9 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
         message,
         organizationId: orgId,
         userId: req.userId,
-        history: Array.isArray(history) ? history.slice(-6) : [],
+        history: Array.isArray(history)
+          ? history.slice(-6).map(h => ({ ...h, content: String(h.content || '').slice(0, 4000) }))
+          : [],
         onTool,
         onDelta,
       });
