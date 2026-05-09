@@ -10,6 +10,22 @@ const { detectTimeSeriesAnomalies } = require('./timeSeriesAnomaly');
 const { comparePeriods: comparePeriodsService } = require('./comparePeriods');
 const { forecastSeries } = require('./forecast');
 const { getSpecialist } = require('./specialists');
+const { generatePdf } = require('./pdfBuilder');
+
+/**
+ * Manba ruxsat tekshiruvi — foydalanuvchi tanlagan manbalardan tashqaridagiga ruxsat bermaslik.
+ * runAgent ctx.allowedSourceIds bo'lsa — har tool input'idagi sourceId shu listda bo'lishi shart.
+ *
+ * @param {string} sourceId — tool input'dagi manba ID
+ * @param {string[]|null} allowedSourceIds — null/undefined = barcha ruxsat
+ * @returns {string|null} — error message yoki null (ruxsat berilgan)
+ */
+function checkSourceAccess(sourceId, allowedSourceIds) {
+  if (!Array.isArray(allowedSourceIds) || allowedSourceIds.length === 0) return null;
+  if (!sourceId) return null;
+  if (allowedSourceIds.includes(sourceId)) return null;
+  return `Manba "${sourceId}" foydalanuvchi tanlamagan. Faqat shu manbalardan foydalaning: ${allowedSourceIds.join(', ')}`;
+}
 
 const TOOLS = [
   {
@@ -45,8 +61,13 @@ const TOOLS = [
       properties: {},
       required: [],
     },
-    async execute({ organizationId }) {
-      return await dataLayer.listOrgSources(organizationId);
+    async execute({ organizationId, allowedSourceIds }) {
+      const all = await dataLayer.listOrgSources(organizationId);
+      // Foydalanuvchi tanlagan manbalardan tashqaridagilarini kesib tashlash
+      if (Array.isArray(allowedSourceIds) && allowedSourceIds.length > 0 && Array.isArray(all)) {
+        return all.filter(s => allowedSourceIds.includes(s.id));
+      }
+      return all;
     },
   },
 
@@ -67,7 +88,9 @@ const TOOLS = [
       },
       required: ['sourceId'],
     },
-    async execute({ sourceId, sheet, query, filter, limit }) {
+    async execute({ sourceId, sheet, query, filter, limit, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       // Default 30 — agent ko'p qator so'rasa ham truncate qilamiz
       return await dataLayer.searchInSource({ sourceId, sheet, query, filter, limit: Math.min(limit || 30, 100) });
     },
@@ -90,7 +113,9 @@ const TOOLS = [
       },
       required: ['sourceId', 'func'],
     },
-    async execute({ sourceId, sheet, column, func, filter }) {
+    async execute({ sourceId, sheet, column, func, filter, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.aggregate({ sourceId, sheet, column, func, filter });
     },
   },
@@ -114,7 +139,9 @@ const TOOLS = [
       },
       required: ['sourceId', 'groupColumn'],
     },
-    async execute({ sourceId, sheet, groupColumn, aggColumn, func, filter, limit }) {
+    async execute({ sourceId, sheet, groupColumn, aggColumn, func, filter, limit, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.groupBy({ sourceId, sheet, groupColumn, aggColumn, func, filter, limit });
     },
   },
@@ -135,7 +162,9 @@ const TOOLS = [
       },
       required: ['sourceId', 'column'],
     },
-    async execute({ sourceId, sheet, column, limit }) {
+    async execute({ sourceId, sheet, column, limit, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.getDistinctValues({ sourceId, sheet, column, limit });
     },
   },
@@ -153,8 +182,14 @@ const TOOLS = [
       },
       required: ['query'],
     },
-    async execute({ organizationId, query, limit }) {
-      return await dataLayer.crossSourceSearch({ organizationId, query, limit });
+    async execute({ organizationId, query, limit, allowedSourceIds }) {
+      const result = await dataLayer.crossSourceSearch({ organizationId, query, limit });
+      // Foydalanuvchi tanlagan manbalardan tashqaridagi natijalarni olib tashlash
+      if (Array.isArray(allowedSourceIds) && allowedSourceIds.length > 0 && result?.results) {
+        result.results = result.results.filter(r => allowedSourceIds.includes(r.sourceId));
+        result.totalSources = result.results.length;
+      }
+      return result;
     },
   },
 
@@ -207,7 +242,9 @@ const TOOLS = [
       },
       required: ['sourceId'],
     },
-    async execute({ sourceId, sheet, select, where, groupBy, aggregates, orderBy, limit }) {
+    async execute({ sourceId, sheet, select, where, groupBy, aggregates, orderBy, limit, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.queryData({ sourceId, sheet, select, where, groupBy, aggregates, orderBy, limit });
     },
   },
@@ -232,7 +269,9 @@ const TOOLS = [
       },
       required: ['sourceId', 'dateColumn'],
     },
-    async execute({ sourceId, sheet, dateColumn, aggColumn, func, granularity, filter, limit }) {
+    async execute({ sourceId, sheet, dateColumn, aggColumn, func, granularity, filter, limit, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.timeSeries({ sourceId, sheet, dateColumn, aggColumn, func, granularity, filter, limit });
     },
   },
@@ -249,7 +288,9 @@ const TOOLS = [
       },
       required: ['sourceId'],
     },
-    async execute({ sourceId }) {
+    async execute({ sourceId, allowedSourceIds }) {
+      const denied = checkSourceAccess(sourceId, allowedSourceIds);
+      if (denied) return { error: denied };
       return await dataLayer.getSourceSchema(sourceId);
     },
   },
@@ -275,12 +316,22 @@ const TOOLS = [
       },
       required: ['query'],
     },
-    async execute({ organizationId, query, sourceIds, topK }) {
+    async execute({ organizationId, query, sourceIds, topK, allowedSourceIds }) {
       const { retrieve, chunksToContext } = require('./retrieval/retriever');
+      // Foydalanuvchi tanlagan manbalardan tashqarida bo'lmasin: sourceIds va allowedSourceIds kesishishi
+      let effectiveIds = Array.isArray(sourceIds) && sourceIds.length > 0 ? sourceIds : undefined;
+      if (Array.isArray(allowedSourceIds) && allowedSourceIds.length > 0) {
+        effectiveIds = effectiveIds
+          ? effectiveIds.filter(id => allowedSourceIds.includes(id))
+          : allowedSourceIds;
+        if (effectiveIds.length === 0) {
+          return { error: 'Tanlangan manbalardan tashqaridagi manbalarda qidirish ruxsat etilmagan' };
+        }
+      }
       const result = await retrieve({
         query,
         organizationId,
-        sourceIds: Array.isArray(sourceIds) && sourceIds.length > 0 ? sourceIds : undefined,
+        sourceIds: effectiveIds,
         topK: typeof topK === 'number' ? Math.max(1, Math.min(30, topK)) : 8,
       });
       return {
@@ -318,8 +369,10 @@ const TOOLS = [
       },
       required: ['sourceId', 'dateColumn', 'valueColumn'],
     },
-    async execute({ organizationId, sourceId, dateColumn, valueColumn, granularity, threshold }) {
+    async execute({ organizationId, sourceId, dateColumn, valueColumn, granularity, threshold, allowedSourceIds }) {
       try {
+        const denied = checkSourceAccess(sourceId, allowedSourceIds);
+        if (denied) return { error: denied };
         const ts = await dataLayer.timeSeries({
           organizationId,
           sourceId,
@@ -375,8 +428,10 @@ const TOOLS = [
       },
       required: ['sourceId', 'dateColumn'],
     },
-    async execute({ sourceId, dateColumn, valueColumn, func, period, mode }) {
+    async execute({ sourceId, dateColumn, valueColumn, func, period, mode, allowedSourceIds }) {
       try {
+        const denied = checkSourceAccess(sourceId, allowedSourceIds);
+        if (denied) return { error: denied };
         const r = await comparePeriodsService({
           sourceId, dateColumn, valueColumn,
           func: func || 'sum',
@@ -410,8 +465,10 @@ const TOOLS = [
       },
       required: ['sourceId', 'dateColumn'],
     },
-    async execute({ organizationId, sourceId, dateColumn, valueColumn, horizon, granularity, func }) {
+    async execute({ organizationId, sourceId, dateColumn, valueColumn, horizon, granularity, func, allowedSourceIds }) {
       try {
+        const denied = checkSourceAccess(sourceId, allowedSourceIds);
+        if (denied) return { error: denied };
         const ts = await dataLayer.timeSeries({
           organizationId,
           sourceId,
@@ -467,7 +524,7 @@ const TOOLS = [
       },
       required: ['specialist', 'question'],
     },
-    async execute({ organizationId, userId, specialist, question, context, _depth }) {
+    async execute({ organizationId, userId, specialist, question, context, _depth, allowedSourceIds }) {
       try {
         if (_depth && _depth > 0) {
           return { error: 'Sub-agent boshqa sub-agentni chaqirolmaydi (recursion oldini olish)' };
@@ -488,6 +545,7 @@ const TOOLS = [
           history: [],
           systemPromptExtra: spec.instruction,
           allowedTools: spec.allowedTools,
+          allowedSourceIds, // Foydalanuvchi tanlagan manbalar — sub-agent ham shu bilan cheklanadi
           maxIter: spec.maxIter,
           thinkingBudget: spec.thinkingBudget,
           cache: true,
@@ -504,6 +562,84 @@ const TOOLS = [
         };
       } catch (e) {
         return { error: e.message };
+      }
+    },
+  },
+
+  {
+    name: 'generate_pdf',
+    description:
+      "Foydalanuvchi PDF/hisobot so'rasa shu tool'ni chaqir. Premium dizaynli A4 PDF yaratadi: " +
+      "title, summary card (asosiy raqam), bo'limlar (jadval, bullet, callout). " +
+      "Tool natija URL qaytaradi — frontend foydalanuvchiga 'PDF yuklab olish' tugmasi ko'rsatadi. " +
+      "Tahlil tugagandan keyin uning yakuniy ko'rinishi sifatida ham chaqirish mumkin.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Hisobot sarlavhasi (masalan: "Mart 2026 — Sotuv tahlili")' },
+        subtitle: { type: 'string', description: "Qo'shimcha tavsif (ixtiyoriy)" },
+        summary: {
+          type: 'object',
+          description: "Yuqori summary kartochka (ixtiyoriy)",
+          properties: {
+            headline: { type: 'string', description: "Asosiy ko'rsatkich nomi (masalan: \"Umumiy savdo\")" },
+            value: { type: 'string', description: "Asosiy raqam (masalan: \"3.77B so'm\")" },
+            change: { type: 'string', description: "O'zgarish (masalan: \"+12.2% o'tgan oyga\")" },
+          },
+        },
+        sections: {
+          type: 'array',
+          description: "Hisobot bo'limlari ro'yxati",
+          items: {
+            type: 'object',
+            properties: {
+              heading: { type: 'string', description: "Bo'lim sarlavhasi (masalan: \"Top 5 mahsulot\")" },
+              intro: { type: 'string', description: "Bo'lim kirish matni" },
+              bullets: { type: 'array', items: { type: 'string' }, description: "Tezkor punktlar" },
+              tables: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string' },
+                    headers: { type: 'array', items: { type: 'string' } },
+                    rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } },
+                    note: { type: 'string' },
+                  },
+                  required: ['headers', 'rows'],
+                },
+              },
+              callout: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['warning', 'tip', 'key', 'info', 'success'] },
+                  title: { type: 'string' },
+                  body: { type: 'string' },
+                },
+              },
+              text: { type: 'string', description: "Yopiqi paragraf" },
+            },
+          },
+        },
+        footer: { type: 'string', description: "Pastki yozuv (ixtiyoriy)" },
+      },
+      required: ['title', 'sections'],
+    },
+    async execute({ title, subtitle, summary, sections, footer, organizationId }) {
+      try {
+        // Tashkilot nomi olish
+        let orgName = 'Analix';
+        if (organizationId) {
+          try {
+            const pool = require('../db/pool');
+            const r = await pool.query('SELECT name FROM organizations WHERE id=$1', [organizationId]);
+            if (r.rows[0]?.name) orgName = r.rows[0].name;
+          } catch {}
+        }
+        const result = await generatePdf({ title, subtitle, summary, sections, footer, orgName });
+        return result;
+      } catch (e) {
+        return { error: 'PDF yaratishda xato: ' + e.message };
       }
     },
   },

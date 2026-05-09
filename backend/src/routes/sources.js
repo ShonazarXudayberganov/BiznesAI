@@ -111,7 +111,7 @@ router.get('/', async (req, res) => {
     if (!req.user?.organization_id) return res.json([]);
     const scope = buildSourceScope(req);
     const sources = await pool.query(
-      `SELECT s.id, s.user_id, s.type, s.name, s.color, s.connected, s.active,
+      `SELECT s.id, s.user_id, s.type, s.name, s.color, s.connected, s.active, s.show_in_sidebar,
               s.config, s.created_at, s.updated_at,
               sd.data, sd.row_count,
               COALESCE(
@@ -131,6 +131,7 @@ router.get('/', async (req, res) => {
       color: s.color,
       connected: s.connected,
       active: s.active,
+      show_in_sidebar: !!s.show_in_sidebar,
       config: s.config || {},
       data: s.data || [],
       department_ids: s.department_ids || [],
@@ -226,18 +227,19 @@ router.put('/:id', async (req, res) => {
     const access = await requireSourceAccess(req, res, req.params.id);
     if (!access) { client.release(); return; }
 
-    const { name, color, connected, active, config, department_ids } = req.body;
+    const { name, color, connected, active, config, department_ids, show_in_sidebar } = req.body;
 
     await client.query('BEGIN');
 
     const updates = [];
     const vals = [];
     let idx = 1;
-    if (name !== undefined)      { updates.push(`name=$${idx++}`);      vals.push(name.trim()); }
-    if (color !== undefined)     { updates.push(`color=$${idx++}`);     vals.push(color); }
-    if (connected !== undefined) { updates.push(`connected=$${idx++}`); vals.push(connected); }
-    if (active !== undefined)    { updates.push(`active=$${idx++}`);    vals.push(active); }
-    if (config !== undefined)    { updates.push(`config=$${idx++}`);    vals.push(JSON.stringify(config)); }
+    if (name !== undefined)            { updates.push(`name=$${idx++}`);            vals.push(name.trim()); }
+    if (color !== undefined)           { updates.push(`color=$${idx++}`);           vals.push(color); }
+    if (connected !== undefined)       { updates.push(`connected=$${idx++}`);       vals.push(connected); }
+    if (active !== undefined)          { updates.push(`active=$${idx++}`);          vals.push(active); }
+    if (config !== undefined)          { updates.push(`config=$${idx++}`);          vals.push(JSON.stringify(config)); }
+    if (show_in_sidebar !== undefined) { updates.push(`show_in_sidebar=$${idx++}`); vals.push(!!show_in_sidebar); }
     updates.push(`updated_at=NOW()`);
 
     if (vals.length > 0) {

@@ -13,11 +13,26 @@
     <title>Analix — Strategik Agent</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #06070D; }
+      :root {
+        --ld-bg: #06070D;
+        --ld-text: #DFE5F2;
+        --ld-bar-bg: #1C2136;
+      }
+      [data-theme="sandstone"] :root, html[data-theme="sandstone"] {
+        --ld-bg: #f5f4ef;
+        --ld-text: #1a1f1c;
+        --ld-bar-bg: #e8e5da;
+      }
+      [data-theme="porcelain"] :root, html[data-theme="porcelain"] {
+        --ld-bg: #f1f3f7;
+        --ld-text: #0f1a2e;
+        --ld-bar-bg: #dde3ec;
+      }
+      body { background: var(--ld-bg, #06070D); }
       #root { height: 100vh; }
       #loading {
         position: fixed; inset: 0;
-        background: #06070D;
+        background: var(--ld-bg, #06070D);
         display: flex; align-items: center; justify-content: center;
         flex-direction: column; gap: 16px;
         font-family: 'Syne', sans-serif;
@@ -25,18 +40,25 @@
         transition: opacity 0.4s ease;
       }
       #loading .logo {
-        font-size: 28px; font-weight: 800; color: #DFE5F2; letter-spacing: -1px;
+        font-size: 28px; font-weight: 800; color: var(--ld-text, #DFE5F2); letter-spacing: -1px;
       }
-      #loading .logo span { color: #E8B84B; }
+      #loading .logo span { color: #c9a063; }
       #loading .bar-wrap {
-        width: 120px; height: 2px; background: #1C2136; border-radius: 2px; overflow: hidden;
+        width: 120px; height: 2px; background: var(--ld-bar-bg, #1C2136); border-radius: 2px; overflow: hidden;
       }
       #loading .bar {
-        height: 100%; width: 0%; background: linear-gradient(90deg, #E8B84B, #00C9BE);
+        height: 100%; width: 0%; background: linear-gradient(90deg, #c9a063, #00b8a9);
         border-radius: 2px; animation: load 1.2s ease forwards;
       }
       @keyframes load { to { width: 100%; } }
     </style>
+    <script>
+      // Loading screen mavzuga moslashish — inline (HTML bo'lmasdan oldin)
+      try {
+        var t = localStorage.getItem('app_theme');
+        if (t && t !== 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch(e) {}
+    </script>
   </head>
   <body>
     <div id="loading">

@@ -78,6 +78,7 @@ app.use('/api/errors', require('./routes/errors'));
 app.use('/api/docs', require('./routes/api-docs'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/pdf', require('./routes/pdf'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/scrape', require('./routes/scrape'));
 app.use('/api/departments', require('./routes/departments'));
@@ -175,6 +176,21 @@ async function start() {
 ║  DB:   ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}      ║
 ╚═══════════════════════════════════════════╝
     `);
+
+    // Instagram raqobatchilar — kunlik snapshot job (06:00 dan boshlash)
+    try {
+      const igCompetitor = require('./services/instagramCompetitor');
+      // Birinchi: server boshlanishidan 60 sek keyin (test uchun yengil run)
+      // Keyin: har 6 soatda chastotali tekshirish (har raqobatchi 20+ soat oldin sync bo'lgan bo'lsa)
+      setTimeout(() => {
+        igCompetitor.dailyJob().catch(e => console.warn('[IG-COMP] init job xato:', e.message));
+        setInterval(() => {
+          igCompetitor.dailyJob().catch(e => console.warn('[IG-COMP] cron xato:', e.message));
+        }, 6 * 60 * 60 * 1000);
+      }, 60 * 1000);
+    } catch (e) {
+      console.warn('[IG-COMP] cron init xato:', e.message);
+    }
   });
 }
 

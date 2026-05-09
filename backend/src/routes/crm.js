@@ -16,6 +16,7 @@ const pool = require('../db/pool');
 const { requireAuth } = require('../middleware/auth');
 const bitrix24 = require('../services/crm/bitrix24');
 const amocrm = require('../services/crm/amocrm');
+const facebookAds = require('../services/crm/facebookAds');
 
 const router = express.Router();
 
@@ -35,6 +36,12 @@ router.get('/source-types', (req, res) => {
         name: 'AmoCRM',
         auth: 'subdomain_token',
         instructions: "AmoCRM → Sozlamalar → Integratsiyalar → Long-lived token yoqing.",
+      },
+      {
+        id: 'facebook_ads',
+        name: 'Facebook Ads',
+        auth: 'token_account',
+        instructions: "developers.facebook.com → My Apps → Marketing API → Long-lived token + Ad Account ID (act_XXXXXX).",
       },
     ],
   });
@@ -111,6 +118,42 @@ router.post('/amocrm/connect', async (req, res) => {
   }
 });
 
+router.post('/facebook_ads/test', async (req, res) => {
+  try {
+    const { token, accountId } = req.body || {};
+    if (!token || !accountId) return res.status(400).json({ error: 'token va accountId majburiy' });
+    const r = await facebookAds.testConnection({ token, accountId });
+    res.json(r);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+router.post('/facebook_ads/connect', async (req, res) => {
+  try {
+    const { token, accountId, name } = req.body || {};
+    if (!token || !accountId) return res.status(400).json({ error: 'token va accountId majburiy' });
+    const test = await facebookAds.testConnection({ token, accountId });
+    if (!test.ok) return res.status(400).json({ error: test.error || 'Ulanish xatosi' });
+
+    const sourceId = `facebook_ads_${req.userId}_${Date.now()}`;
+    const orgId = req.user.organization_id;
+    const safeName = name || `Facebook Ads (${test.account?.name || accountId})`;
+
+    await pool.query(
+      `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
+       VALUES ($1, $2, $3, 'facebook_ads', $4, '#1877F2', TRUE, TRUE, $5)`,
+      [sourceId, req.userId, orgId, safeName, JSON.stringify({ token, accountId, account: test.account })]
+    );
+
+    syncFacebookAds(sourceId, { token, accountId }).catch(e => console.error('[crm] FB init sync fail:', e.message));
+
+    res.json({ ok: true, sourceId, name: safeName, account: test.account });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 router.post('/sync/:sourceId', async (req, res) => {
   try {
     const r = await pool.query(
@@ -126,6 +169,8 @@ router.post('/sync/:sourceId', async (req, res) => {
       result = await syncBitrix24(src.id, cfg.webhookUrl);
     } else if (src.type === 'amocrm') {
       result = await syncAmocrm(src.id, { subdomain: cfg.subdomain, token: cfg.token });
+    } else if (src.type === 'facebook_ads') {
+      result = await syncFacebookAds(src.id, { token: cfg.token, accountId: cfg.accountId });
     } else {
       return res.status(400).json({ error: `Bu manba turi sync qo'llab-quvvatlamaydi: ${src.type}` });
     }
@@ -193,6 +238,24 @@ async function syncAmocrm(sourceId, creds) {
     realtime.broadcast('source.updated', { sourceId, type: 'amocrm', rowCount: flat.length });
   } catch {}
   return { leads: leads.length, contacts: contacts.length, rows: flat.length };
+}
+
+async function syncFacebookAds(sourceId, creds) {
+  const flat = await facebookAds.fetchAll(creds);
+  await pool.query(
+    `INSERT INTO source_data (source_id, data, row_count, updated_at)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (source_id) DO UPDATE SET data=$2, row_count=$3, updated_at=NOW()`,
+    [sourceId, JSON.stringify(flat), flat.length]
+  );
+  try {
+    const realtime = require('../services/realtime');
+    realtime.broadcast('source.updated', { sourceId, type: 'facebook_ads', rowCount: flat.length });
+  } catch {}
+  const campaigns = flat.filter(x => x.type === 'campaign').length;
+  const adsets = flat.filter(x => x.type === 'adset').length;
+  const ads = flat.filter(x => x.type === 'ad').length;
+  return { campaigns, adsets, ads, rows: flat.length };
 }
 
 module.exports = router;

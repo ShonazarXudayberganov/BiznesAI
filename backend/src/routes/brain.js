@@ -31,7 +31,7 @@ router.get('/intents', requireAuth, (req, res) => {
 // ── POST /api/ai/brain ── sinxron
 router.post('/', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { intent, payload, message, history, thinkingBudget, language } = req.body || {};
+    const { intent, payload, message, history, thinkingBudget, language, source_ids } = req.body || {};
     if (!intent) return res.status(400).json({ error: 'intent kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -47,6 +47,7 @@ router.post('/', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, c
       organizationId: orgId,
       language,
       thinkingBudgetOverride: typeof thinkingBudget === 'number' ? thinkingBudget : undefined,
+      allowedSourceIds: Array.isArray(source_ids) && source_ids.length > 0 ? source_ids : null,
     });
 
     // AI hisoblagich
@@ -72,7 +73,7 @@ router.post('/', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, c
 // ── POST /api/ai/brain/stream ── SSE streaming
 router.post('/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { intent, payload, message, history, thinkingBudget, language } = req.body || {};
+    const { intent, payload, message, history, thinkingBudget, language, source_ids } = req.body || {};
     if (!intent) return res.status(400).json({ error: 'intent kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -89,7 +90,7 @@ router.post('/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLi
       } catch {}
     };
 
-    const onTool = ({ name, input }) => sendEvent('tool', { name, input });
+    const onTool = (payload) => sendEvent('tool', payload);
     const onDelta = (text) => sendEvent('delta', { text });
     const onThinking = (text) => sendEvent('thinking', { text });
 
@@ -107,6 +108,7 @@ router.post('/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLi
         organizationId: orgId,
         language,
         thinkingBudgetOverride: typeof thinkingBudget === 'number' ? thinkingBudget : undefined,
+        allowedSourceIds: Array.isArray(source_ids) && source_ids.length > 0 ? source_ids : null,
         onTool,
         onDelta,
         onThinking,

@@ -51,7 +51,16 @@ function modernizeModel(model, provider) {
   return MODEL_REPLACEMENTS[model] || model;
 }
 
-async function resolveAiConfig(userId) {
+async function resolveAiConfig(userId, opts = {}) {
+  // Server-side Claude kalit majbur qilingan bo'lsa (web_search uchun)
+  if (opts.forceProvider === 'claude' && process.env.ANTHROPIC_API_KEY) {
+    return {
+      provider: 'claude',
+      model: modernizeModel(opts.model || 'claude-sonnet-4-5', 'claude'),
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      source: 'server',
+    };
+  }
   // Foydalanuvchi shaxsiy kalit
   if (userId) {
     const r = await pool.query(

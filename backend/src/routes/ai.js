@@ -11,7 +11,7 @@ const router = express.Router();
 // ── POST /api/ai/agent ── (sayt chat — multi-turn, tools bilan)
 router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { message, history, thinking_budget, cache } = req.body || {};
+    const { message, history, thinking_budget, cache, source_ids } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -25,6 +25,11 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
         : [],
       thinkingBudget: typeof thinking_budget === 'number' ? thinking_budget : 0,
       cache: cache !== false, // default true
+      // Foydalanuvchi tanlagan manbalar — bu listdan tashqaridagilarga ruxsat berilmaydi
+      allowedSourceIds: Array.isArray(source_ids) && source_ids.length > 0 ? source_ids : null,
+      // Web search — Anthropic native (chat'da har doim yoqilgan, AI o'zi qachon ishlatishni hal qiladi)
+      webSearch: true,
+      webSearchMaxUses: 5,
     });
 
     // Chat history saqlash + 90 kundan eski yozuvlarni tozalash
@@ -67,7 +72,7 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
 // ── POST /api/ai/agent/stream ── SSE: tool/delta/thinking eventlarini real-time yuboradi
 router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { message, history, thinking_budget, cache } = req.body || {};
+    const { message, history, thinking_budget, cache, source_ids } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -84,7 +89,7 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
       } catch {}
     };
 
-    const onTool = ({ name, input }) => sendEvent('tool', { name, input });
+    const onTool = (payload) => sendEvent('tool', payload);
     const onDelta = (text) => sendEvent('delta', { text });
     const onThinking = (text) => sendEvent('thinking', { text });
 
@@ -102,6 +107,11 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
         onThinking,
         thinkingBudget: typeof thinking_budget === 'number' ? thinking_budget : 0,
         cache: cache !== false, // default true
+        // Foydalanuvchi tanlagan manbalar — bu listdan tashqaridagilarga ruxsat berilmaydi
+        allowedSourceIds: Array.isArray(source_ids) && source_ids.length > 0 ? source_ids : null,
+        // Web search — Anthropic native (AI o'zi qachon ishlatishni hal qiladi)
+        webSearch: true,
+        webSearchMaxUses: 5,
       });
 
       sendEvent('done', {

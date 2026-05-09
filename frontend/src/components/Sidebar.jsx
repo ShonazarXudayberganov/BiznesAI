@@ -92,13 +92,35 @@ export default function Sidebar({
           { id: "charts",    lbl: "Grafiklar",         icon: "📈" },
           { id: "reports",   lbl: "Hisobotlar",        icon: "📋" },
           { id: "alerts",    lbl: "Ogohlantirishlar",  icon: "🔔", badge: unreadAlerts, badgeAlert: true },
-        ].map(item => (
+          { id: "instagram", lbl: "Instagram",         icon: "📸" },
+          { id: "amocrm",    lbl: "AmoCRM",            icon: "🟡" },
+          { id: "facebook_ads", lbl: "Facebook Ads",   icon: "📣" },
+        ].concat(
+          (sources || [])
+            .filter(s => s.show_in_sidebar && !["instagram","amocrm","facebook_ads","crm","bitrix24"].includes(s.type))
+            .map(s => ({
+              id: `source:${s.id}`,
+              lbl: s.name,
+              icon: s.type === "google_sheets" ? "📊" : s.type === "excel" ? "📗" : s.type === "json" ? "📄" : s.type === "telegram" ? "✈️" : "📁",
+              isSource: true,
+              srcId: s.id,
+            }))
+        ).map(item => (
           <div key={item.id}
             className={`ni ${page === item.id ? "active" : ""}`}
-            onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
+            onClick={() => {
+              if (item.isSource) {
+                // Sidebar'ga pin qilingan custom manba — Grafiklar sahifasiga o'tib, source filter bilan
+                setPage("charts");
+                window.dispatchEvent(new CustomEvent('charts-source-filter', { detail: item.srcId }));
+              } else {
+                setPage(item.id);
+              }
+              if (window.innerWidth < 768) setSidebarOpen(false);
+            }}
             style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>{item.icon}</span>
-            <span style={{ flex: 1 }}>{item.lbl}</span>
+            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.lbl}</span>
             {item.hot && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent2)", boxShadow: "0 0 8px var(--accent2)" }} />}
             {item.badge != null && item.badge > 0 && (
               <span className={`ni-badge ${item.badgeAlert ? "warn" : ""}`}>{item.badge}</span>

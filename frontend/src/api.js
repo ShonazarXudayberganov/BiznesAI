@@ -355,6 +355,53 @@ export const AiAPI = {
     }),
 };
 
+// ── CRM / Marketing platforma ulash (AmoCRM, Bitrix24, Facebook Ads) ──
+export const CrmAPI = {
+  // AmoCRM
+  amocrmTest: (subdomain, token) => apiFetch('/crm/amocrm/test', {
+    method: 'POST', body: JSON.stringify({ subdomain, token }),
+  }),
+  amocrmConnect: (subdomain, token, name) => apiFetch('/crm/amocrm/connect', {
+    method: 'POST', body: JSON.stringify({ subdomain, token, name }),
+  }),
+  // Bitrix24
+  bitrixTest: (webhookUrl) => apiFetch('/crm/bitrix24/test', {
+    method: 'POST', body: JSON.stringify({ webhookUrl }),
+  }),
+  bitrixConnect: (webhookUrl, name) => apiFetch('/crm/bitrix24/connect', {
+    method: 'POST', body: JSON.stringify({ webhookUrl, name }),
+  }),
+  // Facebook Ads
+  facebookAdsTest: (token, accountId) => apiFetch('/crm/facebook_ads/test', {
+    method: 'POST', body: JSON.stringify({ token, accountId }),
+  }),
+  facebookAdsConnect: (token, accountId, name) => apiFetch('/crm/facebook_ads/connect', {
+    method: 'POST', body: JSON.stringify({ token, accountId, name }),
+  }),
+  // Sync (manual refresh)
+  sync: (sourceId) => apiFetch(`/crm/sync/${sourceId}`, { method: 'POST' }),
+};
+
+// ── PDF (markdown'dan PDF) ──
+export const PdfAPI = {
+  fromMarkdown: ({ title, subtitle, markdown, footer, orgName }) =>
+    apiFetch('/pdf/from-markdown', {
+      method: 'POST',
+      body: JSON.stringify({ title, subtitle, markdown, footer, orgName }),
+    }),
+};
+
+// ── INSTAGRAM COMPETITORS (Variant A) — per-profile ──
+export const InstagramCompetitorsAPI = {
+  list: (sourceId) => apiFetch('/instagram/competitors' + (sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : '')),
+  add: (username, sourceId) => apiFetch('/instagram/competitors', {
+    method: 'POST', body: JSON.stringify({ username, source_id: sourceId || null }),
+  }),
+  remove: (id) => apiFetch(`/instagram/competitors/${id}`, { method: 'DELETE' }),
+  refresh: (id) => apiFetch(`/instagram/competitors/${id}/refresh`, { method: 'POST' }),
+  history: (id) => apiFetch(`/instagram/competitors/${id}/history`),
+};
+
 // ── BRANDING (white-label) ──
 export const BrandingAPI = {
   get: () => apiFetch('/branding'),
@@ -512,8 +559,8 @@ export const AiAgentAPI = {
 
   // Streaming chat (SSE) — onEvent({ type, data })
   // type: 'start' | 'tool' | 'delta' | 'thinking' | 'done' | 'error'
-  // opts: { signal, thinkingBudget, cache }
-  stream: async (message, history, onEvent, { signal, thinkingBudget, cache } = {}) => {
+  // opts: { signal, thinkingBudget, cache, sourceIds }
+  stream: async (message, history, onEvent, { signal, thinkingBudget, cache, sourceIds } = {}) => {
     const res = await fetch(`${API_BASE}/ai/agent/stream`, {
       method: 'POST',
       headers: {
@@ -525,6 +572,8 @@ export const AiAgentAPI = {
         history: history || [],
         thinking_budget: thinkingBudget || 0,
         cache: cache !== false,
+        // Foydalanuvchi tanlagan manbalar — backend faqat shularda ishlaydi
+        source_ids: Array.isArray(sourceIds) && sourceIds.length > 0 ? sourceIds : undefined,
       }),
       signal,
     });

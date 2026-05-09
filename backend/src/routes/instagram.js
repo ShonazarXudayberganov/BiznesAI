@@ -473,5 +473,137 @@ async function syncInstagramData(sourceId, token, igUserId) {
   return summary;
 }
 
+// ────────────────────────────────────────────────────────────
+// COMPETITOR ANALYSIS (Variant A — snapshot tracker)
+// ────────────────────────────────────────────────────────────
+const igCompetitor = require('../services/instagramCompetitor');
+
+// GET /api/instagram/competitors?source_id=X — bitta profil uchun ro'yxat
+router.get('/competitors', requireAuth, async (req, res) => {
+  try {
+    const sourceId = req.query.source_id ? Number(req.query.source_id) : null;
+    const params = [req.userId];
+    let where = 'c.user_id = $1';
+    if (sourceId) {
+      params.push(sourceId);
+      where += ' AND c.source_id = $2';
+    } else {
+      where += ' AND c.source_id IS NULL';
+    }
+    const r = await pool.query(
+      `SELECT c.id, c.source_id, c.username, c.added_at, c.last_synced_at, c.notes,
+              s.followers, s.posts_count, s.bio, s.recent_posts, s.hashtags, s.meta, s.snapshot_date
+       FROM instagram_competitors c
+       LEFT JOIN LATERAL (
+         SELECT * FROM instagram_competitor_snapshots
+         WHERE competitor_id = c.id
+         ORDER BY snapshot_date DESC LIMIT 1
+       ) s ON true
+       WHERE ${where}
+       ORDER BY c.added_at DESC`,
+      params
+    );
+    res.json({ ok: true, competitors: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/instagram/competitors — qo'shish (avtomatik birinchi snapshot)
+router.post('/competitors', requireAuth, async (req, res) => {
+  try {
+    const { username, source_id } = req.body || {};
+    if (!username) return res.status(400).json({ error: 'username kerak' });
+    const clean = String(username).trim().replace(/^@/, '').toLowerCase();
+    if (!/^[a-z0-9._]{1,30}$/i.test(clean)) {
+      return res.status(400).json({ error: 'Noto\'g\'ri username format' });
+    }
+    const sourceId = source_id ? Number(source_id) : null;
+    // Per-source dedup tekshiruv (NULL bo'lsa global dedup)
+    const existing = await pool.query(
+      sourceId
+        ? `SELECT id FROM instagram_competitors WHERE user_id=$1 AND source_id=$2 AND username=$3`
+        : `SELECT id FROM instagram_competitors WHERE user_id=$1 AND source_id IS NULL AND username=$2`,
+      sourceId ? [req.userId, sourceId, clean] : [req.userId, clean]
+    );
+    if (existing.rowCount > 0) {
+      return res.status(409).json({ error: 'Bu raqobatchi allaqachon qo\'shilgan' });
+    }
+    const ins = await pool.query(
+      `INSERT INTO instagram_competitors (user_id, source_id, username) VALUES ($1, $2, $3)
+       RETURNING id, username, source_id, added_at`,
+      [req.userId, sourceId, clean]
+    );
+    if (ins.rows.length === 0) {
+      return res.status(409).json({ error: 'Bu raqobatchi allaqachon qo\'shilgan' });
+    }
+    const competitor = ins.rows[0];
+    // Birinchi snapshot — fon vazifasi sifatida
+    igCompetitor.collectSnapshot(clean, req.userId, req.user.organization_id)
+      .then(r => {
+        if (r.ok) return igCompetitor.saveSnapshot(competitor.id, r.snapshot);
+      })
+      .catch(e => console.warn('[IG-COMP] Birinchi snapshot xato:', e.message));
+    res.json({ ok: true, competitor });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/instagram/competitors/:id
+router.delete('/competitors/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'DELETE FROM instagram_competitors WHERE id=$1 AND user_id=$2',
+      [req.params.id, req.userId]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/instagram/competitors/:id/refresh — manual snapshot
+router.post('/competitors/:id/refresh', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      'SELECT id, username FROM instagram_competitors WHERE id=$1 AND user_id=$2',
+      [req.params.id, req.userId]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Raqobatchi topilmadi' });
+    const c = r.rows[0];
+    const result = await igCompetitor.collectSnapshot(c.username, req.userId, req.user.organization_id);
+    if (!result.ok) {
+      return res.status(502).json({ error: result.error || 'Snapshot xatosi' });
+    }
+    await igCompetitor.saveSnapshot(c.id, result.snapshot);
+    res.json({ ok: true, snapshot: result.snapshot });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/instagram/competitors/:id/history — 30 kunlik trend
+router.get('/competitors/:id/history', requireAuth, async (req, res) => {
+  try {
+    const own = await pool.query(
+      'SELECT 1 FROM instagram_competitors WHERE id=$1 AND user_id=$2',
+      [req.params.id, req.userId]
+    );
+    if (own.rowCount === 0) return res.status(404).json({ error: 'Raqobatchi topilmadi' });
+    const r = await pool.query(
+      `SELECT snapshot_date, followers, following, posts_count, last_post_date
+       FROM instagram_competitor_snapshots
+       WHERE competitor_id = $1
+       ORDER BY snapshot_date DESC
+       LIMIT 90`,
+      [req.params.id]
+    );
+    res.json({ ok: true, history: r.rows.reverse() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
 module.exports.syncInstagramData = syncInstagramData;

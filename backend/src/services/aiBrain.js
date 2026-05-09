@@ -72,6 +72,7 @@ async function runBrain(opts) {
     onDelta,
     onThinking,
     thinkingBudgetOverride,
+    allowedSourceIds, // payload.sourceIds yoki tashqaridan
   } = opts;
 
   if (!intent) throw new Error('intent kerak');
@@ -115,6 +116,10 @@ async function runBrain(opts) {
       webSearch: cfg.webSearch === true,
       webSearchMaxUses: typeof cfg.webSearchMaxUses === 'number' ? cfg.webSearchMaxUses : 5,
       codeExecution: cfg.codeExecution === true,
+      // Foydalanuvchi tanlagan manbalar — payload.sourceIds yoki tashqaridan
+      allowedSourceIds: Array.isArray(allowedSourceIds) && allowedSourceIds.length > 0
+        ? allowedSourceIds
+        : (Array.isArray(payload.sourceIds) && payload.sourceIds.length > 0 ? payload.sourceIds : null),
     });
   } catch (e) {
     runError = e;

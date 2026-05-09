@@ -4,6 +4,13 @@ import Topbar from './components/Topbar';
 import CapHitModal from './components/CapHitModal';
 import MemoryPage from './components/MemoryPage';
 import CostDashboard from './components/CostDashboard';
+import ChatStreamingMessage from './components/ChatStreamingMessage';
+import PremiumMD from './components/PremiumMD';
+import AdvancedChart from './components/AdvancedChart';
+import InstagramAnalytics from './components/InstagramAnalytics';
+import AmoCRMAnalytics from './components/AmoCRMAnalytics';
+import FacebookAdsAnalytics from './components/FacebookAdsAnalytics';
+import { generateInstagramDemo, generateAmoCRMDemo, generateFacebookAdsDemo } from './components/demoData';
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -17,7 +24,7 @@ import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
   DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI, AiAgentAPI, AiBrainAPI,
-  MemoryAPI, UserSettingsAPI,
+  MemoryAPI, UserSettingsAPI, CrmAPI,
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
@@ -366,6 +373,7 @@ function LandingPage({ onLogin, onRegister }) {
 function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -382,6 +390,14 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
 
   return (
     <div className="auth-wrap">
+      {/* Back to landing — top-left */}
+      <button onClick={onGoLanding} className="auth-back-btn"
+        title="Bosh sahifaga qaytish">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>Orqaga</span>
+      </button>
 
       <div className="auth-card">
         <div className="auth-logo">ANA<span>LIX</span></div>
@@ -393,7 +409,22 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
         </div>
         <div className="auth-field-wrap">
           <label className="field-label">Parol</label>
-          <input className="field" type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+          <div className="auth-pwd-wrap">
+            <input className="field" type={showPwd ? "text" : "password"} placeholder="••••••••" value={password}
+              onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+            <button type="button" onClick={() => setShowPwd(p => !p)} className="auth-pwd-toggle"
+              title={showPwd ? "Yashirish" : "Ko'rsatish"}>
+              {showPwd ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
         <div className="flex aic jb" style={{ marginTop: 4, marginBottom: 8 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text2)", cursor: "pointer" }}>
@@ -408,10 +439,6 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
         <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)" }}>
           Hisob yo'qmi? <span className="auth-link" onClick={onGoRegister}>Ro'yxatdan o'ting</span>
         </div>
-        <div style={{ textAlign: "center", marginTop: 10 }}>
-          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>Bosh sahifaga qaytish</span>
-        </div>
-
       </div>
     </div>
   );
@@ -441,34 +468,71 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
     } catch (e) { setError(e.message || "Xatolik yuz berdi"); setLoading(false); }
   };
 
+  return <RegisterPageInner {...{name, setName, organizationName, setOrganizationName, email, setEmail, password, setPassword, password2, setPassword2, error, setError, loading, setLoading, submit, onGoLogin, onGoLanding}} />;
+}
+
+function RegisterPageInner({ name, setName, organizationName, setOrganizationName, email, setEmail, password, setPassword, password2, setPassword2, error, loading, submit, onGoLogin, onGoLanding }) {
+  const [showPwd, setShowPwd] = useState(false);
+  const [showPwd2, setShowPwd2] = useState(false);
+
+  const PwdField = ({ value, setValue, placeholder, show, setShow }) => (
+    <div className="auth-pwd-wrap">
+      <input className="field" type={show ? "text" : "password"} placeholder={placeholder}
+        value={value} onChange={e => setValue(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+      <button type="button" onClick={() => setShow(s => !s)} className="auth-pwd-toggle"
+        title={show ? "Yashirish" : "Ko'rsatish"}>
+        {show ? (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <div className="auth-wrap">
+      <button onClick={onGoLanding} className="auth-back-btn" title="Bosh sahifaga qaytish">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        <span>Orqaga</span>
+      </button>
 
       <div className="auth-card">
         <div className="auth-logo">ANA<span>LIX</span></div>
         <div className="auth-sub">Yangi hisob yarating — bepul tarifda boshlang</div>
         {error && <div className="auth-err">{error}</div>}
-        {[
-          { l: "Ism familiya", v: name, s: setName, t: "text", p: "Abdullayev Bobur", key: "name" },
-          { l: "Kompaniya / Tashkilot nomi", v: organizationName, s: setOrganizationName, t: "text", p: "Masalan: Abdullayev Trade", key: "org", hint: "Siz CEO bo'lasiz, keyin xodim qo'sha olasiz" },
-          { l: "Email", v: email, s: setEmail, t: "email", p: "email@example.com", key: "email" },
-          { l: "Parol", v: password, s: setPassword, t: "password", p: "Kamida 6 ta belgi", key: "password" },
-          { l: "Parolni takrorlang", v: password2, s: setPassword2, t: "password", p: "••••••••", key: "password2" },
-        ].map(f => (
-          <div key={f.key} className="auth-field-wrap">
-            <label className="field-label">{f.l}</label>
-            <input className="field" type={f.t} placeholder={f.p} value={f.v} onChange={e => f.s(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
-            {f.hint && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>{f.hint}</div>}
-          </div>
-        ))}
+        <div className="auth-field-wrap">
+          <label className="field-label">Ism familiya</label>
+          <input className="field" type="text" placeholder="Abdullayev Bobur" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+        </div>
+        <div className="auth-field-wrap">
+          <label className="field-label">Kompaniya / Tashkilot nomi</label>
+          <input className="field" type="text" placeholder="Masalan: Abdullayev Trade" value={organizationName} onChange={e => setOrganizationName(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+          <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>Siz CEO bo'lasiz, keyin xodim qo'sha olasiz</div>
+        </div>
+        <div className="auth-field-wrap">
+          <label className="field-label">Email</label>
+          <input className="field" type="email" placeholder="email@example.com" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />
+        </div>
+        <div className="auth-field-wrap">
+          <label className="field-label">Parol</label>
+          <PwdField value={password} setValue={setPassword} placeholder="Kamida 6 ta belgi" show={showPwd} setShow={setShowPwd} />
+        </div>
+        <div className="auth-field-wrap">
+          <label className="field-label">Parolni takrorlang</label>
+          <PwdField value={password2} setValue={setPassword2} placeholder="••••••••" show={showPwd2} setShow={setShowPwd2} />
+        </div>
         <button className="btn btn-primary" style={{ width: "100%", marginTop: 4, justifyContent: "center" }} onClick={submit} disabled={loading}>
           {loading ? "Yaratilmoqda..." : "Hisob yaratish"}
         </button>
         <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
           Hisob bormi? <span className="auth-link" onClick={onGoLogin}>Kiring</span>
-        </div>
-        <div style={{ textAlign: "center", marginTop: 6 }}>
-          <span className="auth-link" style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }} onClick={onGoLanding}>Bosh sahifaga</span>
         </div>
         <div style={{ marginTop: 14, fontSize: 10, color: "var(--muted)", textAlign: "center", lineHeight: 1.6 }}>
           Ro'yxatdan o'tish orqali siz <span style={{ color: "var(--teal)" }}>Foydalanish shartlari</span> va <span style={{ color: "var(--teal)" }}>Maxfiylik siyosati</span>ga rozilik bildirasiz.
@@ -3764,6 +3828,42 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
             </div>
           )}
 
+          {/* AMOCRM */}
+          {src.type === "amocrm" && (
+            <CrmConnectPanel
+              kind="amocrm"
+              src={src}
+              onUpdate={onUpdate}
+              push={push}
+              loading={loading}
+              setLoading={setLoading}
+            />
+          )}
+
+          {/* BITRIX24 */}
+          {src.type === "bitrix24" && (
+            <CrmConnectPanel
+              kind="bitrix24"
+              src={src}
+              onUpdate={onUpdate}
+              push={push}
+              loading={loading}
+              setLoading={setLoading}
+            />
+          )}
+
+          {/* FACEBOOK ADS */}
+          {src.type === "facebook_ads" && (
+            <CrmConnectPanel
+              kind="facebook_ads"
+              src={src}
+              onUpdate={onUpdate}
+              push={push}
+              loading={loading}
+              setLoading={setLoading}
+            />
+          )}
+
           {/* MANUAL */}
           {src.type === "manual" && (
             <div>
@@ -4041,6 +4141,253 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
               Yopish
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CRM/MARKETING ULASH PANELI — AmoCRM, Bitrix24, Facebook Ads
+// ─────────────────────────────────────────────────────────────
+function CrmConnectPanel({ kind, src, onUpdate, push, loading, setLoading }) {
+  const cfg = src.config || {};
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  const presets = {
+    amocrm: {
+      title: "🟡 AmoCRM ulash",
+      brand: "#FFC400",
+      bg: "rgba(255,196,0,0.06)",
+      border: "rgba(255,196,0,0.18)",
+      instructions: [
+        "1. AmoCRM hisobiga kiring → Sozlamalar (⚙️) → Integratsiyalar",
+        "2. \"O'z integratsiyangiz\" → Yangi → \"Long-lived token\" yoqing",
+        "3. Subdomain: bu sizning AmoCRM URL'ingizning birinchi qismi (masalan, mycompany.amocrm.ru → \"mycompany\")",
+        "4. Token uzoq matn — uni 100% maxfiy saqlang",
+      ],
+      fields: [
+        { key: "subdomain", label: "Subdomain", placeholder: "mycompany", uz: "(.amocrm.ru oldidan)" },
+        { key: "token", label: "Long-lived Token", placeholder: "eyJ0eXAiOiJK...", uz: "AmoCRM integratsiya bo'limidan", type: "password" },
+      ],
+      docUrl: "https://www.amocrm.com/developers/content/oauth/easy-oauth/",
+    },
+    bitrix24: {
+      title: "🟦 Bitrix24 ulash",
+      brand: "#0098CE",
+      bg: "rgba(0,152,206,0.06)",
+      border: "rgba(0,152,206,0.18)",
+      instructions: [
+        "1. Bitrix24 portaliga kiring → \"Dasturchilar\" (yoki Developer resources)",
+        "2. \"Boshqa\" → \"Inbound webhook\" → CRM (deal/contact/lead) ruxsati bering",
+        "3. Yaratilgan webhook URL'ni nusxalang — to'liq, https:// bilan",
+        "4. URL formati: https://yourportal.bitrix24.ru/rest/USER_ID/TOKEN/",
+      ],
+      fields: [
+        { key: "webhookUrl", label: "Webhook URL", placeholder: "https://yourportal.bitrix24.ru/rest/1/abc123def/", uz: "Inbound webhook URL", type: "password" },
+      ],
+      docUrl: "https://helpdesk.bitrix24.com/open/14207482/",
+    },
+    facebook_ads: {
+      title: "📣 Facebook Ads ulash",
+      brand: "#1877F2",
+      bg: "rgba(24,119,242,0.06)",
+      border: "rgba(24,119,242,0.18)",
+      instructions: [
+        "1. developers.facebook.com → My Apps → Create App (Type: Business)",
+        "2. Add Product → Marketing API",
+        "3. Tools → Access Token Tool → \"Get Long-Lived Token\" (60 kun)",
+        "4. Permissions: ads_read, business_management",
+        "5. Ad Account ID: Business Manager → Ad Accounts → ID (act_XXXXXX)",
+        "6. Yanada uzoq ishlash uchun System User token yarating",
+      ],
+      fields: [
+        { key: "token", label: "Access Token", placeholder: "EAAxxxxx...", uz: "Long-lived (60 kun) yoki System User token", type: "password" },
+        { key: "accountId", label: "Ad Account ID", placeholder: "act_123456789", uz: "Business Manager → Ad Account ID" },
+      ],
+      docUrl: "https://developers.facebook.com/docs/marketing-api/get-started",
+    },
+  };
+
+  const meta = presets[kind];
+  if (!meta) return null;
+
+  const updateConfig = (key, value) => {
+    onUpdate({ ...src, config: { ...src.config, [key]: value } });
+  };
+
+  const allFilled = meta.fields.every(f => (cfg[f.key] || "").trim().length > 0);
+
+  const handleTest = async () => {
+    setTesting(true); setTestResult(null);
+    try {
+      let r;
+      if (kind === "amocrm") r = await CrmAPI.amocrmTest(cfg.subdomain, cfg.token);
+      else if (kind === "bitrix24") r = await CrmAPI.bitrixTest(cfg.webhookUrl);
+      else if (kind === "facebook_ads") r = await CrmAPI.facebookAdsTest(cfg.token, cfg.accountId);
+      setTestResult(r);
+      if (r?.ok) push("✓ Ulanish muvaffaqiyatli", "ok");
+      else push("Ulanish xatosi: " + (r?.error || "noma'lum"), "error");
+    } catch (e) {
+      setTestResult({ ok: false, error: e.message });
+      push("Ulanish xatosi: " + e.message, "error");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    setLoading(true);
+    try {
+      let r;
+      if (kind === "amocrm") r = await CrmAPI.amocrmConnect(cfg.subdomain, cfg.token, src.name);
+      else if (kind === "bitrix24") r = await CrmAPI.bitrixConnect(cfg.webhookUrl, src.name);
+      else if (kind === "facebook_ads") r = await CrmAPI.facebookAdsConnect(cfg.token, cfg.accountId, src.name);
+      if (r?.ok) {
+        // Backend yangi sourceId bilan record yaratdi — eski (placeholder) sourceni o'zgartiramiz
+        onUpdate({
+          ...src,
+          id: r.sourceId,
+          name: r.name || src.name,
+          connected: true,
+          active: true,
+          config: { ...cfg, accountInfo: r.account || null },
+        });
+        push("✓ Ulandi! Birinchi sync 1-2 daqiqada tayyor", "ok");
+        // 5 sekunddan keyin sources qayta yuklash
+        setTimeout(() => window.dispatchEvent(new CustomEvent('sources-refresh')), 5000);
+      } else {
+        push("Xato: " + (r?.error || "ulanish amalga oshmadi"), "error");
+      }
+    } catch (e) {
+      push("Xato: " + e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    setLoading(true);
+    try {
+      const r = await CrmAPI.sync(src.id);
+      if (r?.ok) {
+        const counts = [r.campaigns && `${r.campaigns} kampaniya`, r.adsets && `${r.adsets} ad set`, r.ads && `${r.ads} ad`, r.leads && `${r.leads} lid`, r.contacts && `${r.contacts} mijoz`, r.deals && `${r.deals} bitim`].filter(Boolean).join(", ");
+        push(`✓ Yangilandi: ${counts || r.rows + " yozuv"}`, "ok");
+        setTimeout(() => window.dispatchEvent(new CustomEvent('sources-refresh')), 1500);
+      } else {
+        push("Sync xatosi: " + (r?.error || "noma'lum"), "error");
+      }
+    } catch (e) {
+      push("Sync xatosi: " + e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{
+        background: meta.bg, border: `1px solid ${meta.border}`,
+        borderRadius: 10, padding: "12px 14px", marginBottom: 14,
+      }}>
+        <div style={{ color: meta.brand, fontWeight: 700, marginBottom: 8, fontFamily: "var(--fh)", fontSize: 13 }}>
+          {meta.title}
+        </div>
+        <ol style={{ margin: 0, paddingLeft: 20, fontSize: 11.5, lineHeight: 1.85, color: "var(--text2)" }}>
+          {meta.instructions.map((line, i) => <li key={i}>{line.replace(/^\d+\.\s*/, "")}</li>)}
+        </ol>
+        <a href={meta.docUrl} target="_blank" rel="noopener noreferrer"
+          style={{ display: "inline-block", marginTop: 8, fontSize: 11, color: meta.brand, textDecoration: "none", fontWeight: 600 }}>
+          📖 Rasmiy hujjat →
+        </a>
+      </div>
+
+      {/* Input fields */}
+      <div style={{ display: "grid", gridTemplateColumns: meta.fields.length === 1 ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        {meta.fields.map(f => (
+          <div key={f.key}>
+            <label className="field-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>{f.label}</span>
+              {f.uz && <span style={{ fontSize: 9, color: "var(--muted)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{f.uz}</span>}
+            </label>
+            <input
+              className="field"
+              type={f.type === "password" ? "password" : "text"}
+              placeholder={f.placeholder}
+              value={cfg[f.key] || ""}
+              onChange={e => updateConfig(f.key, e.target.value)}
+              disabled={src.connected}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {!src.connected && (
+          <>
+            <button onClick={handleTest} disabled={!allFilled || testing}
+              className="btn btn-ghost btn-sm">
+              {testing ? "⏳ Tekshirilmoqda..." : "🔍 Ulanishni tekshirish"}
+            </button>
+            <button onClick={handleConnect} disabled={!allFilled || loading}
+              className="btn btn-primary btn-sm">
+              {loading ? "⏳ Ulanmoqda..." : "🔗 Ulash va sync"}
+            </button>
+          </>
+        )}
+        {src.connected && (
+          <button onClick={handleSync} disabled={loading} className="btn btn-primary btn-sm">
+            {loading ? "⏳ Sync..." : "↻ Hozir yangilash"}
+          </button>
+        )}
+      </div>
+
+      {/* Test result */}
+      {testResult && (
+        <div style={{
+          padding: "10px 14px",
+          background: testResult.ok ? "rgba(74,222,128,0.08)" : "rgba(239,68,68,0.08)",
+          border: `1px solid ${testResult.ok ? "rgba(74,222,128,0.25)" : "rgba(239,68,68,0.25)"}`,
+          borderRadius: 8, fontSize: 11.5, color: testResult.ok ? "#34D399" : "#F87171",
+          marginBottom: 8,
+        }}>
+          {testResult.ok ? (
+            <>
+              <strong>✓ Tekshirilgan</strong>
+              {testResult.account && (
+                <div style={{ marginTop: 4, color: "var(--text2)", fontSize: 10.5 }}>
+                  {testResult.account.name && `Hisob: ${testResult.account.name}`}
+                  {testResult.account.currency && ` · ${testResult.account.currency}`}
+                  {testResult.account.timezone && ` · ${testResult.account.timezone}`}
+                </div>
+              )}
+              {testResult.user && (
+                <div style={{ marginTop: 4, color: "var(--text2)", fontSize: 10.5 }}>
+                  Foydalanuvchi: {testResult.user.name || testResult.user.id}
+                </div>
+              )}
+            </>
+          ) : (
+            <><strong>✗ Xato:</strong> {testResult.error}</>
+          )}
+        </div>
+      )}
+
+      {/* Connected status + auto-refresh */}
+      {src.connected && (
+        <div style={{
+          padding: "10px 14px",
+          background: "rgba(74,222,128,0.06)",
+          border: "1px solid rgba(74,222,128,0.18)",
+          borderRadius: 8, fontSize: 11.5, color: "var(--green)",
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
+          <span>✓ Ulangan {src.config?.accountInfo?.name && `· ${src.config.accountInfo.name}`}</span>
+          <span style={{ color: "var(--muted)", fontSize: 10 }}>
+            {src.data?.length || 0} yozuv
+          </span>
         </div>
       )}
     </div>
@@ -4451,6 +4798,11 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
             push={push}
             setBulkExpand={setBulkExpand}
             bulkExpand={bulkExpand}
+            onRefreshDone={() => {
+              loadSourcesFromAPI(activeDepartmentId).then(apiSources => {
+                if (Array.isArray(apiSources)) setSources(apiSources);
+              }).catch(() => {});
+            }}
           />
           {filteredSources.length === 0 && sources.length > 0 && (
             <div style={{ padding: 32, textAlign: "center", background: "var(--s1)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--muted)", fontSize: 13 }}>
@@ -4487,10 +4839,81 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
 }
 
 // ─────────────────────────────────────────────────────────────
+// REFRESH HELPER — manba turiga qarab ma'lumotni yangilash
+// ─────────────────────────────────────────────────────────────
+async function _authFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', ...opts.headers };
+  const t = Token.get();
+  if (t) headers['Authorization'] = `Bearer ${t}`;
+  const res = await fetch('/api' + path, { ...opts, headers });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = null; }
+  if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+  return data;
+}
+
+async function refreshSourceById(src, push) {
+  try {
+    if (src.type === 'sheets' && src.config?.url) {
+      const r = await SheetsAPI.fetch(src.config.url, src.id);
+      push(`✓ ${src.name}: ${r.sheetCount} varaq · ${r.totalRows.toLocaleString()} qator yangilandi`, 'ok');
+      return true;
+    }
+    if (src.type === 'telegram' && src.config?.mode === 'mtproto' && src.config?.channelDbId) {
+      const r = await TelegramAPI.syncChannel(src.config.channelDbId);
+      if (r?.note) push(`${src.name}: ${r.note}`, 'warn');
+      else push(`✓ ${src.name}: ${r?.members?.toLocaleString() || '?'} a'zo`, 'ok');
+      return true;
+    }
+    if (src.type === 'instagram') {
+      const r = await _authFetch(`/instagram/sync/${src.id}`, { method: 'POST' });
+      push(`✓ ${src.name}: yangilandi`, 'ok');
+      return true;
+    }
+    if (src.type === 'crm' || src.type === 'bitrix24' || src.type === 'amocrm' || src.type === 'facebook_ads') {
+      const r = await _authFetch(`/crm/sync/${src.id}`, { method: 'POST' });
+      const summary = [r.campaigns && `${r.campaigns} kampaniya`, r.adsets && `${r.adsets} ad set`, r.ads && `${r.ads} ad`,
+        r.leads && `${r.leads} lid`, r.deals && `${r.deals} bitim`, r.contacts && `${r.contacts} mijoz`]
+        .filter(Boolean).join(', ');
+      push(`✓ ${src.name}: ${summary || (r.rows || 0) + ' yozuv'} yangilandi`, 'ok');
+      return true;
+    }
+    if (src.type === 'website' && src.config?.url) {
+      const r = await _authFetch('/scrape', {
+        method: 'POST',
+        body: JSON.stringify({ url: src.config.url, sourceId: src.id }),
+      });
+      push(`✓ ${src.name}: scrape yangilandi`, 'ok');
+      return true;
+    }
+    if (src.type === 'excel' || src.type === 'csv') {
+      push(`${src.name}: Excel/CSV — qayta yuklash kerak (Boshqarish → Fayl yuklash)`, 'warn');
+      return false;
+    }
+    push(`${src.name}: ${src.type} — avtomatik yangilash hozircha mavjud emas`, 'warn');
+    return false;
+  } catch (e) {
+    push(`${src.name}: ${e.message}`, 'error');
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // SOURCES TABLE — table-view (redesign Faza 3.2)
 // ─────────────────────────────────────────────────────────────
-function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpand, bulkExpand }) {
+function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpand, bulkExpand, onRefreshDone }) {
   const [expandedId, setExpandedId] = useState(null);
+  const [refreshingId, setRefreshingId] = useState(null);
+
+  const handleRefresh = async (src, e) => {
+    e.stopPropagation();
+    if (refreshingId) return;
+    setRefreshingId(src.id);
+    const ok = await refreshSourceById(src, push);
+    setRefreshingId(null);
+    if (ok && onRefreshDone) onRefreshDone();
+  };
 
   const fmtDate = (iso) => {
     if (!iso) return "—";
@@ -4510,8 +4933,8 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
       {/* Header row */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "16px 1fr 140px 120px 110px 52px 110px",
-        alignItems: "center", gap: 16, padding: "12px 20px",
+        gridTemplateColumns: "12px minmax(0,1fr) 130px 90px 110px 32px 44px 100px",
+        alignItems: "center", gap: 12, padding: "12px 18px",
         background: "var(--s2)", borderBottom: "1px solid var(--border)",
         fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)",
       }}>
@@ -4520,6 +4943,7 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
         <span>Tur</span>
         <span>Yozuvlar</span>
         <span>Holat</span>
+        <span></span>
         <span>Yoq</span>
         <span></span>
       </div>
@@ -4534,8 +4958,8 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
           <div key={src.id}>
             <div style={{
               display: "grid",
-              gridTemplateColumns: "16px 1fr 140px 120px 110px 52px 110px",
-              alignItems: "center", gap: 16, padding: "14px 20px",
+              gridTemplateColumns: "12px minmax(0,1fr) 130px 90px 110px 32px 44px 100px",
+              alignItems: "center", gap: 12, padding: "14px 18px",
               borderBottom: "1px solid var(--border)", transition: "background .12s",
               cursor: "default",
             }}
@@ -4576,8 +5000,8 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
                 {src.data?.length ? <span style={{ fontSize: 10, color: "var(--muted)", fontWeight: 400, marginLeft: 4 }}>qator</span> : null}
               </div>
 
-              {/* Health badge */}
-              <div>
+              {/* Health badge + refresh button (eskirgan bo'lsa) */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{
                   fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 0.3, textTransform: "uppercase",
                   padding: "4px 8px", borderRadius: 5, fontWeight: 600, display: "inline-block", textAlign: "center",
@@ -4586,7 +5010,54 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
                 }}>
                   {h.lbl}
                 </span>
+                {(() => {
+                  const refreshable = ['sheets','telegram','instagram','crm','amocrm','bitrix24','facebook_ads','website']
+                    .includes(src.type);
+                  return refreshable;
+                })() && (
+                  <button
+                    onClick={(e) => handleRefresh(src, e)}
+                    disabled={refreshingId === src.id || !src.connected}
+                    title={refreshingId === src.id ? "Yangilanmoqda..." : (src.connected ? "Ma'lumotlarni yangilash" : "Avval ulanish kerak (Boshqarish)")}
+                    style={{
+                      width: 24, height: 24, borderRadius: 6,
+                      background: refreshingId === src.id ? "var(--gold-glow)" : "transparent",
+                      border: `1px solid ${refreshingId === src.id ? "var(--gold)" : "var(--border)"}`,
+                      color: refreshingId === src.id ? "var(--gold)" : (!src.connected ? "var(--muted)" : (h.cls === "stale" ? "var(--orange)" : "var(--muted)")),
+                      cursor: refreshingId === src.id ? "wait" : (src.connected ? "pointer" : "not-allowed"),
+                      opacity: src.connected ? 1 : 0.4,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all .15s var(--ease)",
+                      flexShrink: 0,
+                    }}
+                    onMouseEnter={e => { if (!refreshingId) { e.currentTarget.style.borderColor = "var(--gold)"; e.currentTarget.style.color = "var(--gold)"; }}}
+                    onMouseLeave={e => { if (!refreshingId) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = h.cls === "stale" ? "var(--orange)" : "var(--muted)"; }}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      style={{
+                        animation: refreshingId === src.id ? "spin 1s linear infinite" : "none",
+                      }}>
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                  </button>
+                )}
               </div>
+
+              {/* Sidebar pin toggle */}
+              <button onClick={(e) => { e.stopPropagation(); onUpdate({ ...src, show_in_sidebar: !src.show_in_sidebar }); }}
+                title={src.show_in_sidebar ? "Sidebardan olib tashlash" : "Sidebarda ko'rsatish"}
+                style={{
+                  width: 28, height: 26, padding: 0,
+                  background: src.show_in_sidebar ? "var(--gold-glow)" : "transparent",
+                  border: `1px solid ${src.show_in_sidebar ? "var(--gold)" : "var(--border)"}`,
+                  borderRadius: 6, cursor: "pointer",
+                  color: src.show_in_sidebar ? "var(--gold)" : "var(--muted)",
+                  fontSize: 12, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                {src.show_in_sidebar ? "📌" : "📎"}
+              </button>
 
               {/* Toggle active */}
               <div onClick={() => onUpdate({ ...src, active: !src.active })} title={src.active ? "O'chirish" : "Yoqish"}
@@ -4900,9 +5371,136 @@ function GaugeChart({ value = 0, max = 100, label = "", color = "var(--teal)" })
 // Instagram/Telegram → auto-dashboard
 // Boshqa manbalar → foydalanuvchi so'rov yozadi, AI raqamlar hisoblaydi + chartlar qaytaradi
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// CHART SOURCE DROPDOWN — premium dropdown for source selection
+// ─────────────────────────────────────────────────────────────
+function ChartSourceDropdown({ sources, selectedId, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = sources.find(s => s.id === selectedId) || sources[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  if (!selected) return null;
+  const selectedSt = SOURCE_TYPES[selected.type] || {};
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 280 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "10px 16px",
+          background: open ? "var(--s2)" : "var(--s1)",
+          border: `1px solid ${open ? "var(--gold)" : "var(--border)"}`,
+          borderRadius: 12,
+          cursor: "pointer", fontFamily: "var(--fh)",
+          width: "100%", minWidth: 280,
+          transition: "all .18s var(--ease)",
+          boxShadow: open ? "0 0 0 3px color-mix(in srgb,var(--gold) 12%,transparent)" : "var(--shadow-sm)",
+        }}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = "var(--border-hi)"; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = "var(--border)"; }}
+      >
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: `${selected.color || selectedSt.color || "var(--gold)"}18`,
+          border: `1px solid ${selected.color || selectedSt.color || "var(--gold)"}40`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 17, flexShrink: 0,
+        }}>
+          {selectedSt.icon || "📁"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+          <div style={{ fontSize: 10.5, fontFamily: "var(--fm)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1.5, fontWeight: 600, marginBottom: 2 }}>
+            Manba · {sources.length} ta
+          </div>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selected.name}
+          </div>
+          <div style={{ fontSize: 10.5, color: "var(--muted)", fontFamily: "var(--fm)", marginTop: 1 }}>
+            {(selected.data?.length || 0).toLocaleString()} qator
+          </div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          style={{ color: "var(--muted)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", flexShrink: 0 }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
+          background: "var(--s1)", border: "1px solid var(--border-hi)",
+          borderRadius: 12, padding: 6, zIndex: 100,
+          boxShadow: "var(--shadow-lg)",
+          maxHeight: 380, overflowY: "auto",
+        }}>
+          {sources.map(s => {
+            const st = SOURCE_TYPES[s.type] || {};
+            const isActive = s.id === selectedId;
+            return (
+              <button key={s.id}
+                onClick={() => { onSelect(s.id); setOpen(false); }}
+                style={{
+                  width: "100%", padding: "9px 11px", borderRadius: 8,
+                  background: isActive ? "var(--gold-glow)" : "transparent",
+                  border: `1px solid ${isActive ? "color-mix(in srgb,var(--gold) 30%,transparent)" : "transparent"}`,
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: 11,
+                  fontFamily: "var(--fh)", textAlign: "left",
+                  marginBottom: 2, transition: "all .12s var(--ease)",
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "var(--s2)"; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  background: `${s.color || st.color || "var(--gold)"}18`,
+                  border: `1px solid ${s.color || st.color || "var(--gold)"}30`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, flexShrink: 0,
+                }}>{st.icon || "📁"}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: isActive ? 700 : 600, color: isActive ? "var(--gold)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {s.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--fm)", marginTop: 1 }}>
+                    {(s.data?.length || 0).toLocaleString()} qator · {st.label || s.type}
+                  </div>
+                </div>
+                {isActive && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBackgroundAI }) {
   const [selectedSrc, setSelectedSrc] = useState(null);
   const [filter, setFilter] = useState("all");
+
+  // Sidebar'dan source pin bilan kelganda, o'sha manbaga tanlanish
+  useEffect(() => {
+    const onSidebarPick = (ev) => {
+      const id = ev?.detail;
+      if (id) setSelectedSrc(id);
+    };
+    window.addEventListener('charts-source-filter', onSidebarPick);
+    return () => window.removeEventListener('charts-source-filter', onSidebarPick);
+  }, []);
   const [chartOverrides, setChartOverrides] = useState({});
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
@@ -5218,8 +5816,30 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
 {"type":"chart","title":"Sarlavha","icon":"📊","chartType":"bar","analysis":"insight...","data":[{"name":"Kat","savdo":100}],"keys":["savdo"],"xKey":"name","colors":["#00C9BE","#E8B84B","#A78BFA","#4ADE80","#F87171","#60A5FA","#FB923C"]},
 {"type":"chart","title":"Sarlavha","icon":"📈","chartType":"line","analysis":"insight...","data":[{"name":"01","daromad":500}],"keys":["daromad"],"xKey":"name","colors":["#00C9BE"]},
 {"type":"chart","title":"Sarlavha","icon":"🥧","chartType":"pie","analysis":"insight...","data":[{"name":"Kat","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA","#4ADE80","#F87171","#60A5FA"]},
+{"type":"chart","title":"Mahsulot bo'limi","icon":"🌳","chartType":"treemap","analysis":"...","data":[{"name":"A","value":120},{"name":"B","value":80}],"keys":["value"]},
+{"type":"chart","title":"Issiqlik xaritasi","icon":"🔥","chartType":"heatmap","analysis":"...","data":[{"x":"Du","y":"Yan","value":50},{"x":"Se","y":"Yan","value":80}],"keys":["value"],"xKey":"x"},
+{"type":"chart","title":"Mahsulot ko'rsatkichlari","icon":"🕸️","chartType":"radar","analysis":"...","data":[{"name":"A","sotuv":80,"qaytarish":20,"reyting":4.5}],"keys":["sotuv","qaytarish","reyting"]},
+{"type":"chart","title":"Konversiya yo'lakchasi","icon":"🪜","chartType":"funnel","analysis":"...","data":[{"name":"Lid","value":1000},{"name":"Ariza","value":300},{"name":"Mijoz","value":80}],"keys":["value"]},
+{"type":"chart","title":"Bar+Line","icon":"📊","chartType":"composed","analysis":"...","data":[{"name":"Yan","savdo":120,"foiz":15}],"barKeys":["savdo"],"lineKeys":["foiz"],"yLabelLeft":"Savdo","yLabelRight":"%"},
+{"type":"chart","title":"Trend + bashorat","icon":"📈","chartType":"line","analysis":"...","data":[{"name":"Yan","savdo":120}],"keys":["savdo"],"xKey":"name","overlays":{"regression":true,"mean":true,"anomalies":[{"index":3,"label":"Spike"}],"forecast":{"points":[{"date":"May","value":150,"lower":130,"upper":170}]}}},
+{"type":"chart","title":"Maqsad","icon":"🎯","chartType":"gauge","analysis":"...","data":[{"value":78}],"max":100,"label":"Bajarildi","format":"{value}%"},
 {"type":"highlight","title":"Xulosa va Amaliy Qarorlar","icon":"💡","items":[{"l":"🟢 Kuchli tomon","v":"[raqam] — sababi nima","c":"#00C9BE"},{"l":"🔴 Muammo","v":"[raqam] — ta'sir: XM so'm","c":"#F87171"},{"l":"💡 Qaror 1","v":"[Aniq harakat] → [Kutilgan natija]","c":"#4ADE80"},{"l":"💡 Qaror 2","v":"[Aniq harakat] → [muddat]","c":"#A78BFA"}]}
-]}`;
+]}
+
+QAYSI CHART QACHON ISHLATISH:
+- bar / hbar — kategoriya solishtirish (Top 5, oylar)
+- line — vaqt qatori, trend (sana asoslida)
+- line + stats:{regression,anomalies,forecast} — kuchli trend + tahlil
+- area — to'planadigan vaqt qatori
+- pie / donut — komponentlar % (max 6 ta)
+- stackedbar — qism + jami (mahsulot tushum bo'limi bo'yicha)
+- treemap — ko'p kategoriya, ierarxiya (50+ mahsulot, top by value)
+- heatmap — kun×soat, mahsulot×oy (corellation, issiqlik)
+- radar — multi-metrik solishtirish (5+ ko'rsatkich)
+- funnel — konversiya jarayoni (CRM, sayt)
+- composed — bar+line dual-axis (savdo + foiz)
+- gauge — bitta KPI maqsad (% bajarish)
+- scatter — 2 metric correlation (narx vs sotuv)`;
 
       // Backend orqali AI chaqiruv (CORS/network muammolarini oldini olish)
       const curCacheKey = cacheKey;
@@ -5300,15 +5920,23 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
         if (c.type === "stats" && (!Array.isArray(c.stats) || c.stats.length === 0)) return false;
         if (c.type === "chart") {
           if (!Array.isArray(c.data) || c.data.length === 0) return false;
-          if (c.chartType === "pie" && !c.data.every(d => d.value != null || d.name != null)) return false;
-          if (["bar", "line", "area", "stackedbar"].includes(c.chartType) && (!Array.isArray(c.keys) || c.keys.length === 0)) return false;
-          if (c.chartType !== "pie") {
-            const k = c.keys?.[0];
+          // Klassik chartlar: keys + numeric data tekshirish
+          const CLASSIC = ["bar", "line", "area", "stackedbar", "hbar", "scatter"];
+          if (CLASSIC.includes(c.chartType)) {
+            if (!Array.isArray(c.keys) || c.keys.length === 0) return false;
+            const k = c.keys[0];
             if (k && c.data.every(d => isNaN(parseFloat(d[k])))) return false;
           }
+          // Pie/donut — value field
+          if (c.chartType === "pie" || c.chartType === "donut") {
+            if (!c.data.every(d => d.value != null || d.name != null)) return false;
+          }
+          // Yangi turlar — minimal tekshirish (data array bor)
+          // funnel, treemap, radar, heatmap, gauge, composed, sunburst — turli formatlar
+          // Validatsiya minimal: data bo'sh emas — yetarli
         }
         if (c.type === "highlight" && (!Array.isArray(c.items) || c.items.length === 0)) return false;
-        if (c.type === "gauge" && (c.value == null || isNaN(c.value))) return false;
+        if (c.type === "gauge" && (c.value == null || isNaN(c.value)) && (!Array.isArray(c.data) || c.data.length === 0)) return false;
         return true;
       });
 
@@ -5382,22 +6010,13 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
 
   return (
     <div>
-      {/* ── HEADER: Manba tabs + Yangilash tugma ── */}
-      <div className="flex aic jb mb12 flex-wrap gap8">
-        <div className="flex gap6 aic flex-wrap">
-          <span className="text-xs text-muted" style={{ fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2 }}>Manba:</span>
-          {connectedSources.map(s => {
-            const st = SOURCE_TYPES[s.type];
-            const active = workingSource?.id === s.id;
-            return (
-              <button key={s.id} className="btn btn-ghost btn-sm" onClick={() => { setSelectedSrc(s.id); setChartOverrides({}); setFilter("all"); setChartTypeFilter("all"); }}
-                style={active ? { borderColor: s.color || st.color, color: s.color || st.color, background: `${s.color || st.color}12`, fontWeight: 700 } : {}}>
-                {st.icon} {s.name}
-                <span className="badge b-ok" style={{ fontSize: 8, marginLeft: 4, background: active ? `${s.color || st.color}25` : undefined }}>{s.data?.length}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* ── HEADER: Manba dropdown + Yangilash tugma ── */}
+      <div className="flex aic jb mb14 flex-wrap gap8" style={{ alignItems: "center" }}>
+        <ChartSourceDropdown
+          sources={connectedSources}
+          selectedId={workingSource?.id}
+          onSelect={(id) => { setSelectedSrc(id); setChartOverrides({}); setFilter("all"); setChartTypeFilter("all"); }}
+        />
         <div className="flex gap8 aic">
           {aiCards.length > 0 && (
             <button className="btn btn-ghost btn-xs" style={{ fontSize: 10, color: "var(--red)", borderColor: "rgba(248,113,113,0.2)" }}
@@ -5407,8 +6026,13 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
           )}
           <button className="btn btn-primary" onClick={autoGenerateCharts}
             disabled={aiLoading || !workingSource}
-            style={{ padding: "8px 18px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-            {aiLoading ? <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Tahlil...</> : "🔄 Yangilash"}
+            style={{ padding: "10px 20px", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+            {aiLoading ? <><span style={{ display: "inline-block", width: 12, height: 12, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />Tahlil...</> : <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Yangilash
+            </>}
           </button>
         </div>
       </div>
@@ -5944,7 +6568,8 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
     setInput(""); setAttachedFile(null);
     const hist = messages.map(m => ({ role: m.role, content: m.content }));
     const ts = new Date().toLocaleString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name), time: ts }, { role: "assistant", content: "", time: ts }];
+    const startedAtMs = Date.now();
+    const newMsgs = [...messages, { role: "user", content: disp, srcNames: chosenSrcs.map(s => s.name), time: ts }, { role: "assistant", content: "", time: ts, phase: 'thinking', tools: [], startedAt: startedAtMs }];
     setMessages(newMsgs); setLoading(true);
 
     // Professional system prompt — onboarding ma'lumotlari bilan moslashtirilgan
@@ -6038,10 +6663,11 @@ MAZMUN QOIDALARI:
               setMessages(m => {
                 const c = [...m];
                 c[c.length - 1] = {
+                  ...c[c.length - 1],
                   role: "assistant",
                   content: displayedText,
-                  streaming: true,
-                  toolsUsed: seenTools.map(t => t.label),
+                  phase: 'streaming',
+                  tools: seenTools.slice(),
                   time: c[c.length - 1]?.time,
                 };
                 return c;
@@ -6056,45 +6682,99 @@ MAZMUN QOIDALARI:
           const final = await AiAgentAPI.stream(agentMsg, trimmedHist, (evt) => {
             if (evt.type === 'tool') {
               const label = getToolLabel(evt.data.name, evt.data.input || {});
-              seenTools.push({ name: evt.data.name, label, input: evt.data.input });
-              if (streaming) return;
+              const nowMs = Date.now();
+              // Tool natija (isResult=true) — oxirgi tool'ga result biriktirish
+              if (evt.data.isResult) {
+                if (seenTools.length > 0) {
+                  const last = seenTools[seenTools.length - 1];
+                  if (last.name === evt.data.name) {
+                    last.result = evt.data.result;
+                  }
+                }
+                return;
+              }
+              // Avvalgi tool 'running' bo'lsa — uni 'done' qilamiz
+              if (seenTools.length > 0) {
+                const prev = seenTools[seenTools.length - 1];
+                if (prev.status === 'running') {
+                  prev.status = 'done';
+                  prev.endedAt = nowMs;
+                  prev.ms = nowMs - (prev.startedAt || nowMs);
+                }
+              }
+              const newTool = { name: evt.data.name, label, input: evt.data.input, status: 'running', startedAt: nowMs };
+              seenTools.push(newTool);
+              if (streaming) return; // streaming boshlangach matnga o'tamiz
               setMessages(m => {
                 const c = [...m];
                 c[c.length - 1] = {
+                  ...c[c.length - 1],
                   role: "assistant",
-                  content: "_Tahlil qilayapman..._\n\n" + seenTools.map(t => `• ${t.label}`).join('\n'),
-                  toolProgress: true,
+                  content: "",
+                  phase: 'tools',
+                  tools: seenTools.slice(),
                   time: c[c.length - 1]?.time,
                 };
                 return c;
               });
             } else if (evt.type === 'thinking' && typeof evt.data?.text === 'string') {
-              // Extended thinking — AI ichki fikrlash matni (debug, log)
-              // Foydalanuvchiga ko'rinmaydi, lekin console.log orqali kuzatilishi mumkin
+              // Extended thinking — UI'da yumshoq ko'rsatamiz
+              setMessages(m => {
+                const c = [...m];
+                c[c.length - 1] = {
+                  ...c[c.length - 1],
+                  role: "assistant",
+                  phase: c[c.length - 1]?.phase === 'streaming' ? 'streaming' : 'thinking',
+                  thinkingText: (c[c.length - 1]?.thinkingText || '') + evt.data.text,
+                };
+                return c;
+              });
               if (typeof window !== 'undefined' && window.__DEBUG_AI_THINKING) {
                 console.debug('[AI thinking]', evt.data.text);
               }
             } else if (evt.type === 'delta' && typeof evt.data?.text === 'string') {
+              // Birinchi delta — oxirgi tool 'done' deb belgilanadi
+              if (!streaming && seenTools.length > 0) {
+                const last = seenTools[seenTools.length - 1];
+                if (last.status === 'running') {
+                  last.status = 'done';
+                  last.endedAt = Date.now();
+                  last.ms = last.endedAt - (last.startedAt || last.endedAt);
+                }
+              }
               pendingText += evt.data.text;
               if (!streaming) {
                 streaming = true;
                 typingTimer = setInterval(tickTyping, 25);
               }
             }
-          }, { signal: controller.signal });
+          }, { signal: controller.signal, sourceIds: chosenSrcs.map(s => s.id) });
 
           streamEnded = true;
           // Buffer qolganini sekin drainlash o'rniga darhol ko'rsatamiz
           if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
 
+          // Yakun: barcha tool 'done' bo'lsin va final state premium komponentga uzatamiz
+          const finishedAt = Date.now();
+          seenTools.forEach(t => {
+            if (t.status === 'running') {
+              t.status = 'done';
+              t.endedAt = finishedAt;
+              t.ms = finishedAt - (t.startedAt || finishedAt);
+            }
+          });
           setMessages(m => {
             const c = [...m];
+            const prevStarted = c[c.length - 1]?.startedAt || finishedAt;
             c[c.length - 1] = {
+              ...c[c.length - 1],
               role: "assistant",
               content: final?.reply || "(bo'sh javob)",
+              phase: 'done',
               confidence: final?.confidence,
               sourcesUsed: final?.sourcesUsed || [],
-              toolsUsed: seenTools.map(t => t.label),
+              tools: seenTools.slice(),
+              durationMs: finishedAt - prevStarted,
               time: c[c.length - 1]?.time,
             };
             return c;
@@ -6102,10 +6782,10 @@ MAZMUN QOIDALARI:
           if (!hasPersonalKey && user && onAiUsed) onAiUsed();
         } catch (e) {
           if (e.name === 'AbortError') {
-            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "⏹ To'xtatildi" }; return c; });
+            setMessages(m => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], role: "assistant", content: "⏹ To'xtatildi", phase: 'done' }; return c; });
           } else {
             console.warn('[chat] agent xato:', e.message);
-            setMessages(m => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "❌ AI xato: " + e.message + "\n\nQayta urinib ko'ring yoki Sozlamalar → AI kalitini tekshiring." }; return c; });
+            setMessages(m => { const c = [...m]; c[c.length - 1] = { ...c[c.length - 1], role: "assistant", content: "", phase: 'error', errorText: e.message + " — qayta urinib ko'ring yoki Sozlamalar → AI kalitini tekshiring." }; return c; });
           }
         }
       } else {
@@ -6439,27 +7119,24 @@ MAZMUN QOIDALARI:
                       {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
                     </div>
                   )}
-                  {m.role === "assistant" ? <RenderMD text={m.content} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>}
-                  {m.role === "assistant" && (m.confidence || m.sourcesUsed?.length > 0 || m.toolsUsed?.length > 0) && (
-                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", fontSize: 10 }}>
-                      {m.confidence && (
-                        <span title="Javob ishonchliligi" style={{
-                          padding: "2px 8px", borderRadius: 10, fontWeight: 600, fontFamily: "var(--fm)",
-                          background: m.confidence === 'high' ? 'rgba(16,185,129,0.15)' : m.confidence === 'medium' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
-                          color: m.confidence === 'high' ? '#10B981' : m.confidence === 'medium' ? '#CA8A04' : '#EF4444',
-                        }}>
-                          {m.confidence === 'high' ? '✓ Yuqori ishonch' : m.confidence === 'medium' ? '~ O\'rtacha ishonch' : '? Past ishonch'}
-                        </span>
-                      )}
-                      {m.sourcesUsed?.map((s, j) => (
-                        <span key={j} title="Ishlatilgan manba" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(0,201,190,0.12)", color: "var(--teal)", fontWeight: 600 }}>📎 {s}</span>
-                      ))}
-                      {m.toolsUsed && m.toolsUsed.length > 0 && !m.toolProgress && (
-                        <span title="Bajarilgan amallar" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(148,163,184,0.12)", color: "var(--muted)" }}>
-                          🔧 {m.toolsUsed.length} ta amal
-                        </span>
-                      )}
-                    </div>
+                  {m.role === "assistant" ? (
+                    m.phase ? (
+                      <ChatStreamingMessage
+                        status={m.phase}
+                        tools={m.tools || []}
+                        thinkingText={m.thinkingText}
+                        content={m.content}
+                        confidence={m.confidence}
+                        sourcesUsed={m.sourcesUsed || []}
+                        durationMs={m.durationMs}
+                        errorText={m.errorText}
+                        renderMarkdown={(t) => <PremiumMD text={t} />}
+                      />
+                    ) : (
+                      <RenderMD text={m.content} />
+                    )
+                  ) : (
+                    <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>
                   )}
                 </div>
               </div>
@@ -9163,32 +9840,6 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
         )}
       </div>
 
-      {/* ── AVTOMATIK HISOBOT ── */}
-      <div className="card mb14">
-        <div className="flex aic jb mb12">
-          <div><div className="card-title" style={{ marginBottom: 3 }}> Avtomatik Hisobot</div><div style={{ fontSize: 10, color: "var(--muted)" }}>Belgilangan vaqtda AI hisobot tayyorlaydi</div></div>
-          <div style={{ width: 36, height: 20, borderRadius: 10, background: autoOn ? "var(--green)" : "var(--s4)", border: "1px solid var(--border)", cursor: "pointer", position: "relative", transition: "all .2s" }} onClick={() => { setAutoOn(v => { LS.set(uk("auto_report"), !v); return !v; }); }}>
-            <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: autoOn ? 19 : 2, transition: "left .2s" }} />
-          </div>
-        </div>
-        {autoOn && (<div className="flex aic gap10"><div><label className="field-label">Vaqt</label><input type="time" className="field" value={reportTime} onChange={e => { setReportTime(e.target.value); LS.set(uk("report_time"), e.target.value); }} style={{ width: 110 }} /></div><div style={{ fontSize: 10, color: "var(--muted)", paddingTop: 18 }}>Har kuni shu vaqtda</div></div>)}
-      </div>
-
-      {/* ── TELEGRAM BILDIRISHNOMA ── */}
-      <div className="card mb14">
-        <div className="flex aic jb mb10">
-          <div className="card-title" style={{ marginBottom: 0 }}>Telegram bildirishnoma</div>
-          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 6, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}>Tez kunda</span>
-        </div>
-        <div style={{ fontSize: 11, color: "var(--text2)", marginBottom: 10, lineHeight: 1.6 }}>Muhim ogohlantirishlar va hisobotlarni Telegram ga yuborish. Bu funksiya tez kunda ishga tushadi.</div>
-        <div className="flex gap8 mb8">
-          <input className="field f1" placeholder="Telegram Chat ID (masalan: 123456789)" value={LS.get(uk("tg_chat_id"), "")}
-            onChange={e => LS.set(uk("tg_chat_id"), e.target.value)} style={{ fontSize: 12 }} />
-          <button className="btn btn-primary btn-sm" onClick={() => push("Chat ID saqlandi. Bot tez kunda ishga tushadi.", "info")}>Saqlash</button>
-        </div>
-        <div style={{ fontSize: 9, color: "var(--muted)" }}>Chat ID ni bilish uchun: Telegram da @userinfobot ga yozing</div>
-      </div>
-
       {/* ── TIL SOZLAMALARI ── */}
       <div className="card mb14">
         <div className="card-title mb10">Til sozlamalari</div>
@@ -10637,6 +11288,34 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
     // Data ko'p bo'lsa X labellarni kamroq ko'rsatish
     const xInterval = d.length > 15 ? Math.ceil(d.length / 8) : d.length > 8 ? Math.ceil(d.length / 6) : 0;
 
+    // YANGI: Premium chart turlari ECharts orqali
+    const ECHARTS_TYPES = ["heatmap", "treemap", "radar", "funnel", "gauge", "donut", "composed", "boxplot", "sunburst"];
+    if (ECHARTS_TYPES.includes(cType)) {
+      return <AdvancedChart chart={{
+        type: cType,
+        title: card.title,
+        data: d,
+        xKey, keys, colors,
+        yLabel: card.yLabel, xLabel: card.xLabel,
+        barKeys: card.barKeys, lineKeys: card.lineKeys,
+        max: card.max, label: card.label, format: card.format,
+        indicators: card.indicators,
+        stats: card.overlays || card.statOverlay,
+      }} height={h} />;
+    }
+
+    // YANGI: line/area uchun statistik overlay (regression, anomaly, forecast)
+    // overlays/statOverlay berilgan bo'lsa — ECharts ishlatamiz
+    const overlay = card.overlays || card.statOverlay;
+    if ((cType === "line" || cType === "area") && overlay && (overlay.regression || overlay.anomalies || overlay.forecast || overlay.mean)) {
+      return <AdvancedChart chart={{
+        type: cType,
+        title: card.title,
+        data: d, xKey, keys, colors,
+        stats: overlay,
+      }} height={h} />;
+    }
+
     // Pie
     if (cType === "pie") {
       const total = d.reduce((a, item) => a + (item.value || 0), 0);
@@ -11163,6 +11842,163 @@ function ComparePeriodsPanel({ sources }) {
         })}
       </div>
     </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// DEMO MODE BANNER — har sahifada ko'rsatish
+// ─────────────────────────────────────────────────────────────
+function DemoBanner({ onConnect }) {
+  return (
+    <div style={{
+      padding: "10px 16px", marginBottom: 14,
+      background: "linear-gradient(135deg, rgba(212,168,83,0.12), rgba(0,201,190,0.08))",
+      border: "1px dashed rgba(212,168,83,0.35)",
+      borderRadius: 10, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+    }}>
+      <div style={{ fontSize: 20 }}>🎨</div>
+      <div style={{ flex: 1, fontSize: 12 }}>
+        <strong style={{ color: "var(--gold)" }}>DEMO REJIMI</strong>
+        <span style={{ color: "var(--text2)", marginLeft: 8 }}>— bu sun'iy ma'lumot. UI sinab ko'rish uchun. Real ma'lumot uchun manbangizni ulang.</span>
+      </div>
+      <button onClick={onConnect} className="btn btn-primary btn-sm">Real manba ulash →</button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// INSTAGRAM ANALYTICS PAGE — wrapper bilan multi-account + demo
+// ─────────────────────────────────────────────────────────────
+function InstagramAnalyticsPage({ sources, push }) {
+  const igSources = (sources || []).filter(s => s.type === "instagram" && s.connected && s.data?.length > 0);
+  const useDemo = igSources.length === 0;
+  const effectiveSources = useDemo ? [generateInstagramDemo()] : igSources;
+  const [activeId, setActiveId] = useState(effectiveSources[0]?.id || null);
+  useEffect(() => {
+    if (!activeId && effectiveSources.length > 0) setActiveId(effectiveSources[0].id);
+  }, [effectiveSources, activeId]);
+  const activeSrc = effectiveSources.find(s => s.id === activeId) || effectiveSources[0];
+
+  return (
+    <div>
+      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      {effectiveSources.length > 1 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {effectiveSources.map(s => {
+            const profile = s.data?.find(d => d._type === "PROFIL_STATISTIKA");
+            const isActive = s.id === activeId;
+            return (
+              <button key={s.id} onClick={() => setActiveId(s.id)}
+                style={{
+                  padding: "8px 14px", borderRadius: 10,
+                  background: isActive ? "linear-gradient(135deg,#E1306C,#F8A839)" : "var(--s2)",
+                  border: `1px solid ${isActive ? "#E1306C" : "var(--border)"}`,
+                  color: isActive ? "#fff" : "var(--text)",
+                  cursor: "pointer", fontSize: 12, fontFamily: "var(--fh)", fontWeight: 600,
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                }}>
+                {profile?.profile_picture_url && (
+                  <img src={profile.profile_picture_url} alt="" style={{ width: 18, height: 18, borderRadius: "50%" }} />
+                )}
+                @{profile?.username || s.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <InstagramAnalytics key={activeSrc?.id || 'default'} source={activeSrc} push={push} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AMOCRM ANALYTICS PAGE
+// ─────────────────────────────────────────────────────────────
+function AmoCRMAnalyticsPage({ sources, push }) {
+  const amoSources = (sources || []).filter(s =>
+    (s.type === "amocrm" || s.type === "crm" || s.type === "bitrix24") &&
+    Array.isArray(s.data) &&
+    s.data.some(d => d.type === 'lead')
+  );
+  const useDemo = amoSources.length === 0;
+  const src = useDemo ? generateAmoCRMDemo() : amoSources[0];
+  return (
+    <div>
+      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      <AmoCRMAnalytics source={src} push={push} />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// FACEBOOK ADS ANALYTICS PAGE
+// ─────────────────────────────────────────────────────────────
+function FacebookAdsAnalyticsPage({ sources, push }) {
+  const fbSources = (sources || []).filter(s => s.type === "facebook_ads" && s.connected && s.data?.length > 0);
+  const useDemo = fbSources.length === 0;
+  const src = useDemo ? generateFacebookAdsDemo() : fbSources[0];
+  return (
+    <div>
+      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      <FacebookAdsAnalytics source={src} push={push} />
+    </div>
+  );
+}
+
+function _DEPRECATED_InstagramAnalyticsPage_old({ sources, push }) {
+  const igSources = (sources || []).filter(s => s.type === "instagram" && s.connected && s.data?.length > 0);
+  const [activeId, setActiveId] = useState(igSources[0]?.id || null);
+  useEffect(() => {
+    if (!activeId && igSources.length > 0) setActiveId(igSources[0].id);
+  }, [igSources, activeId]);
+  const activeSrc = igSources.find(s => s.id === activeId) || igSources[0];
+
+  if (igSources.length === 0) {
+    return (
+      <div style={{ padding: 60, textAlign: "center", maxWidth: 480, margin: "0 auto" }}>
+        <div style={{ fontSize: 64, marginBottom: 16, filter: "grayscale(0.4)" }}>📸</div>
+        <h2 style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Instagram ulanmagan</h2>
+        <p style={{ fontSize: 14, color: "var(--muted)", lineHeight: 1.7, marginBottom: 22 }}>
+          Profil statistikasi, post tahlili, hashtag effektivligi va AI tavsiyalari uchun Instagram Business akkauntingizni ulang.
+        </p>
+        <a href="#" onClick={e => { e.preventDefault(); window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' })); }}
+          className="btn btn-primary"
+          style={{ display: "inline-block", padding: "12px 24px" }}>
+          Instagram'ni ulash →
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {igSources.length > 1 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {igSources.map(s => {
+            const profile = s.data?.find(d => d._type === "PROFIL_STATISTIKA");
+            const isActive = s.id === activeId;
+            return (
+              <button key={s.id} onClick={() => setActiveId(s.id)}
+                style={{
+                  padding: "8px 14px", borderRadius: 10,
+                  background: isActive ? "linear-gradient(135deg,#E1306C,#F8A839)" : "var(--s2)",
+                  border: `1px solid ${isActive ? "#E1306C" : "var(--border)"}`,
+                  color: isActive ? "#fff" : "var(--text)",
+                  cursor: "pointer", fontSize: 12, fontFamily: "var(--fh)", fontWeight: 600,
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  transition: "all .15s var(--ease)",
+                }}>
+                {profile?.profile_picture_url && (
+                  <img src={profile.profile_picture_url} alt="" style={{ width: 18, height: 18, borderRadius: "50%" }} />
+                )}
+                @{profile?.username || s.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <InstagramAnalytics source={activeSrc} push={push} />
+    </div>
   );
 }
 
@@ -13545,6 +14381,13 @@ function AppContent() {
     return () => window.removeEventListener('session-expired', onExpired);
   }, []);
 
+  // ── Go-page event (Instagram empty state'dan kelgan linkni qabul qilish) ──
+  useEffect(() => {
+    const handler = (e) => { if (e.detail) setPage(e.detail); };
+    window.addEventListener('go-page', handler);
+    return () => window.removeEventListener('go-page', handler);
+  }, []);
+
   // ── Per-user localStorage prefix ──
   const uKey = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
 
@@ -13639,7 +14482,12 @@ function AppContent() {
           if (!activeDepartmentId && apiSources.length > 0) saveSources(apiSources, uid);
         }
       }).catch(() => { });
-      AlertsAPI.getAll().then(a => { if (Array.isArray(a)) setAlerts(a); }).catch(() => { });
+      AlertsAPI.getAll().then(a => {
+        if (Array.isArray(a)) {
+          const dismissed = new Set(LS.get(uKey("dismissed_alerts"), []));
+          setAlerts(a.filter(x => !dismissed.has(x.id)));
+        }
+      }).catch(() => { });
       // Multi-org kontekst: tashkilot, bo'limlar, ruxsatlar
       AuthAPI.context().then(ctx => {
         if (!ctx) return;
@@ -13689,9 +14537,21 @@ function AppContent() {
     AlertsAPI.markAllRead().catch(() => { });
   };
   const deleteAlert = (id) => {
+    if (id == null) return;
     const u = alerts.filter(a => a.id !== id);
     setAlerts(u); LS.set(uKey("alerts"), u);
-    AlertsAPI.delete(id).catch(() => { });
+    // Lokal-only alert (anomaliya engine yoki system-generated) — dismissed list'da saqlash
+    // shunda keyingi reload'da qaytib chiqmaydi
+    const dismissed = LS.get(uKey("dismissed_alerts"), []);
+    if (!dismissed.includes(id)) {
+      dismissed.push(id);
+      // Faqat oxirgi 500 ta ID saqlaymiz (LS hajm chegarasi)
+      LS.set(uKey("dismissed_alerts"), dismissed.slice(-500));
+    }
+    // Backend'da real alert bo'lsa o'chirish (numeric ID)
+    if (typeof id === 'number' || /^\d+$/.test(String(id))) {
+      AlertsAPI.delete(id).catch(() => { });
+    }
   };
 
   // ── Onboarding (birinchi kirish) ──
@@ -13739,12 +14599,9 @@ function AppContent() {
     push(`Xush kelibsiz, ${authUser.name}!`, "ok");
     setPage("dashboard");
     if (window.location.hash) history.replaceState(null, "", window.location.pathname);
-    // Birinchi kirish tekshiruvi
+    // Onboarding modal o'chirildi (foydalanuvchi so'rovi bo'yicha)
     const pfx = "u_" + (authUser?.id || "anon") + "_";
-    const done = LS.get(pfx + "onboarding_done", false);
-    if (!done && authUser.role !== "admin") {
-      setTimeout(() => setShowOnboarding(true), 800);
-    }
+    LS.set(pfx + "onboarding_done", true);
   };
 
   const handleLogout = () => {
@@ -14059,6 +14916,9 @@ function AppContent() {
     charts: "Grafiklar", chat: "AI Maslahat", analytics: "Tahlil",
     reports: "Hisobotlar", alerts: "AI Ogohlantirishlar", profile: "Profil & Tarif",
     team: "Jamoam", memory: "AI Xotira", costs: "AI Xarajatlar",
+    instagram: "Instagram Analytics",
+    amocrm: "AmoCRM",
+    facebook_ads: "Facebook Ads",
   };
 
   // CEO yoki super_admin uchun Jamoam sahifasini ochish
@@ -14079,6 +14939,9 @@ function AppContent() {
     team: <CeoSettingsPage push={push} orgInfo={orgContext?.organization} onChange={refreshOrgContext} />,
     memory: <MemoryPage push={push} />,
     costs: <CostDashboard user={user} push={push} />,
+    instagram: <InstagramAnalyticsPage sources={sources} push={push} />,
+    amocrm: <AmoCRMAnalyticsPage sources={sources} push={push} />,
+    facebook_ads: <FacebookAdsAnalyticsPage sources={sources} push={push} />,
   };
 
   const groupedNav = NAV.reduce((acc, item) => {

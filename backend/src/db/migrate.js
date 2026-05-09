@@ -56,6 +56,41 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS branding JSONB DEFAULT '{}';
 ALTER TABLE organizations ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_custom_domain ON organizations(custom_domain) WHERE custom_domain IS NOT NULL;
 
+-- Instagram raqobatchilar (Variant A) — har Instagram profil uchun alohida
+CREATE TABLE IF NOT EXISTS instagram_competitors (
+  id            SERIAL PRIMARY KEY,
+  user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  source_id     INT REFERENCES sources(id) ON DELETE CASCADE,
+  username      VARCHAR(100) NOT NULL,
+  added_at      TIMESTAMPTZ DEFAULT NOW(),
+  last_synced_at TIMESTAMPTZ,
+  notes         TEXT,
+  UNIQUE(user_id, username)
+);
+ALTER TABLE instagram_competitors ADD COLUMN IF NOT EXISTS source_id INT REFERENCES sources(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_ig_comp_user ON instagram_competitors(user_id);
+CREATE INDEX IF NOT EXISTS idx_ig_comp_source ON instagram_competitors(source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_ig_comp_source_user ON instagram_competitors(user_id, source_id, username) WHERE source_id IS NOT NULL;
+
+-- Snapshots: kunlik kuzatuv (followers, post count, last_post_at, hashtags JSON)
+CREATE TABLE IF NOT EXISTS instagram_competitor_snapshots (
+  id              SERIAL PRIMARY KEY,
+  competitor_id   INT NOT NULL REFERENCES instagram_competitors(id) ON DELETE CASCADE,
+  snapshot_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+  followers       INT,
+  following       INT,
+  posts_count     INT,
+  bio             TEXT,
+  last_post_date  DATE,
+  recent_posts    JSONB,        -- oxirgi 5-10 post: [{caption, date, type, likes_visible}]
+  hashtags        JSONB,        -- top hashtaglar [{tag, count}]
+  meta            JSONB,        -- qo'shimcha (verified, business_category)
+  source          VARCHAR(20) DEFAULT 'web_search', -- 'web_search'|'manual'|'api'
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(competitor_id, snapshot_date)
+);
+CREATE INDEX IF NOT EXISTS idx_ig_comp_snap_date ON instagram_competitor_snapshots(competitor_id, snapshot_date DESC);
+
 -- ══════════════════════════════════════════════
 -- DEPARTMENTS (bo'limlar)
 -- ══════════════════════════════════════════════
@@ -118,6 +153,9 @@ CREATE INDEX IF NOT EXISTS idx_sources_user ON sources(user_id);
 -- Sources qo'shimcha ustun (v2): qaysi tashkilotga tegishli
 ALTER TABLE sources ADD COLUMN IF NOT EXISTS organization_id INT REFERENCES organizations(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_sources_org ON sources(organization_id);
+
+-- Sources sidebar'da ko'rsatish bayrog'i
+ALTER TABLE sources ADD COLUMN IF NOT EXISTS show_in_sidebar BOOLEAN DEFAULT false;
 
 -- ══════════════════════════════════════════════
 -- SOURCE ↔ DEPARTMENT (bitta manba ko'p bo'limga tegishli)
