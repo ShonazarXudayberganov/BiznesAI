@@ -8,6 +8,7 @@ const { chatComplete } = require('../services/aiProviders');
 const { buildOrgContext } = require('../services/contextBuilder');
 const { buildReport } = require('../services/reportBuilder');
 const { runAgent } = require('../services/aiAgent');
+const { runBrain } = require('../services/aiBrain');
 const { detectAnomalies, persistAnomalies } = require('../services/anomalyEngine');
 const { generateChart, toChartJsConfig } = require('../services/chartGenerator');
 
@@ -24,7 +25,65 @@ router.use((req, res, next) => {
   next();
 });
 
-// POST /api/internal/ai-chat
+// POST /api/internal/ai-brain
+// Bot yoki internal worker chaqiradi — to'liq brain orchestrator
+// Body: { organizationId, userId, intent, payload, message, history? }
+router.post('/ai-brain', async (req, res) => {
+  try {
+    const { organizationId, userId, intent = 'chat.freeform', payload = {}, message, history } = req.body || {};
+    if (!organizationId) return res.status(400).json({ error: 'organizationId kerak' });
+    if (!message && !payload?.message) return res.status(400).json({ error: 'message kerak' });
+
+    // Auto-history: chat.freeform uchun oxirgi 6 xabar
+    let histArr = Array.isArray(history) ? history.slice(-6) : [];
+    if (intent === 'chat.freeform' && histArr.length === 0 && userId) {
+      try {
+        const dbHist = await pool.query(
+          `SELECT role, content FROM chat_history WHERE user_id=$1 ORDER BY id DESC LIMIT 6`,
+          [userId]
+        );
+        histArr = dbHist.rows.reverse().map(r => ({ role: r.role, content: r.content }));
+      } catch {}
+    }
+
+    const result = await runBrain({
+      intent,
+      payload,
+      message,
+      history: histArr,
+      userId: userId || null,
+      organizationId,
+      language: req.body?.language || 'uz',
+    });
+
+    // Chat history saqlash (faqat freeform chat uchun)
+    if (intent === 'chat.freeform' && userId && message && result.reply) {
+      pool.query(
+        `INSERT INTO chat_history (user_id, role, content) VALUES ($1, 'user', $2), ($1, 'assistant', $3)`,
+        [userId, message, result.reply]
+      ).catch(() => {});
+    }
+
+    res.json({
+      ok: true,
+      intent: result.intent,
+      reply: result.reply,
+      parsed: result.parsed || null,
+      provider: result.provider,
+      model: result.model,
+      iterations: result.iterations,
+      toolCallsCount: Array.isArray(result.toolCalls) ? result.toolCalls.length : 0,
+      tools: (result.toolCalls || []).map(t => t.name),
+      usage: result.usage || null,
+      duration_ms: result.duration_ms,
+    });
+  } catch (e) {
+    console.error('[internal/ai-brain]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/internal/ai-chat (LEGACY — bot eski versiya uchun)
 // Body: { organizationId, userId, message, history?, useAgent? (default true) }
 // Agent rejimi (default): vositalar bilan multi-turn — har savolga real ma'lumot
 // Legacy: useAgent=false bo'lsa eski oddiy chat (statik kontekst)

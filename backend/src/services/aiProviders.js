@@ -108,17 +108,23 @@ async function chatComplete({ userId, systemPrompt, message, history = [], maxTo
 }
 
 // ────────────────────────────────────────────────
-// Claude (Anthropic)
+// Claude (Anthropic) — prompt caching bilan
 // ────────────────────────────────────────────────
-async function callClaude({ apiKey, model, systemPrompt, message, history, maxTokens }) {
+async function callClaude({ apiKey, model, systemPrompt, message, history, maxTokens, cache = true }) {
   const messages = [
     ...history.filter(h => h.role !== 'system').map(h => ({ role: h.role, content: h.content })),
     { role: 'user', content: message },
   ];
+  // Prompt caching: system prompt'ni cached blok sifatida yuborish
+  // Birinchi chaqiruv: cache write (1.25x input price)
+  // Keyingi chaqiruvlar (5 daqiqa ichida): cache read (0.1x input price = 90% arzon)
+  const systemForCall = cache && systemPrompt
+    ? [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }]
+    : systemPrompt;
   const body = {
     model,
     max_tokens: maxTokens,
-    system: systemPrompt,
+    system: systemForCall,
     messages,
   };
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -132,6 +138,13 @@ async function callClaude({ apiKey, model, systemPrompt, message, history, maxTo
   });
   const data = await res.json();
   if (!res.ok) throw new Error(`Claude: ${data.error?.message || res.status}`);
+  // Usage stats'ni log qilamiz (debugging va kelajakda telemetry uchun)
+  if (data.usage) {
+    const u = data.usage;
+    if (u.cache_read_input_tokens > 0 || u.cache_creation_input_tokens > 0) {
+      console.log(`[claude-cache] read=${u.cache_read_input_tokens || 0} write=${u.cache_creation_input_tokens || 0} input=${u.input_tokens || 0} output=${u.output_tokens || 0}`);
+    }
+  }
   return data.content?.[0]?.text || '';
 }
 

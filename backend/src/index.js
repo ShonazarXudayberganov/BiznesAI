@@ -10,6 +10,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const pool = require('./db/pool');
+const errorLogger = require('./services/errorLogger');
+
+// Process-level uncaughtException + unhandledRejection handlers
+errorLogger.installGlobalHandlers();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -67,6 +71,11 @@ app.use('/api/alerts', require('./routes/alerts'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/ai/brain', require('./routes/brain'));
+app.use('/api/ai/rag', require('./routes/rag'));
+app.use('/api/admin/ai', require('./routes/admin-ai'));
+app.use('/api/errors', require('./routes/errors'));
+app.use('/api/docs', require('./routes/api-docs'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/admin', require('./routes/admin'));
@@ -78,6 +87,9 @@ app.use('/api/telegram', require('./routes/telegram'));
 app.use('/api/instagram', require('./routes/instagram'));
 app.use('/api/internal', require('./routes/internal'));
 app.use('/api/sheets', require('./routes/sheets'));
+app.use('/api/realtime', require('./routes/realtime'));
+app.use('/api/crm', require('./routes/crm'));
+app.use('/api/branding', require('./routes/branding'));
 
 // ── Health check ──
 app.get('/api/health', async (req, res) => {
@@ -99,7 +111,7 @@ app.use('/api/*', (req, res) => {
   res.status(404).json({ error: 'API endpoint topilmadi' });
 });
 
-// ── Error handler ──
+// ── Error handler (error_log'ga yoziladi + foydalanuvchiga javob) ──
 app.use((err, req, res, next) => {
   // Multer'dan keladigan hajm xatosi — aniq xabar berish
   if (err.code === 'LIMIT_FILE_SIZE') {
@@ -109,20 +121,24 @@ app.use((err, req, res, next) => {
     return res.status(413).json({ error: 'So\'rov tanasi juda katta' });
   }
   console.error('[ERROR]', err.stack || err.message);
+  // error_log jadvaliga yozish (non-blocking)
+  errorLogger.logError({
+    source: 'backend',
+    level: err.status >= 500 || !err.status ? 'error' : 'warn',
+    message: err.message || 'Unknown error',
+    stack: err.stack,
+    userId: req.userId || null,
+    organizationId: req.user?.organization_id || null,
+    url: `${req.method} ${req.originalUrl}`,
+    userAgent: req.headers['user-agent'] || null,
+    context: { status: err.status || 500, code: err.code },
+  });
   res.status(err.status || 500).json({
     error: process.env.NODE_ENV === 'production' ? 'Server xatosi' : err.message,
   });
 });
 
-// ── Process-level error handlers ──
-process.on('unhandledRejection', (reason) => {
-  console.error('[UNHANDLED_REJECTION]', reason?.stack || reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT_EXCEPTION]', err.stack || err.message);
-  // Kritik xato — process'ni restart qilishga imkon berish uchun chiqamiz
-  setTimeout(() => process.exit(1), 200);
-});
+// Process-level handlers errorLogger.installGlobalHandlers() orqali boshlanishida ulangan
 
 // ── Start server ──
 async function start() {

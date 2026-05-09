@@ -1,3 +1,9 @@
+import './index.css';
+import Sidebar from './components/Sidebar';
+import Topbar from './components/Topbar';
+import CapHitModal from './components/CapHitModal';
+import MemoryPage from './components/MemoryPage';
+import CostDashboard from './components/CostDashboard';
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -10,1475 +16,23 @@ import DOMPurify from "dompurify";
 import {
   Token, AuthAPI, SourcesAPI, AlertsAPI, ReportsAPI,
   ChatAPI, AiAPI, PaymentsAPI, AdminAPI, UploadAPI,
-  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI, AiAgentAPI,
+  DepartmentsAPI, EmployeesAPI, SuperAdminAPI, TelegramAPI, SheetsAPI, AiAgentAPI, AiBrainAPI,
   MemoryAPI, UserSettingsAPI,
 } from "./api.js";
 
 // XSS himoya — barcha dangerouslySetInnerHTML uchun
 const sanitize = (html) => DOMPurify.sanitize(html, { ALLOWED_TAGS: ['b', 'i', 'code', 'span', 'br', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'a', 'strong', 'em', 'ul', 'ol', 'li', 'p', 'h1', 'h2', 'h3', 'hr'], ALLOWED_ATTR: ['style', 'class', 'href', 'target', 'title'] });
 
-// ─────────────────────────────────────────────────────────────
-// SAAS PLANS — Tarif rejalari
-// ─────────────────────────────────────────────────────────────
-const PLANS = {
-  free: {
-    id: "free", name: "Free", nameUz: "Bepul",
-    price_monthly: 0, price_yearly: 0,
-    color: "#6B7280", badge: null,
-    limits: { ai_requests: 5, files: 1, connectors: 1, reports: 1, alerts_check: false, export: false, api: false, advanced_charts: false },
-    features: [
-      { t: "5 AI so'rov / oy", ok: true },
-      { t: "1 ta fayl yuklash", ok: true },
-      { t: "1 ta konnector", ok: true },
-      { t: "3 ta asosiy grafik turi", ok: true },
-      { t: "1 ta hisobot", ok: true },
-      { t: "Export (PDF/Excel)", ok: false },
-      { t: "Proaktiv AI ogohlantirishlar", ok: false },
-      { t: "API kirish", ok: false },
-    ]
-  },
-  starter: {
-    id: "starter", name: "Starter", nameUz: "Boshlang'ich",
-    price_monthly: 99000, price_yearly: 990000,
-    color: "#60A5FA", badge: null,
-    limits: { ai_requests: 100, files: 10, connectors: 5, reports: 20, alerts_check: true, export: true, api: false, advanced_charts: true },
-    features: [
-      { t: "100 AI so'rov / oy", ok: true },
-      { t: "10 ta fayl yuklash", ok: true },
-      { t: "5 ta konnector", ok: true },
-      { t: "Barcha 9 grafik turi", ok: true },
-      { t: "20 ta hisobot", ok: true },
-      { t: "Export (PDF/Excel)", ok: true },
-      { t: "Proaktiv AI ogohlantirishlar", ok: true },
-      { t: "API kirish", ok: false },
-    ]
-  },
-  pro: {
-    id: "pro", name: "Pro", nameUz: "Professional",
-    price_monthly: 199000, price_yearly: 1990000,
-    color: "#E8B84B", badge: "Eng mashhur",
-    limits: { ai_requests: 500, files: -1, connectors: -1, reports: -1, alerts_check: true, export: true, api: false, advanced_charts: true },
-    features: [
-      { t: "500 AI so'rov / oy", ok: true },
-      { t: "Cheksiz fayllar", ok: true },
-      { t: "Cheksiz konnectorlar", ok: true },
-      { t: "Barcha 9 grafik turi", ok: true },
-      { t: "Cheksiz hisobotlar", ok: true },
-      { t: "Export (PDF/Excel/CSV)", ok: true },
-      { t: "Proaktiv AI ogohlantirishlar", ok: true },
-      { t: "API kirish (tez kunda)", ok: false },
-    ]
-  },
-  enterprise: {
-    id: "enterprise", name: "Enterprise", nameUz: "Korporativ",
-    price_monthly: 399000, price_yearly: 3990000,
-    color: "#A78BFA", badge: "To'liq paket",
-    limits: { ai_requests: -1, files: -1, connectors: -1, reports: -1, alerts_check: true, export: true, api: true, advanced_charts: true },
-    features: [
-      { t: "Cheksiz AI so'rovlar", ok: true },
-      { t: "Cheksiz fayllar", ok: true },
-      { t: "Cheksiz konnectorlar", ok: true },
-      { t: "Barcha 9 grafik turi", ok: true },
-      { t: "Cheksiz hisobotlar", ok: true },
-      { t: "Export (PDF/Excel/CSV)", ok: true },
-      { t: "Proaktiv AI ogohlantirishlar", ok: true },
-      { t: "API kirish + Webhook", ok: true },
-    ]
-  }
-};
+import {
+  PLANS, AI_PROVIDERS, SOURCE_TYPES, LS, _getUid, saveSources, syncSourceToAPI,
+  getAiContextFromAPI, loadSourcesFromAPI, loadSources, Auth, parseExcelFile,
+  smartSheetToJson, buildMergedContext, detectAnomalies, buildChartData, fmt,
+  fmtPrice, getPlan, CHART_COLORS, fmtNum, GlobalAI, PlanPrices,
+  getEffectiveAIConfig, getEffectivePlanPrices, callAI
+} from './utils.js';
 
 // ─────────────────────────────────────────────────────────────
-// AI PROVIDERS
-// ─────────────────────────────────────────────────────────────
-const AI_PROVIDERS = {
-  claude: {
-    id: "claude", name: "Claude", icon: "", color: "var(--gold)", company: "Anthropic",
-    models: [{ id: "claude-sonnet-4-20250514", n: "Sonnet 4", label: "Sonnet 4", badge: "200K", ctx: "200K" }, { id: "claude-haiku-4-5-20251001", n: "Haiku 4.5", label: "Haiku 4.5", badge: "200K", ctx: "200K" }, { id: "claude-opus-4-6", n: "Opus 4.6", label: "Opus 4.6", badge: "200K", ctx: "200K" }],
-    pricing: { in: 3, out: 15 }, note: "Eng aqlli agent, Uzbek tushunadi", streaming: true,
-    ph: "sk-ant-api03-...", hint: "console.anthropic.com → API Keys",
-    baseUrl: "https://api.anthropic.com/v1/messages"
-  },
-  deepseek: {
-    id: "deepseek", name: "DeepSeek", icon: "◇", color: "#4D9DE0", company: "DeepSeek AI",
-    models: [{ id: "deepseek-chat", n: "V3", label: "DeepSeek V3", badge: "64K", ctx: "64K" }, { id: "deepseek-reasoner", n: "R1", label: "DeepSeek R1", badge: "64K", ctx: "64K" }],
-    pricing: { in: 0.27, out: 1.1 }, note: "Arzon va tez, matematik kuchli", streaming: true,
-    ph: "sk-...", hint: "platform.deepseek.com → API Keys",
-    baseUrl: "https://api.deepseek.com/v1/chat/completions"
-  },
-  chatgpt: {
-    id: "chatgpt", name: "ChatGPT", icon: "◯", color: "#4ADE80", company: "OpenAI",
-    models: [{ id: "gpt-4o", n: "GPT-4o", label: "GPT-4o", badge: "128K", ctx: "128K" }, { id: "gpt-4o-mini", n: "GPT-4o mini", label: "GPT-4o mini", badge: "128K", ctx: "128K" }, { id: "o1-mini", n: "o1-mini", label: "o1-mini", badge: "128K", ctx: "128K" }],
-    pricing: { in: 2.5, out: 10 }, note: "Universal, keng qo'llaniladi", streaming: true,
-    ph: "sk-proj-...", hint: "platform.openai.com → API Keys",
-    baseUrl: "https://api.openai.com/v1/chat/completions"
-  },
-  gemini: {
-    id: "gemini", name: "Gemini", icon: "", color: "#FB923C", company: "Google",
-    models: [{ id: "gemini-2.0-flash", n: "2.0 Flash", label: "Gemini 2.0 Flash", badge: "1M", ctx: "1M" }, { id: "gemini-1.5-pro", n: "1.5 Pro", label: "Gemini 1.5 Pro", badge: "1M", ctx: "1M" }],
-    pricing: { in: 0.075, out: 0.3 }, note: "Google ekotizimi, tasvir tahlil", streaming: true,
-    ph: "AIza...", hint: "aistudio.google.com → API Keys",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models"
-  },
-};
 
-const SOURCE_TYPES = {
-  excel: { id: "excel", icon: "📊", label: "Excel/CSV", color: "#4ADE80", desc: "xlsx, xls, csv fayllar" },
-  sheets: { id: "sheets", icon: "📋", label: "Google Sheets", color: "#60A5FA", desc: "Sheets URL yuklash" },
-  restapi: { id: "restapi", icon: "🔗", label: "REST API", color: "#F59E0B", desc: "JSON endpoint" },
-  instagram: { id: "instagram", icon: "📸", label: "Instagram", color: "#E879F9", desc: "Business API" },
-  telegram: { id: "telegram", icon: "✈️", label: "Telegram Kanal", color: "#38BDF8", desc: "Kanal statistikasi" },
-  crm: { id: "crm", icon: "🏢", label: "LC-UP CRM", color: "#8B5CF6", desc: "O'quv markaz CRM tizimi" },
-  document: { id: "document", icon: "📄", label: "Hujjat (PDF/Word/TXT)", color: "#F87171", desc: "PDF, DOCX, TXT fayllar — AI tahlil qiladi" },
-  image: { id: "image", icon: "🖼️", label: "Rasm tahlili", color: "#EC4899", desc: "JPG, PNG rasmlar — AI tavsiflaydi" },
-  onec: { id: "onec", icon: "🏦", label: "1C Buxgalteriya", color: "#FF6B35", desc: "1C:Enterprise OData API" },
-  yandex: { id: "yandex", icon: "📈", label: "Yandex Metrika", color: "#FC3F1D", desc: "Sayt traffigi va statistikasi" },
-  website: { id: "website", icon: "🌐", label: "Veb-sayt tahlili", color: "#00C9BE", desc: "Sayt URL → kontakt, mahsulot, SEO, ijtimoiy tarmoqlar" },
-  database: { id: "database", icon: "🗄️", label: "SQL Database", color: "#06B6D4", desc: "MySQL/PostgreSQL ulanish" },
-  manual: { id: "manual", icon: "📝", label: "Qo'lda JSON", color: "#94A3B8", desc: "Bevosita JSON kiritish" },
-};
-
-// NAV is defined below in MAIN APP section
-
-// ─────────────────────────────────────────────────────────────
-// LOCAL STORAGE HELPERS
-// ─────────────────────────────────────────────────────────────
-const LS = {
-  get: (k, d) => { try { const v = localStorage.getItem("bai_" + k); return v ? JSON.parse(v) : d; } catch { return d; } },
-  set: (k, v) => { try { localStorage.setItem("bai_" + k, JSON.stringify(v)); } catch { } },
-  del: (k) => { try { localStorage.removeItem("bai_" + k); } catch { } },
-};
-
-// ─────────────────────────────────────────────────────────────
-// SOURCE DATA PERSISTENCE
-// Dual-write: localStorage (tez cache) + Backend API (doimiy)
-// ─────────────────────────────────────────────────────────────
-function _getUid() { const s = LS.get("session", null); return s?.id || "anon"; }
-
-function saveSources(sources, uid) {
-  const userId = uid || _getUid();
-  const pfx = "u_" + userId + "_";
-
-  // ── localStorage ga saqlash (tez, offline) ──
-  const meta = sources.map(s => {
-    const { data, files, ...rest } = s;
-    return rest;
-  });
-  LS.set(pfx + "sources_meta", meta);
-  sources.forEach(s => {
-    if (s.data && s.data.length > 0) LS.set(pfx + "src_data_" + s.id, s.data);
-    if (s.files && s.files.length > 0) LS.set(pfx + "src_files_" + s.id, s.files);
-  });
-}
-
-// Backend API ga manbani sinxronlash (background, xato bo'lsa jimgina)
-function syncSourceToAPI(source) {
-  if (!Token.get()) return;
-  const { data, files, ...meta } = source;
-  // Manba metadata ni yangilash
-  SourcesAPI.update(source.id, meta).catch(() => { });
-  // Data ni bazaga saqlash
-  // Server tomonidan boshqariladigan manbalar (sheets, telegram, instagram, crm va h.k.) — DB ga qayta yozmaymiz
-  // Fayllar (excel, document, image, manual) — DB ga saqlaymiz (_sheet bo'lsa ham)
-  if (data && data.length > 0) {
-    const SERVER_MANAGED_TYPES = new Set(["sheets", "telegram", "instagram", "crm", "restapi", "website", "scrape"]);
-    const isServerManaged = SERVER_MANAGED_TYPES.has(source.type) || (data[0]?._serverManaged === true);
-    if (isServerManaged) return;
-    console.log(`[Sync] ${source.name} (${source.type}): ${data.length} qator bazaga yuklanmoqda...`);
-    SourcesAPI.saveData(source.id, data).catch(e => console.warn("[Sync] Data save error:", e.message));
-  }
-}
-
-// Backend dan AI kontekst olish (baza orqali)
-async function getAiContextFromAPI(sourceId) {
-  try {
-    if (!Token.get()) return null;
-    const result = await SourcesAPI.getAiContext(sourceId);
-    return result?.context || null;
-  } catch { return null; }
-}
-
-// Backend API dan manbalarni yuklash (ixtiyoriy bo'lim filter bilan)
-async function loadSourcesFromAPI(departmentId) {
-  try {
-    if (!Token.get()) return null;
-    const result = await SourcesAPI.getAll(departmentId);
-    return Array.isArray(result) ? result : null;
-  } catch { return null; }
-}
-
-function loadSources(uid) {
-  const userId = uid || _getUid();
-  const pfx = "u_" + userId + "_";
-
-  const meta = LS.get(pfx + "sources_meta", null);
-  if (meta) {
-    return meta.map(s => ({
-      ...s,
-      data: LS.get(pfx + "src_data_" + s.id, []),
-      files: LS.get(pfx + "src_files_" + s.id, undefined),
-    }));
-  }
-
-  // Eski global format migratsiya (faqat bir marta — admin uchun)
-  const oldMeta = LS.get("sources_meta", null);
-  if (oldMeta && userId === "admin") {
-    const migrated = oldMeta.map(s => ({
-      ...s,
-      data: LS.get("src_data_" + s.id, []),
-      files: LS.get("src_files_" + s.id, undefined),
-    }));
-    saveSources(migrated, userId);
-    return migrated;
-  }
-
-  return [];
-}
-
-// ─────────────────────────────────────────────────────────────
-// AUTH HELPERS (Backend API + localStorage fallback)
-// ─────────────────────────────────────────────────────────────
-const Auth = {
-  // ── LS-based user storage (fallback + admin panel) ──
-  getUsers: () => LS.get("users", []),
-  saveUsers: (users) => LS.set("users", users),
-
-  getSession: () => LS.get("session", null),
-  setSession: (user) => LS.set("session", user),
-  clearSession: () => { LS.del("session"); Token.clear(); },
-
-  // ── Login: API ga urinib ko'radi, ishlamasa LS fallback ──
-  login: async (email, password, remember) => {
-    // Avval backend API
-    try {
-      const res = await AuthAPI.login(email, password);
-      Token.set(res.token);
-      // LS ga ham saqlash (fallback uchun)
-      const users = Auth.getUsers();
-      const existing = users.find(u => u.email === email);
-      if (!existing) Auth.saveUsers([...users, { ...res.user, password, status: "active" }]);
-      else Auth.saveUsers(users.map(u => u.email === email ? { ...u, ...res.user, password, lastLogin: new Date().toISOString() } : u));
-      Auth.setSession(res.user);
-      return { user: res.user };
-    } catch (e) {
-      // Backend ishlamasa — localStorage fallback
-      console.warn("[Auth] API login failed, using LS fallback:", e.message);
-      const users = Auth.getUsers();
-      const user = users.find(u => u.email === email && u.password === password);
-      if (!user) return { error: "Email yoki parol noto'g'ri" };
-      if (user.status === "blocked") return { error: "Hisobingiz bloklangan" };
-      const updated = users.map(u => u.id === user.id ? { ...u, lastLogin: new Date().toISOString() } : u);
-      Auth.saveUsers(updated);
-      const sessionUser = { ...user, lastLogin: new Date().toISOString() };
-      Auth.setSession(sessionUser);
-      return { user: sessionUser };
-    }
-  },
-
-  // ── Register: API ga urinib ko'radi, ishlamasa LS fallback ──
-  register: async (name, email, password, organizationName) => {
-    try {
-      const res = await AuthAPI.register(name, email, password, organizationName);
-      Token.set(res.token);
-      const users = Auth.getUsers();
-      Auth.saveUsers([...users, { ...res.user, password, status: "active" }]);
-      Auth.setSession(res.user);
-      return { user: res.user };
-    } catch (e) {
-      console.warn("[Auth] API register failed, using LS fallback:", e.message);
-      const users = Auth.getUsers();
-      if (users.find(u => u.email === email)) return { error: "Bu email allaqachon ro'yxatdan o'tgan" };
-      const newUser = {
-        id: Date.now().toString(),
-        email, name, password, role: "user",
-        plan: "free", billing: "monthly",
-        created: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
-        status: "active",
-        ai_requests_used: 0,
-        ai_requests_month: new Date().toISOString().slice(0, 7),
-      };
-      Auth.saveUsers([...users, newUser]);
-      Auth.setSession(newUser);
-      return { user: newUser };
-    }
-  },
-
-  // ── User CRUD (sinxron — admin panel uchun) ──
-  updateUser: (userId, updates) => {
-    const users = Auth.getUsers();
-    const updated = users.map(u => u.id === userId ? { ...u, ...updates } : u);
-    Auth.saveUsers(updated);
-    const session = Auth.getSession();
-    if (session?.id === userId) Auth.setSession({ ...session, ...updates });
-    // Backend ga ham sinxron
-    AdminAPI.updateUser(userId, updates).catch(() => { });
-    return updated.find(u => u.id === userId);
-  },
-
-  checkLimit: (user, limitKey, sources) => {
-    if (user?.role === "admin" || user?.role === "super_admin") return true; // Admin va super-admin cheksiz
-    const plan = PLANS[user?.plan || "free"];
-    const limit = plan?.limits[limitKey];
-    if (limit === -1) return true; // Cheksiz
-    if (limit === false) return false; // Mutlaqo taqiqlangan
-
-    if (limitKey === "ai_requests") {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      const used = user?.ai_requests_month === currentMonth ? (user?.ai_requests_used || 0) : 0;
-      return used < limit;
-    }
-    if (limitKey === "files") {
-      // Fayl turidagi manbalar soni (excel, document, image)
-      const fileSources = (sources || []).filter(s => s.type === "excel" || s.type === "document" || s.type === "image");
-      return fileSources.length < limit;
-    }
-    if (limitKey === "connectors") {
-      // Barcha manbalar soni (excel, manual, image, document bundan tashqari)
-      const connectors = (sources || []).filter(s => s.type !== "excel" && s.type !== "document" && s.type !== "image" && s.type !== "manual");
-      return connectors.length < limit;
-    }
-    if (limitKey === "reports") {
-      const pfx = "u_" + (user?.id || "anon") + "_reports";
-      const reports = LS.get(pfx, []);
-      return reports.length < limit;
-    }
-    return limit === true || limit > 0;
-  },
-
-  // Limit haqida batafsil ma'lumot
-  getLimitInfo: (user, limitKey, sources) => {
-    if (user?.role === "admin" || user?.role === "super_admin") return { allowed: true, used: 0, max: -1, label: "Cheksiz" };
-    const plan = PLANS[user?.plan || "free"];
-    const limit = plan?.limits[limitKey];
-    let used = 0;
-
-    if (limitKey === "ai_requests") {
-      const currentMonth = new Date().toISOString().slice(0, 7);
-      used = user?.ai_requests_month === currentMonth ? (user?.ai_requests_used || 0) : 0;
-    } else if (limitKey === "files") {
-      used = (sources || []).filter(s => s.type === "excel" || s.type === "document" || s.type === "image").length;
-    } else if (limitKey === "connectors") {
-      used = (sources || []).filter(s => s.type !== "excel" && s.type !== "document" && s.type !== "image" && s.type !== "manual").length;
-    } else if (limitKey === "reports") {
-      const pfx = "u_" + (user?.id || "anon") + "_reports";
-      used = LS.get(pfx, []).length;
-    }
-
-    return {
-      allowed: limit === -1 ? true : limit === false ? false : used < limit,
-      used,
-      max: limit === -1 ? "Cheksiz" : limit,
-      remaining: limit === -1 ? "Cheksiz" : Math.max(0, limit - used),
-      label: limit === -1 ? "Cheksiz" : `${used}/${limit}`,
-    };
-  },
-
-  incrementAI: (userId) => {
-    const users = Auth.getUsers();
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const sameMonth = user.ai_requests_month === currentMonth;
-    const newUsed = sameMonth ? (user.ai_requests_used || 0) + 1 : 1;
-    Auth.updateUser(userId, { ai_requests_used: newUsed, ai_requests_month: currentMonth });
-    // Backend ga ham
-    AiAPI.incrementUsage().catch(() => { });
-  },
-};
-
-// ─────────────────────────────────────────────────────────────
-// UTILITY FUNCTIONS
-// ─────────────────────────────────────────────────────────────
-function parseExcelFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: "binary" });
-        const sheets = {};
-        wb.SheetNames.forEach(name => {
-          sheets[name] = smartSheetToJson(wb.Sheets[name]);
-        });
-        resolve(sheets);
-      } catch (err) { reject(err); }
-    };
-    reader.onerror = reject;
-    reader.readAsBinaryString(file);
-  });
-}
-
-// Aqlli Excel parser — merged header, bo'sh ustunlar, bo'sh qatorlarni to'g'ri ishlaydi
-function smartSheetToJson(ws) {
-  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-  if (!raw.length) return [];
-
-  // Header qatorini topish — birinchi bo'sh bo'lmagan qator
-  // (faqat butunlay bo'sh qatorlarni o'tkazib ketadi, boshqasini o'zgartirmaydi)
-  let headerRowIdx = 0;
-  for (let i = 0; i < Math.min(5, raw.length); i++) {
-    const filled = raw[i].filter(v => v !== "" && v !== null && v !== undefined).length;
-    if (filled > 0) { headerRowIdx = i; break; }
-  }
-
-  // Header qatoridan ustun nomlarini olish
-  // Bo'sh hujayralarni faqat merged cell bo'lsa to'ldirish:
-  // merged cell Excel da keyingi hujayralar bo'sh bo'ladi
-  const headerRow = raw[headerRowIdx];
-  const headers = [];
-  let lastHeader = "";
-  for (let i = 0; i < headerRow.length; i++) {
-    const h = String(headerRow[i] || "").trim();
-    if (h) { lastHeader = h; headers.push(h); }
-    else if (i === 0) { headers.push("N"); } // birinchi bo'sh ustun odatda tartib raqami
-    else { headers.push(`${lastHeader}_qo'shimcha` || `Ustun_${i}`); }
-  }
-
-  // Ma'lumot qatorlarini object ga aylantirish
-  const dataRows = raw.slice(headerRowIdx + 1);
-  const result = [];
-  for (const row of dataRows) {
-    const obj = {};
-    let hasData = false;
-    for (let i = 0; i < headers.length; i++) {
-      const val = row[i] !== undefined ? row[i] : "";
-      obj[headers[i]] = val;
-      if (val !== "" && val !== null && val !== undefined) hasData = true;
-    }
-    if (hasData) result.push(obj);
-  }
-  return result;
-}
-
-function buildMergedContext(sources) {
-  return sources.filter(s => s.connected && s.active).map(s => {
-    const st = SOURCE_TYPES[s.type];
-    const total = s.data?.length || 0;
-
-    // Instagram uchun — profil statistika + stories + top postlar
-    if (s.type === "instagram" && s.data?.length > 0) {
-      const summary = s.data.find(d => d._type === "PROFIL_STATISTIKA");
-      const stories = s.data.filter(d => d._type === "STORY");
-      const posts = s.data.filter(d => !d._type).slice(0, 25);
-      return `\n INSTAGRAM MANBA: "${s.name}" (@${s.profileName || "noma'lum"})
-${summary ? `PROFIL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
-${stories.length > 0 ? `\nSTORIES (${stories.length} ta):\n${JSON.stringify(stories, null, 2)}` : ""}
-\nTOP POSTLAR (${posts.length} ta / ${total - 1 - stories.length} tadan):
-${JSON.stringify(posts, null, 2)}`;
-    }
-
-    // Telegram uchun — kanal statistika + postlar
-    if (s.type === "telegram" && s.data?.length > 0) {
-      const summary = s.data.find(d => d._type === "KANAL_STATISTIKA");
-      const admins = s.data.find(d => d._type === "ADMINLAR");
-      const posts = s.data.filter(d => !d._type).slice(0, 25);
-      return `\n TELEGRAM KANAL MANBA: "${s.name}" (${s.profileName || "noma'lum"})
-${summary ? `KANAL STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
-${admins ? `ADMINLAR: ${JSON.stringify(admins.admins, null, 2)}` : ""}
-OXIRGI POSTLAR (${posts.length} ta / ${total - (summary ? 1 : 0) - (admins ? 1 : 0)} tadan):
-${JSON.stringify(posts, null, 2)}`;
-    }
-
-    // CRM uchun — umumiy statistika + entity bo'yicha sample
-    if (s.type === "crm" && s.data?.length > 0) {
-      const summary = s.data.find(d => d._type === "CRM_STATISTIKA");
-      const lids = s.data.filter(d => d._entity === "lid").slice(0, 15);
-      const groups = s.data.filter(d => d._entity === "group").slice(0, 15);
-      const students = s.data.filter(d => d._entity === "student").slice(0, 15);
-      const teachers = s.data.filter(d => d._entity === "teacher").slice(0, 10);
-      return `\n CRM MANBA: "${s.name}" (${s.profileName || "noma'lum"})
-${summary ? `CRM STATISTIKA: ${JSON.stringify(summary, null, 2)}` : ""}
-
-LIDLAR (${lids.length} ta namuna / jami ${s.data.filter(d => d._entity === "lid").length}):
-${JSON.stringify(lids, null, 2)}
-
-GURUHLAR (${groups.length} ta namuna / jami ${s.data.filter(d => d._entity === "group").length}):
-${JSON.stringify(groups, null, 2)}
-
-O'QUVCHILAR (${students.length} ta namuna / jami ${s.data.filter(d => d._entity === "student").length}):
-${JSON.stringify(students, null, 2)}
-
-O'QITUVCHILAR (${teachers.length} ta namuna / jami ${s.data.filter(d => d._entity === "teacher").length}):
-${JSON.stringify(teachers, null, 2)}`;
-    }
-
-    // Document manbasi (PDF, DOCX, TXT) — to'liq matnni AI ga berish
-    if (s.type === "document" && s.data?.length > 0) {
-      const docs = s.data.filter(d => d._type === "document" || d.toliq_matn || d.content);
-      if (docs.length > 0) {
-        let docCtx = `\n HUJJAT MANBA: "${s.name}" (${docs.length} ta fayl):\n`;
-        docs.forEach((d, i) => {
-          const text = d.toliq_matn || d.content || "";
-          const fileName = d.fayl_nomi || d.fileName || `Fayl ${i + 1}`;
-          const pages = d.sahifalar || d.pages || "";
-          docCtx += `\n--- ${fileName}${pages ? ` (${pages} sahifa)` : ""} ---\n${text}\n`;
-        });
-        return docCtx;
-      }
-    }
-
-    // Boshqa manbalar uchun (Excel, Sheets, API, Manual) — AQLLI FALLBACK
-    const techKeys = new Set(["id", "_id", "_type", "_entity", "source_id", "webhook_url", "created_at", "updated_at", "__v", "_v"]);
-    const allData = s.data || [];
-    const cleanRow = (row) => { const c = {}; Object.entries(row).forEach(([k, v]) => { if (!techKeys.has(k) && !k.startsWith("_")) c[k] = v; }); return c; };
-
-    // Sheet guruhlash
-    const sheets = {};
-    allData.forEach(row => { const sh = row._sheet || "default"; if (!sheets[sh]) sheets[sh] = []; sheets[sh].push(row); });
-    const sheetNames = Object.keys(sheets);
-
-    let context = `\n MANBA: "${s.name}" (${st?.icon || ""} ${st?.label || s.type}, ${total} ta yozuv`;
-    if (sheetNames.length > 1) context += `, ${sheetNames.length} ta list: ${sheetNames.join(", ")}`;
-    context += `):\n`;
-
-    // Ustunlar va statistika
-    const sampleRow = allData[0] || {};
-    const allKeys = Object.keys(sampleRow).filter(k => !techKeys.has(k) && !k.startsWith("_"));
-    const numCols = allKeys.filter(k => {
-      const vals = allData.slice(0, 50).map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")));
-      return vals.filter(v => !isNaN(v)).length > 10;
-    });
-    context += `Ustunlar: ${allKeys.join(", ")}\n`;
-
-    // Raqamli statistika
-    numCols.forEach(col => {
-      const vals = allData.map(r => parseFloat(String(r[col] || "").replace(/[^0-9.-]/g, ""))).filter(v => !isNaN(v));
-      if (vals.length > 0) {
-        const sum = vals.reduce((a, b) => a + b, 0);
-        context += `  ${col}: jami=${Math.round(sum * 100) / 100}, o'rtacha=${Math.round(sum / vals.length * 100) / 100}, min=${Math.min(...vals)}, max=${Math.max(...vals)}, soni=${vals.length}\n`;
-      }
-    });
-
-    // AQLLI STRATEGIYA: kichik → hammasi, katta → namuna + statistika
-    if (total <= 500) {
-      // Kichik dataset — hammasini yuborish
-      sheetNames.forEach(sh => {
-        const rows = sheets[sh];
-        if (sheetNames.length > 1) context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
-        context += JSON.stringify(rows.map(cleanRow), null, 1);
-      });
-    } else {
-      // Katta dataset — har listdan 10 ta namuna
-      context += `\n(Katta dataset — har listdan namuna ko'rsatilmoqda, statistika BARCHA ${total} qator asosida)\n`;
-      sheetNames.forEach(sh => {
-        const rows = sheets[sh];
-        if (sheetNames.length > 1) context += `\n--- ${sh} (${rows.length} ta qator) ---\n`;
-        const sample = rows.slice(0, 10).map(cleanRow);
-        context += JSON.stringify(sample, null, 1);
-        if (rows.length > 10) context += `\n... va yana ${rows.length - 10} ta qator\n`;
-      });
-    }
-    return context;
-  }).join("\n\n");
-}
-
-// ─────────────────────────────────────────────────────────────
-// ANOMALIYA ANIQLASH (matematik/statistik — AI shart emas)
-// ─────────────────────────────────────────────────────────────
-function detectAnomalies(sources) {
-  const raw = []; // Xom anomaliyalar
-  const connected = (Array.isArray(sources) ? sources : []).filter(s => s.connected && s.active && s.data?.length > 5);
-
-  connected.forEach(src => {
-    const rows = src.data || [];
-    const keys = Object.keys(rows[0] || {});
-    const numKeys = keys.filter(k => {
-      const vals = rows.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, '')));
-      return vals.filter(v => !isNaN(v)).length > rows.length * 0.5;
-    });
-
-    numKeys.forEach(key => {
-      const vals = rows.map(r => parseFloat(String(r[key]).replace(/[^0-9.-]/g, ''))).filter(v => !isNaN(v));
-      if (vals.length < 3) return;
-
-      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
-      if (std === 0 || mean === 0) return;
-
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const fieldName = key.replace(/_/g, " ");
-
-      // Z-score anomaliyalar — BIR USTUN UCHUN BITTA KARTA (eng kuchli anomaliyani tanlash)
-      let worstZ = 0, worstVal = 0, anomCount = 0;
-      vals.forEach(v => {
-        const z = (v - mean) / std;
-        if (Math.abs(z) > 2.5) {
-          anomCount++;
-          if (Math.abs(z) > Math.abs(worstZ)) { worstZ = z; worstVal = v; }
-        }
-      });
-
-      if (anomCount > 0) {
-        const pctDiff = Math.round((worstVal - mean) / mean * 100);
-        const isHigh = worstZ > 0;
-        raw.push({
-          source: src.name, field: key, fieldName,
-          value: worstVal,
-          mean: Math.round(mean * 100) / 100,
-          min: Math.round(min * 100) / 100,
-          max: Math.round(max * 100) / 100,
-          std: Math.round(std * 100) / 100,
-          zScore: Math.round(worstZ * 100) / 100,
-          anomCount,
-          type: isHigh ? 'yuqori' : 'past',
-          severity: Math.abs(worstZ) > 3.5 ? 'danger' : 'warning',
-          explanation: isHigh
-            ? `"${fieldName}" ko'rsatkichida normadan ${Math.abs(pctDiff)}% yuqori qiymat aniqlandi. O'rtacha ${Math.round(mean).toLocaleString()} bo'lishi kerak, lekin ${worstVal.toLocaleString()} qayd etildi. ${anomCount > 1 ? `Jami ${anomCount} ta g'ayrioddiy qiymat bor.` : ""} Bu kutilmagan o'sish yoki xatolik belgisi bo'lishi mumkin.`
-            : `"${fieldName}" ko'rsatkichida normadan ${Math.abs(pctDiff)}% past qiymat aniqlandi. O'rtacha ${Math.round(mean).toLocaleString()} bo'lishi kerak, lekin ${worstVal.toLocaleString()} qayd etildi. ${anomCount > 1 ? `Jami ${anomCount} ta g'ayrioddiy qiymat bor.` : ""} Bu pasayish sababini tekshirish kerak.`,
-          recommendation: isHigh
-            ? `Nima uchun "${fieldName}" kutilganidan yuqori ekanini tekshiring. Bu ijobiy (masalan, savdo o'sishi) yoki salbiy (masalan, xarajat oshishi) bo'lishi mumkin.`
-            : `"${fieldName}" pasayish sababini aniqlang. Agar bu muntazam davom etsa, biznesga ta'sir qilishi mumkin. Tezkor choralar ko'ring.`,
-        });
-      }
-
-      // Trend anomaliya
-      if (vals.length >= 5) {
-        const last5 = vals.slice(-5);
-        const allDown = last5.every((v, i) => i === 0 || v <= last5[i - 1]);
-        const allUp = last5.every((v, i) => i === 0 || v >= last5[i - 1]);
-        const totalChange = last5.length > 1 ? (last5[last5.length - 1] - last5[0]) / (Math.abs(last5[0]) || 1) * 100 : 0;
-
-        if (allDown && Math.abs(totalChange) > 15) {
-          raw.push({
-            source: src.name, field: key, fieldName,
-            type: 'trend_down',
-            severity: Math.abs(totalChange) > 30 ? 'danger' : 'warning',
-            value: last5[last5.length - 1], mean,
-            min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100,
-            explanation: `"${fieldName}" oxirgi 5 ta yozuvda ketma-ket ${Math.abs(Math.round(totalChange))}% pasaydi. Boshlang'ich qiymat: ${Math.round(last5[0]).toLocaleString()}, hozirgi: ${Math.round(last5[4]).toLocaleString()}. Bu tushish tendensiyasi davom etsa, jiddiy muammoga aylanishi mumkin.`,
-            recommendation: `"${fieldName}" pasayish sababini tezda aniqlang. Raqobatchilar, mavsumiylik yoki ichki muammolar bo'lishi mumkin. Hozir choralar ko'rsangiz, yo'qotishni kamaytirish mumkin.`,
-          });
-        }
-        if (allUp && totalChange > 50) {
-          raw.push({
-            source: src.name, field: key, fieldName,
-            type: 'trend_up', severity: 'info',
-            value: last5[last5.length - 1], mean,
-            min: Math.round(min * 100) / 100, max: Math.round(max * 100) / 100,
-            explanation: `"${fieldName}" oxirgi 5 ta yozuvda ketma-ket +${Math.round(totalChange)}% o'sdi. Boshlang'ich: ${Math.round(last5[0]).toLocaleString()}, hozirgi: ${Math.round(last5[4]).toLocaleString()}. Bu ijobiy tendensiya — davom ettirish strategiyasini o'ylab ko'ring.`,
-            recommendation: `Bu o'sishni ta'minlayotgan omillarni aniqlang va kuchaytiring. Imkoniyatdan maksimal foydalaning.`,
-          });
-        }
-      }
-    });
-  });
-
-  // DUBLIKATLARNI YO'QOTISH — har bir source+field+type uchun faqat eng kuchlisini qoldirish
-  const unique = new Map();
-  raw.forEach(a => {
-    const key = `${a.source}|${a.field}|${a.type}`;
-    const existing = unique.get(key);
-    if (!existing || Math.abs(a.zScore || 0) > Math.abs(existing.zScore || 0)) {
-      unique.set(key, a);
-    }
-  });
-
-  return [...unique.values()].sort((a, b) => {
-    const sev = { danger: 3, warning: 2, info: 1 };
-    return (sev[b.severity] || 0) - (sev[a.severity] || 0);
-  }).slice(0, 30);
-}
-
-function buildChartData(rows = []) {
-  if (!rows.length) return { line: [], bar: [], pie: [], lineKeys: [] };
-  const keys = Object.keys(rows[0]);
-  const numKeys = keys.filter(k => {
-    const vals = rows.map(r => parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")));
-    return vals.filter(v => !isNaN(v) && v !== 0).length > rows.length * 0.4;
-  }).slice(0, 3);
-  const strKeys = keys.filter(k => !numKeys.includes(k));
-  const labelKey = strKeys[0] || "index";
-  const slice = rows.slice(0, 20);
-  const line = slice.map((r, i) => ({ name: String(r[labelKey] || i).substring(0, 10), ...Object.fromEntries(numKeys.map(k => [k, parseFloat(String(r[k]).replace(/[^0-9.-]/g, "")) || 0])) }));
-  const pieKey = strKeys[1] || strKeys[0];
-  const pieCounts = {};
-  rows.forEach(r => { const v = String(r[pieKey] || "Boshqa"); pieCounts[v] = (pieCounts[v] || 0) + 1; });
-  const pie = Object.entries(pieCounts).slice(0, 8).map(([name, value]) => ({ name, value }));
-  return { line, bar: line.slice(0, 12), pie, lineKeys: numKeys };
-}
-
-function fmt(n) { return typeof n === "number" ? n.toLocaleString("uz-UZ") : n; }
-function fmtPrice(p) { return p === 0 ? "Bepul" : p.toLocaleString("uz-UZ") + " so'm"; }
-
-// Dinamik narxlar bilan PLAN olish
-function getPlan(planId) {
-  const base = PLANS[planId] || PLANS.free;
-  const custom = getEffectivePlanPrices();
-  if (!custom || !custom[planId]) return base;
-  return { ...base, price_monthly: custom[planId].monthly ?? base.price_monthly, price_yearly: custom[planId].yearly ?? base.price_yearly };
-}
-
-const CHART_COLORS = ["#00C9BE", "#E8B84B", "#A78BFA", "#4ADE80", "#F87171", "#60A5FA", "#FB923C", "#EC4899"];
-
-// Raqamlarni qisqa formatda ko'rsatish: 1500000 → "1.5M", 23400 → "23.4K"
-function fmtNum(n) {
-  if (n == null || isNaN(n)) return "0";
-  const abs = Math.abs(n);
-  if (abs >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
-  if (abs >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-  if (abs >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-  if (abs >= 1e3) return n.toLocaleString();
-  if (Number.isInteger(n)) return n.toString();
-  return n.toFixed(1);
-}
-
-// ─────────────────────────────────────────────────────────────
-// GLOBAL AI CONFIG HELPERS
-// ─────────────────────────────────────────────────────────────
-const GlobalAI = {
-  get: () => LS.get("global_ai", null) || LS.get("bai_global_ai", null),
-  set: (cfg) => { LS.set("global_ai", cfg); AiAPI.saveGlobal(cfg).catch(() => { }); },
-  // Backend dan yuklash
-  load: async () => { try { const r = await AiAPI.getGlobal(); if (r?.apiKey) { LS.set("global_ai", r); return r; } } catch { } return GlobalAI.get(); },
-};
-
-// Tarif narxlarini admin o'zgartirishi mumkin
-const PlanPrices = {
-  get: () => LS.get("plan_prices", null) || LS.get("bai_plan_prices", null),
-  set: (prices) => { LS.set("plan_prices", prices); AiAPI.savePlanPrices(prices).catch(() => { }); },
-  load: async () => { try { const r = await AiAPI.getPlanPrices(); if (r && Object.keys(r).length > 0) { LS.set("plan_prices", r); return r; } } catch { } return PlanPrices.get(); },
-};
-
-// Effektiv AI config: shaxsiy kalit bor → uni ishlatadi (cheksiz), aks holda global
-function getEffectiveAIConfig(userAiConfig) {
-  // Agar foydalanuvchining shaxsiy kaliti bor → uni ishlatadi
-  if (userAiConfig.apiKey) {
-    return { ...userAiConfig, isPersonal: true };
-  }
-  // Aks holda global AI config
-  const global = GlobalAI.get();
-  if (global && global.apiKey) {
-    return { provider: global.provider, model: global.model, apiKey: global.apiKey, isPersonal: false };
-  }
-  return { ...userAiConfig, isPersonal: false };
-}
-
-// Effektiv narxlarni olish (admin o'zgartirgan bo'lsa)
-function getEffectivePlanPrices() {
-  const custom = PlanPrices.get();
-  if (!custom) return null;
-  return custom;
-}
-
-// ─────────────────────────────────────────────────────────────
-// AI CALL FUNCTION (SSE streaming for all providers)
-// ─────────────────────────────────────────────────────────────
-async function callAI(messages, config, onChunk, signal) {
-  const prov = AI_PROVIDERS[config.provider];
-  if (!prov) throw new Error("Noma'lum provayder: " + config.provider);
-  if (!config.apiKey) throw new Error("AI ulangan emas. Admin global AI yoki shaxsiy API kalit kerak.");
-
-  let fullText = "";
-
-  // ── Gemini (different API format) ──
-  if (config.provider === "gemini") {
-    const url = `${prov.baseUrl}/${config.model}:generateContent?key=${config.apiKey}`;
-    const body = {
-      contents: messages.map(m => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }]
-      })),
-      generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
-    };
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Gemini xato (${res.status}): ${err.substring(0, 200)}`);
-    }
-    const data = await res.json();
-    fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Javob bo'sh";
-    onChunk(fullText);
-    return fullText;
-  }
-
-  // ── Claude (Anthropic — different format) ──
-  if (config.provider === "claude") {
-    const systemMsg = messages.find(m => m.role === "system");
-    const userMsgs = messages.filter(m => m.role !== "system");
-    const body = {
-      model: config.model,
-      max_tokens: 4096,
-      messages: userMsgs.map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.content })),
-      stream: true,
-    };
-    if (systemMsg) body.system = systemMsg.content;
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Claude xato (${res.status}): ${err.substring(0, 200)}`);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const json = line.slice(6).trim();
-        if (json === "[DONE]") break;
-        try {
-          const parsed = JSON.parse(json);
-          if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-            fullText += parsed.delta.text;
-            onChunk(fullText);
-          }
-        } catch { }
-      }
-    }
-    return fullText;
-  }
-
-  // ── OpenAI-compatible (ChatGPT, DeepSeek) ──
-  const url = prov.baseUrl;
-  const body = {
-    model: config.model,
-    messages: messages.map(m => ({ role: m.role, content: m.content })),
-    stream: true,
-    max_tokens: 4096,
-    temperature: 0.7,
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`${prov.name} xato (${res.status}): ${err.substring(0, 200)}`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const json = line.slice(6).trim();
-      if (json === "[DONE]") break;
-      try {
-        const parsed = JSON.parse(json);
-        const delta = parsed.choices?.[0]?.delta?.content;
-        if (delta) {
-          fullText += delta;
-          onChunk(fullText);
-        }
-      } catch { }
-    }
-  }
-  return fullText;
-}
-// ─────────────────────────────────────────────────────────────
-// CSS STYLES
-// ─────────────────────────────────────────────────────────────
-const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
-/* ═══════════════════════════════════════════════════════
-   ANALIX DESIGN TOKENS — 4 mavzu
-   Dark: Obsidian (premium gold), Midnight (cyan tech)
-   Light: Sandstone (warm editorial), Porcelain (cool minimalist)
-   ═══════════════════════════════════════════════════════ */
-
-:root,[data-theme="obsidian"]{
-  /* ─── OBSIDIAN — Premium dark gold ─── */
-  --bg:#0a0d0c;--s1:#0f1411;--s2:#141a17;--s3:#1a211d;--s4:#1f2925;
-  --glass:rgba(15,20,17,0.92);
-  --border:rgba(232,240,234,0.08);--border2:rgba(232,240,234,0.04);--border-hi:rgba(212,169,82,0.25);
-  --gold:#d4a952;--gold2:#e8c47a;--gold-glow:rgba(212,169,82,0.15);
-  --teal:#2fbf71;--teal2:#34d399;--teal-glow:rgba(47,191,113,0.12);
-  --green:#2fbf71;--red:#ef5a5a;--purple:#9d7aff;--blue:#60A5FA;--orange:#f2a93b;
-  --accent1:#d4a952;--accent2:#2fbf71;
-  --text:#e8f0ea;--text2:#c5d2c8;--muted:#8a9690;--muted2:#5a6560;
-  --fh:'Manrope',system-ui,-apple-system,sans-serif;
-  --fm:'JetBrains Mono','Fira Code',monospace;
-  --fs:'Manrope',sans-serif;
-  --shadow-sm:0 1px 3px rgba(0,0,0,0.3),0 1px 2px rgba(0,0,0,0.2);
-  --shadow-md:0 4px 16px rgba(0,0,0,0.4),0 2px 4px rgba(0,0,0,0.2);
-  --shadow-lg:0 10px 40px rgba(0,0,0,0.5),0 4px 12px rgba(0,0,0,0.3);
-  --shadow-glow-gold:0 0 20px rgba(212,169,82,0.15),0 0 60px rgba(212,169,82,0.05);
-  --shadow-glow-teal:0 0 20px rgba(47,191,113,0.12),0 0 60px rgba(47,191,113,0.04);
-  --radius:10px;--radius-lg:14px;--radius-xl:20px;
-  --ease:cubic-bezier(0.4,0,0.2,1);
-  --ease-spring:cubic-bezier(0.175,0.885,0.32,1.275);
-  --chart-grid:rgba(100,160,180,0.06);--chart-label:#64748B;--chart-tip-bg:rgba(15,23,42,0.95);--chart-tip-border:rgba(212,169,82,0.2);
-  --bg-pattern:none;
-  --is-light:0;
-}
-
-/* ═══ MIDNIGHT — Tech cyan dark ═══ */
-[data-theme="midnight"]{
-  --bg:#0b1220;--s1:#111a2e;--s2:#1a2540;--s3:#233052;--s4:#2c3b63;
-  --glass:rgba(17,26,46,0.94);
-  --border:rgba(56,189,248,0.08);--border2:rgba(56,189,248,0.04);--border-hi:rgba(56,189,248,0.18);
-  --gold:#38BDF8;--gold2:#7DD3FC;--gold-glow:rgba(56,189,248,0.14);
-  --teal:#34D399;--teal2:#6EE7B7;--teal-glow:rgba(52,211,153,0.12);
-  --green:#34D399;--red:#FB7185;--purple:#818CF8;--blue:#38BDF8;--orange:#FB923C;
-  --accent1:#38BDF8;--accent2:#34D399;
-  --text:#E2E8F0;--text2:#CBD5E1;--muted:#94A3B8;--muted2:#64748B;
-  --shadow-sm:0 1px 3px rgba(0,15,40,0.45);--shadow-md:0 4px 16px rgba(0,15,40,0.4);--shadow-lg:0 10px 40px rgba(0,15,40,0.5);
-  --shadow-glow-gold:0 0 24px rgba(56,189,248,0.12);--shadow-glow-teal:0 0 24px rgba(52,211,153,0.1);
-  --chart-grid:rgba(56,189,248,0.06);--chart-label:#5A8BAA;--chart-tip-bg:rgba(17,26,46,0.96);--chart-tip-border:rgba(52,211,153,0.25);
-  --bg-pattern:
-    radial-gradient(circle at 15% 85%,rgba(56,189,248,0.04) 0%,transparent 40%),
-    radial-gradient(circle at 85% 15%,rgba(52,211,153,0.03) 0%,transparent 40%);
-  --is-light:0;
-}
-
-/* ═══ SANDSTONE — Warm editorial light (YANGI) ═══ */
-[data-theme="sandstone"]{
-  --bg:#fafaf7;--s1:#ffffff;--s2:#f5f4ef;--s3:#eeece4;--s4:#e5dfd1;
-  --glass:rgba(255,255,255,0.85);
-  --border:#e8e5da;--border2:#ede9dd;--border-hi:#c4a55a;
-  --gold:#c4a55a;--gold2:#e8d7a0;--gold-glow:rgba(196,165,90,0.15);
-  --teal:#16a764;--teal2:#a8e6c7;--teal-glow:rgba(22,167,100,0.12);
-  --green:#16a764;--red:#e8614d;--purple:#7c5cd4;--blue:#3a7ac4;--orange:#e89530;
-  --accent1:#c4a55a;--accent2:#16a764;
-  --text:#1a1f1c;--text2:#3d4640;--muted:#5c665f;--muted2:#8a9690;
-  --shadow-sm:0 1px 2px rgba(28,24,15,0.04);
-  --shadow-md:0 4px 12px rgba(28,24,15,0.06),0 2px 4px rgba(28,24,15,0.04);
-  --shadow-lg:0 12px 32px rgba(28,24,15,0.08),0 4px 8px rgba(28,24,15,0.04);
-  --shadow-glow-gold:0 0 20px rgba(196,165,90,0.12);
-  --shadow-glow-teal:0 0 20px rgba(22,167,100,0.1);
-  --chart-grid:rgba(196,165,90,0.12);--chart-label:#8a9690;--chart-tip-bg:rgba(255,255,255,0.98);--chart-tip-border:rgba(196,165,90,0.25);
-  --bg-pattern:
-    radial-gradient(circle at 92% 8%,rgba(196,165,90,0.08) 0%,transparent 45%),
-    radial-gradient(circle at 8% 92%,rgba(22,167,100,0.06) 0%,transparent 45%);
-  --is-light:1;
-}
-
-/* ═══ PORCELAIN — Cool minimalist light (YANGI) ═══ */
-[data-theme="porcelain"]{
-  --bg:#f8f9fb;--s1:#ffffff;--s2:#f1f3f7;--s3:#e8ecf2;--s4:#dde3ec;
-  --glass:rgba(255,255,255,0.88);
-  --border:#dde3ec;--border2:#e8ecf2;--border-hi:#1e3a5f;
-  --gold:#1e3a5f;--gold2:#2e5186;--gold-glow:rgba(30,58,95,0.15);
-  --teal:#6b9080;--teal2:#95b9ab;--teal-glow:rgba(107,144,128,0.12);
-  --green:#6b9080;--red:#c84a5b;--purple:#8b7ab8;--blue:#3a7ac4;--orange:#d4896a;
-  --accent1:#1e3a5f;--accent2:#6b9080;
-  --text:#0f1a2e;--text2:#2a3548;--muted:#4a5973;--muted2:#8a95a8;
-  --shadow-sm:0 1px 2px rgba(15,26,46,0.04);
-  --shadow-md:0 4px 12px rgba(15,26,46,0.06),0 2px 4px rgba(15,26,46,0.04);
-  --shadow-lg:0 12px 32px rgba(15,26,46,0.08),0 4px 8px rgba(15,26,46,0.04);
-  --shadow-glow-gold:0 0 20px rgba(30,58,95,0.10);
-  --shadow-glow-teal:0 0 20px rgba(107,144,128,0.08);
-  --chart-grid:rgba(30,58,95,0.08);--chart-label:#8a95a8;--chart-tip-bg:rgba(255,255,255,0.98);--chart-tip-border:rgba(30,58,95,0.2);
-  --bg-pattern:
-    radial-gradient(circle at 88% 12%,rgba(30,58,95,0.05) 0%,transparent 45%),
-    radial-gradient(circle at 12% 88%,rgba(107,144,128,0.05) 0%,transparent 45%);
-  --is-light:1;
-}
-html,body,#root{height:100%;overflow:hidden}
-body{background:var(--bg);color:var(--text);font-family:var(--fh);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:'cv02','cv03','cv04','cv11';letter-spacing:-0.01em;transition:background .3s,color .3s}
-body::before{content:'';position:fixed;inset:0;background:var(--bg-pattern,none);pointer-events:none;z-index:0;}
-
-
-/* ═══ LAYOUT ═══ */
-.app{position:relative;z-index:1;display:flex;height:100vh;width:100vw;overflow:hidden}
-.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-
-/* ═══ SIDEBAR ═══ */
-.sidebar{width:256px;min-width:256px;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:transform .3s var(--ease);position:relative;}
-.sidebar::after{content:'';position:absolute;top:0;right:0;width:1px;height:100%;background:linear-gradient(180deg,transparent 5%,rgba(212,168,83,0.1) 25%,rgba(0,212,200,0.08) 75%,transparent 95%);pointer-events:none;}
-.logo-wrap{padding:22px 20px 18px;border-bottom:1px solid var(--border);position:relative;}
-.logo-main{font-family:var(--fh);font-size:19px;font-weight:800;letter-spacing:-0.5px;color:var(--text);line-height:1;}
-.logo-main span{background:linear-gradient(135deg,var(--gold) 20%,var(--teal2) 80%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.logo-sub{font-size:9.5px;color:var(--muted);margin-top:6px;letter-spacing:3px;text-transform:uppercase;font-family:var(--fm);font-weight:400;}
-.nav{padding:10px 10px;flex:1;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
-.nav::-webkit-scrollbar{display:none}
-.nav-group-label{font-family:var(--fh);font-size:9.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:3px;padding:16px 10px 6px;}
-.ni{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;font-family:var(--fh);font-size:13px;font-weight:500;color:var(--text2);transition:all .2s var(--ease);position:relative;border:1px solid transparent;}
-.ni:hover{color:var(--text);background:var(--s3);border-color:var(--border)}
-.ni.active{color:var(--gold);background:rgba(212,168,83,0.06);border-color:rgba(212,168,83,0.15);font-weight:600;}
-.ni.active::before{content:'';position:absolute;left:-1px;top:20%;bottom:20%;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--gold),var(--gold2));}
-.ni-ico{width:22px;text-align:center;font-size:15px;flex-shrink:0;opacity:0.7}
-.ni.active .ni-ico{opacity:1}
-.ni-badge{margin-left:auto;font-size:9px;padding:2px 8px;border-radius:20px;background:rgba(52,211,153,0.1);color:var(--green);border:1px solid rgba(52,211,153,0.2);font-family:var(--fm);font-weight:500;}
-.ni-badge.warn{background:rgba(212,168,83,0.1);color:var(--gold);border-color:rgba(212,168,83,0.2);}
-.prov-pill{margin:8px 10px;padding:11px 14px;border-radius:12px;border:1px solid var(--border);background:var(--s2);display:flex;align-items:center;gap:11px;cursor:pointer;transition:all .2s var(--ease);}
-.prov-pill:hover{border-color:var(--border-hi);background:var(--s3);box-shadow:var(--shadow-sm)}
-.pulse-dot{width:8px;height:8px;border-radius:50%;animation:blink 2.5s ease infinite;flex-shrink:0;}
-@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(0.75)}}
-.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);font-size:10.5px;color:var(--muted);font-family:var(--fm);transition:background .2s;}
-.sidebar-footer:hover{background:var(--s2)}
-
-/* ═══ TOPBAR ═══ */
-.topbar{height:56px;background:var(--s1);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0;backdrop-filter:blur(12px);}
-.page-title{font-family:var(--fh);font-size:16px;font-weight:700;color:var(--text);letter-spacing:-0.3px;}
-.topbar-right{display:flex;align-items:center;gap:12px}
-.model-chip{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--s2);border-radius:10px;font-size:11px;cursor:pointer;border:1px solid var(--border);transition:all .2s var(--ease);font-family:var(--fm);height:34px}
-.tb-item{display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--s2);border-radius:10px;border:1px solid var(--border);height:34px;font-size:11px;font-family:var(--fh);cursor:pointer;transition:all .2s;color:var(--text2);flex-shrink:0}
-.tb-item:hover{border-color:var(--border-hi);background:var(--s3)}
-.model-chip:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
-
-/* ═══ CONTENT ═══ */
-.content{flex:1;overflow-y:auto;padding:28px;scroll-behavior:smooth}
-.content::-webkit-scrollbar{width:4px}
-.content::-webkit-scrollbar-track{background:transparent}
-.content::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
-.content::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.14)}
-
-/* ═══ CARDS ═══ */
-.card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:visible;margin-bottom:16px;transition:all .25s var(--ease);}
-.card:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 10%,rgba(212,168,83,0.12) 35%,rgba(0,212,200,0.08) 65%,transparent 90%);pointer-events:none;}
-.card-title{font-family:var(--fh);font-size:12px;font-weight:800;color:var(--text);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:14px;}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-
-/* ═══ BUTTONS ═══ */
-.btn{padding:9px 18px;border-radius:10px;border:none;cursor:pointer;font-size:12.5px;font-family:var(--fh);font-weight:600;transition:all .2s var(--ease);display:inline-flex;align-items:center;gap:7px;white-space:nowrap;letter-spacing:-0.01em;}
-.btn-primary{background:linear-gradient(135deg,var(--gold) 0%,#C4912F 100%);color:#0a0c14;box-shadow:0 2px 16px rgba(212,168,83,0.25),inset 0 1px 0 rgba(255,255,255,0.15);}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(212,168,83,0.35),inset 0 1px 0 rgba(255,255,255,0.2);filter:brightness(1.06);}
-.btn-primary:active{transform:translateY(0);box-shadow:0 1px 8px rgba(212,168,83,0.2)}
-.btn-primary:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none;filter:none}
-.btn-teal{background:linear-gradient(135deg,var(--teal) 0%,#009990 100%);color:#0a0c14;box-shadow:0 2px 16px rgba(0,212,200,0.2),inset 0 1px 0 rgba(255,255,255,0.12);}
-.btn-teal:hover{transform:translateY(-2px);filter:brightness(1.08);box-shadow:0 6px 24px rgba(0,212,200,0.3)}
-.btn-ghost{background:var(--s3);border:1.5px solid var(--border-hi);color:var(--text);font-weight:600;}
-.btn-ghost:hover{border-color:var(--gold);color:var(--gold);background:var(--s2);box-shadow:0 0 0 3px rgba(212,168,83,0.10)}
-.btn-danger{background:transparent;border:1px solid rgba(251,113,133,0.2);color:var(--red);}
-.btn-danger:hover{background:rgba(251,113,133,0.06);border-color:rgba(251,113,133,0.35);box-shadow:0 0 12px rgba(251,113,133,0.08)}
-.btn-sm{padding:6px 14px;font-size:11.5px;border-radius:8px}
-.btn-xs{padding:4px 10px;font-size:10.5px;border-radius:7px}
-.btn-lg{padding:13px 30px;font-size:14.5px;border-radius:12px}
-
-/* ═══ FORMS ═══ */
-.field{width:100%;background:var(--s3);border:1.5px solid var(--border-hi);border-radius:10px;padding:11px 14px;color:var(--text);font-family:var(--fm);font-size:13px;outline:none;transition:all .25s var(--ease);}
-.field:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(212,168,83,0.12);background:var(--s2);}
-.field:hover{border-color:rgba(255,255,255,0.32);}
-.field::placeholder{color:var(--muted);font-weight:400}
-.field-label{font-family:var(--fh);font-size:11px;font-weight:800;color:var(--text);margin-bottom:8px;display:block;text-transform:uppercase;letter-spacing:1.8px;}
-textarea.field{resize:vertical;min-height:90px;line-height:1.7}
-select.field{cursor:pointer;-webkit-appearance:none}
-
-/* ═══ BADGES ═══ */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:500;font-family:var(--fm);letter-spacing:0.02em;}
-.b-ok{background:rgba(52,211,153,0.08);color:var(--green);border:1px solid rgba(52,211,153,0.18)}
-.b-no{background:rgba(71,85,105,0.15);color:var(--muted);border:1px solid var(--border)}
-.b-load{background:rgba(0,212,200,0.08);color:var(--teal);border:1px solid rgba(0,212,200,0.18)}
-.b-warn{background:rgba(212,168,83,0.08);color:var(--gold);border:1px solid rgba(212,168,83,0.2)}
-.b-red{background:rgba(251,113,133,0.08);color:var(--red);border:1px solid rgba(251,113,133,0.18)}
-
-/* ═══ SECTION HEADER ═══ */
-.section-hd{font-family:var(--fh);font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:3.5px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
-.section-hd::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--border-hi),transparent 80%);}
-.divider{height:1px;background:var(--border);margin:16px 0}
-
-/* ═══ LANDING PAGE ═══ */
-.landing{height:100vh;overflow-y:auto;background:var(--bg);}
-.landing::-webkit-scrollbar{width:4px}
-.landing::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:4px}
-
-.land-nav{position:sticky;top:0;z-index:100;background:rgba(5,6,12,0.8);backdrop-filter:blur(20px) saturate(1.5);border-bottom:1px solid var(--border);padding:0 48px;height:64px;display:flex;align-items:center;justify-content:space-between;}
-.land-logo{font-family:var(--fh);font-size:21px;font-weight:800;letter-spacing:-0.5px;}
-.land-logo span{background:linear-gradient(135deg,var(--gold) 20%,var(--teal2) 80%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-
-.land-hero{padding:100px 48px 70px;text-align:center;position:relative;overflow:hidden;}
-.land-hero::before{content:'';position:absolute;top:-150px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(ellipse,rgba(212,168,83,0.06) 0%,rgba(0,212,200,0.02) 40%,transparent 70%);pointer-events:none;}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid rgba(212,168,83,0.2);border-radius:24px;font-size:11.5px;color:var(--gold);font-family:var(--fm);margin-bottom:28px;background:rgba(212,168,83,0.04);backdrop-filter:blur(8px);font-weight:500;}
-.hero-title{font-family:var(--fh);font-size:clamp(34px,5.5vw,62px);font-weight:800;line-height:1.08;letter-spacing:-2px;color:var(--text);margin-bottom:22px;}
-.hero-title .grad{background:linear-gradient(135deg,var(--gold) 0%,var(--teal) 45%,var(--purple) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.hero-sub{font-size:17px;color:var(--text2);line-height:1.75;max-width:600px;margin:0 auto 40px;font-weight:400;}
-.hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
-
-.land-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--border);border-radius:var(--radius-xl);overflow:hidden;margin:60px 48px;}
-.stat-block{padding:32px 28px;text-align:center;background:var(--s1);border-right:1px solid var(--border);transition:background .3s}
-.stat-block:hover{background:var(--s2)}
-.stat-block:last-child{border-right:none}
-.stat-num{font-family:var(--fh);font-size:32px;font-weight:800;color:var(--text);letter-spacing:-1.5px;}
-.stat-lbl{font-size:11.5px;color:var(--muted);margin-top:5px;font-weight:400;}
-
-.land-section{padding:70px 48px;}
-.land-section-title{font-family:var(--fh);font-size:clamp(24px,3.5vw,36px);font-weight:800;text-align:center;margin-bottom:10px;letter-spacing:-0.8px;}
-.land-section-sub{text-align:center;color:var(--text2);margin-bottom:48px;font-size:15px;font-weight:400;}
-
-.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
-.feat-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-lg);padding:28px;transition:all .25s var(--ease);position:relative;overflow:hidden;}
-.feat-card:hover{border-color:var(--border-hi);transform:translateY(-3px);box-shadow:var(--shadow-md)}
-.feat-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--fc,var(--gold));opacity:0;transition:opacity .3s;}
-.feat-card:hover::after{opacity:.7}
-.feat-ico{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
-.feat-title{font-family:var(--fh);font-size:16px;font-weight:700;margin-bottom:8px;letter-spacing:-0.2px;}
-.feat-desc{font-size:13px;color:var(--text2);line-height:1.75;font-weight:400;}
-
-/* ═══ PRICING ═══ */
-.pricing-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;max-width:1150px;margin:0 auto;}
-.plan-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-xl);padding:28px;position:relative;transition:all .3s var(--ease);display:flex;flex-direction:column;}
-.plan-card:hover{transform:translateY(-4px);border-color:var(--border-hi);box-shadow:var(--shadow-md)}
-.plan-card.popular{border-color:rgba(212,168,83,0.3);box-shadow:var(--shadow-glow-gold);}
-.plan-badge{position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--gold),#C4912F);color:#0a0c14;font-size:9.5px;font-weight:700;font-family:var(--fh);padding:4px 14px;border-radius:0 0 10px 10px;white-space:nowrap;letter-spacing:0.5px;}
-.plan-name{font-family:var(--fh);font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:10px;}
-.plan-price{font-family:var(--fh);font-size:28px;font-weight:800;color:var(--text);letter-spacing:-1.5px;line-height:1;}
-.plan-price span{font-size:13px;color:var(--muted);font-weight:400;letter-spacing:0;}
-.plan-period{font-size:10.5px;color:var(--muted);margin-top:4px;font-family:var(--fm);}
-.plan-divider{height:1px;background:var(--border);margin:20px 0;}
-.plan-feat{display:flex;align-items:flex-start;gap:9px;margin-bottom:10px;font-size:12.5px;font-weight:400;}
-.plan-feat-ico{flex-shrink:0;margin-top:2px;font-size:11px;}
-.plan-btn{margin-top:auto;padding-top:20px;}
-.billing-toggle{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:40px;}
-.billing-pill{display:flex;background:var(--s2);border:1px solid var(--border);border-radius:30px;padding:4px;}
-.billing-opt{padding:7px 20px;border-radius:22px;font-size:12.5px;font-family:var(--fh);cursor:pointer;transition:all .25s var(--ease);font-weight:600;}
-.billing-opt.active{background:var(--gold);color:#0a0c14;box-shadow:0 2px 8px rgba(212,168,83,0.3)}
-.billing-opt.active.teal{background:var(--teal);color:#0a0c14;box-shadow:0 2px 8px rgba(0,212,200,0.25)}
-.billing-save{background:rgba(52,211,153,0.1);color:var(--green);border:1px solid rgba(52,211,153,0.18);border-radius:20px;padding:4px 12px;font-size:10.5px;font-family:var(--fm);}
-
-/* ═══ AUTH PAGES ═══ */
-.auth-wrap{height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;}
-.auth-wrap::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 50% 35%,rgba(212,168,83,0.05) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 50% 80%,rgba(0,212,200,0.03) 0%,transparent 60%);pointer-events:none;}
-.auth-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--radius-xl);padding:40px;width:440px;max-width:calc(100vw - 32px);position:relative;overflow:hidden;box-shadow:var(--shadow-lg);}
-.auth-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--gold),var(--teal),transparent);}
-.auth-logo{font-family:var(--fh);font-size:24px;font-weight:800;text-align:center;margin-bottom:8px;letter-spacing:-0.5px;}
-.auth-logo span{background:linear-gradient(135deg,var(--gold) 20%,var(--teal2) 80%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.auth-sub{text-align:center;font-size:13px;color:var(--muted);margin-bottom:32px;font-weight:400;}
-.auth-link{color:var(--gold);cursor:pointer;font-family:var(--fh);font-weight:600;transition:color .2s}
-.auth-link:hover{color:var(--gold2);}
-.auth-err{background:rgba(251,113,133,0.06);border:1px solid rgba(251,113,133,0.18);border-radius:10px;padding:11px 16px;font-size:12.5px;color:var(--red);margin-bottom:16px;}
-.auth-field-wrap{margin-bottom:16px;}
-.auth-divider{display:flex;align-items:center;gap:12px;margin:18px 0;font-size:11.5px;color:var(--muted);}
-.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--border);}
-
-/* ═══ PAYMENT MODAL ═══ */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);animation:fadeIn .25s var(--ease);}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.modal-box{background:var(--s1);border:1px solid var(--border-hi);border-radius:var(--radius-xl);padding:36px;width:480px;max-width:calc(100vw - 32px);max-height:90vh;overflow-y:auto;position:relative;animation:slideUp .3s var(--ease-spring);box-shadow:var(--shadow-lg);}
-@keyframes slideUp{from{opacity:0;transform:translateY(24px) scale(0.98)}to{opacity:1;transform:none}}
-.modal-close{position:absolute;top:16px;right:16px;background:var(--s3);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:14px;padding:5px 8px;border-radius:8px;transition:all .2s}
-.modal-close:hover{color:var(--text);border-color:var(--border-hi);background:var(--s4)}
-.payment-method{border:1px solid var(--border);border-radius:12px;padding:15px 18px;cursor:pointer;display:flex;align-items:center;gap:14px;transition:all .2s var(--ease);margin-bottom:10px;}
-.payment-method:hover{border-color:var(--border-hi);background:var(--s2);box-shadow:var(--shadow-sm)}
-.payment-method.selected{border-color:var(--gold);background:rgba(212,168,83,0.04);box-shadow:0 0 16px rgba(212,168,83,0.08)}
-.payment-logo{width:52px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;font-family:var(--fh);}
-
-/* ═══ PROFILE & BILLING ═══ */
-.usage-bar-wrap{background:var(--s3);border-radius:5px;height:7px;overflow:hidden;margin-top:6px;}
-.usage-bar{height:100%;border-radius:5px;transition:width .5s var(--ease);}
-
-/* ═══ ADMIN PANEL ═══ */
-.admin-table{width:100%;border-collapse:collapse;}
-.admin-table th{padding:10px 14px;text-align:left;font-family:var(--fh);font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:2px;border-bottom:1px solid var(--border);white-space:nowrap;}
-.admin-table td{padding:12px 14px;border-bottom:1px solid var(--border2);font-size:12.5px;color:var(--text2);}
-.admin-table tr:hover td{background:rgba(255,255,255,0.015);}
-.admin-table tr:last-child td{border-bottom:none}
-.admin-stat{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px 22px;position:relative;overflow:hidden;transition:all .25s var(--ease)}
-.admin-stat:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
-.admin-stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--ac,var(--gold));opacity:.4;}
-.search-field{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:9px 14px;color:var(--text);font-family:var(--fm);font-size:12.5px;outline:none;width:240px;transition:all .25s var(--ease);}
-.search-field:focus{border-color:rgba(212,168,83,0.3);box-shadow:0 0 0 4px rgba(212,168,83,0.04);background:var(--s3)}
-.search-field::placeholder{color:var(--muted)}
-
-/* ═══ DATA HUB ═══ */
-.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
-.type-card{border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 14px;cursor:pointer;transition:all .25s var(--ease);background:var(--s2);text-align:center;position:relative;overflow:hidden}
-.type-card:hover{border-color:var(--border-hi);background:var(--s3);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
-.type-card.selected{border-color:var(--gold);background:rgba(212,168,83,0.04);box-shadow:0 0 20px rgba(212,168,83,0.06)}
-.type-card-ico{font-size:26px;margin-bottom:10px}
-.type-card-lbl{font-family:var(--fh);font-size:12px;font-weight:700;margin-bottom:4px;letter-spacing:-0.01em}
-.type-card-desc{font-size:10px;color:var(--muted);font-weight:400}
-.source-item{background:var(--s2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:12px;transition:all .25s var(--ease);position:relative;overflow:hidden;}
-.source-item:hover{border-color:var(--border-hi);box-shadow:var(--shadow-sm)}
-.source-item.active-src{
-  border:1.5px solid #4ADE80;
-  background:linear-gradient(135deg,rgba(74,222,128,0.10) 0%,rgba(74,222,128,0.03) 50%,var(--s2) 100%);
-  box-shadow:0 0 24px rgba(74,222,128,0.18),inset 0 0 0 1px rgba(74,222,128,0.20);
-}
-.source-item.active-src::before{
-  content:'';position:absolute;left:0;top:0;bottom:0;width:5px;
-  background:linear-gradient(180deg,#34D399,#4ADE80,#22C55E);
-  box-shadow:0 0 16px rgba(74,222,128,0.7);
-}
-.source-item.active-src .src-color-dot{
-  background:#4ADE80!important;
-  box-shadow:0 0 16px #4ADE80,0 0 6px #4ADE80;
-  animation:srcPulse 1.8s ease-in-out infinite;
-}
-.source-item.active-src .src-name{color:#F1F5FA;font-weight:700;}
-.source-item.inactive-src{opacity:.5;filter:grayscale(0.3);}
-@keyframes srcPulse{
-  0%,100%{box-shadow:0 0 16px #4ADE80,0 0 6px #4ADE80;transform:scale(1)}
-  50%{box-shadow:0 0 24px #4ADE80,0 0 12px #4ADE80;transform:scale(1.15)}
-}
-.src-header{display:flex;align-items:center;gap:12px}
-.src-color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px currentColor}
-.src-name{font-family:var(--fh);font-size:14px;font-weight:600;color:var(--text);letter-spacing:-0.01em}
-.src-meta{font-size:10.5px;color:var(--muted);margin-top:3px;font-family:var(--fm)}
-.src-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
-.src-toggle{width:38px;height:22px;border-radius:11px;cursor:pointer;position:relative;transition:background .25s var(--ease);border:none;flex-shrink:0}
-.src-body{margin-top:16px;padding-top:16px;border-top:1px solid var(--border2)}
-.preview-tbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:10px}
-.preview-tbl th{padding:7px 12px;text-align:left;color:var(--muted);border-bottom:1px solid var(--border);font-family:var(--fh);font-size:9.5px;text-transform:uppercase;letter-spacing:1.5px;white-space:nowrap;font-weight:700}
-.preview-tbl td{padding:7px 12px;border-bottom:1px solid var(--border2);white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;color:var(--text2);}
-.preview-tbl tr:hover td{background:rgba(255,255,255,0.015)}
-.add-panel{background:var(--s2);border:1px dashed rgba(212,168,83,0.15);border-radius:var(--radius-xl);padding:22px;margin-bottom:16px;transition:border-color .3s}
-.add-panel:hover{border-color:rgba(212,168,83,0.3)}
-.drop-zone{border:2px dashed rgba(0,201,190,0.25);border-radius:16px;padding:40px 24px;text-align:center;cursor:pointer;transition:all .3s var(--ease);background:linear-gradient(135deg,rgba(0,201,190,0.03),rgba(0,201,190,0.06));position:relative;overflow:hidden;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.drop-zone::before{content:'';position:absolute;inset:0;border-radius:16px;background:radial-gradient(circle at 50% 50%,rgba(0,201,190,0.06),transparent 70%);pointer-events:none}
-.drop-zone:hover{border-color:rgba(0,201,190,0.5);background:linear-gradient(135deg,rgba(0,201,190,0.05),rgba(0,201,190,0.1));transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,201,190,0.1)}
-.drop-zone.drag{border-color:var(--teal);background:linear-gradient(135deg,rgba(0,201,190,0.08),rgba(0,201,190,0.15));transform:scale(1.02);box-shadow:0 12px 40px rgba(0,201,190,0.2)}
-.drop-zone.drop-img{border-color:rgba(236,72,153,0.25);background:linear-gradient(135deg,rgba(236,72,153,0.03),rgba(236,72,153,0.06))}
-.drop-zone.drop-img::before{background:radial-gradient(circle at 50% 50%,rgba(236,72,153,0.06),transparent 70%)}
-.drop-zone.drop-img:hover{border-color:rgba(236,72,153,0.5);background:linear-gradient(135deg,rgba(236,72,153,0.05),rgba(236,72,153,0.1));box-shadow:0 8px 32px rgba(236,72,153,0.1)}
-.drop-zone.drop-img.drag{border-color:#EC4899;background:linear-gradient(135deg,rgba(236,72,153,0.08),rgba(236,72,153,0.15));box-shadow:0 12px 40px rgba(236,72,153,0.2)}
-.drop-zone.drop-doc{border-color:rgba(248,113,113,0.25);background:linear-gradient(135deg,rgba(248,113,113,0.03),rgba(248,113,113,0.06))}
-.drop-zone.drop-doc::before{background:radial-gradient(circle at 50% 50%,rgba(248,113,113,0.06),transparent 70%)}
-.drop-zone.drop-doc:hover{border-color:rgba(248,113,113,0.5);background:linear-gradient(135deg,rgba(248,113,113,0.05),rgba(248,113,113,0.1));box-shadow:0 8px 32px rgba(248,113,113,0.1)}
-.drop-zone.drop-doc.drag{border-color:#F87171;background:linear-gradient(135deg,rgba(248,113,113,0.08),rgba(248,113,113,0.15));box-shadow:0 12px 40px rgba(248,113,113,0.2)}
-
-/* ═══ CHAT ═══ */
-.chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 56px - 56px);overflow:hidden}
-.chat-msgs-wrap{flex:1;position:relative;overflow:hidden;min-height:0;}
-/* ═══ CHAT HISTORY PANEL (ChatGPT-style left sidebar) ═══ */
-.chat-hub{display:grid;grid-template-columns:280px 1fr;gap:12px;height:100%;min-height:0;transition:grid-template-columns .25s var(--ease)}
-.chat-hub.collapsed{grid-template-columns:0 1fr;gap:0}
-.chat-hub.collapsed .chat-history{display:none}
-.chat-history{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;overflow:hidden;min-height:0}
-.chat-history-new{padding:10px 14px;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;border:none;border-radius:8px;font-weight:700;font-size:12.5px;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--fh);box-shadow:var(--shadow-sm);transition:all .15s}
-.chat-history-new:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
-.chat-history-search{padding:8px 10px;background:var(--s2);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.chat-history-search input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:var(--fh)}
-.chat-history-search input::placeholder{color:var(--muted)}
-.chat-history-list{flex:1;overflow-y:auto;margin:0 -4px;padding:0 4px}
-.chat-history-label{font-family:var(--fm);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:10px 8px 4px;display:flex;align-items:center;gap:4px}
-.chat-thread{padding:9px 10px;border-radius:7px;cursor:pointer;margin-bottom:2px;position:relative;transition:background .1s;display:flex;flex-direction:column;gap:3px}
-.chat-thread:hover{background:var(--s2)}
-.chat-thread.active{background:var(--gold-glow);border:1px solid rgba(212,168,83,0.25)}
-.chat-thread-title{font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chat-thread-meta{font-size:10px;color:var(--muted);font-family:var(--fm);display:flex;align-items:center;gap:6px}
-.chat-thread-src{background:var(--s3);padding:1px 6px;border-radius:3px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chat-thread-actions{position:absolute;top:7px;right:6px;display:flex;gap:2px;opacity:0;transition:opacity .15s}
-.chat-thread:hover .chat-thread-actions,.chat-thread.active .chat-thread-actions{opacity:1}
-.chat-thread-action{width:22px;height:22px;border:none;background:var(--s3);border-radius:5px;cursor:pointer;color:var(--muted);font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .12s}
-.chat-thread-action:hover{background:var(--s4);color:var(--text)}
-.chat-thread-action.pinned{color:var(--gold)}
-@media (max-width:920px){.chat-hub{grid-template-columns:1fr}.chat-history{display:none}.chat-history.mobile-open{display:flex;position:fixed;inset:56px 0 0 0;z-index:50;border-radius:0}}
-.chat-msgs{height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:6px 2px 14px;}
-.chat-msgs::-webkit-scrollbar{width:3px}
-.hide-scroll{scrollbar-width:none;-ms-overflow-style:none}.hide-scroll::-webkit-scrollbar{display:none}
-.chat-float-btns{position:absolute;right:8px;top:10px;bottom:10px;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;z-index:5;}
-.chat-float-btn{width:32px;height:32px;border-radius:50%;border:1px solid var(--border-hi);background:var(--glass);backdrop-filter:blur(10px);color:var(--text2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s var(--ease);pointer-events:all;box-shadow:var(--shadow-md);opacity:.7;}
-.chat-float-btn:hover{opacity:1;color:var(--gold);border-color:rgba(212,168,83,0.3);transform:scale(1.1);box-shadow:var(--shadow-glow-gold)}
-.msg{display:flex;gap:12px;animation:pop .25s var(--ease-spring)}
-@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.msg.user{flex-direction:row-reverse}
-.ava{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;border:1px solid var(--border);}
-.ava.ai{background:rgba(212,168,83,0.06);color:var(--gold);border-color:rgba(212,168,83,0.12)}
-.ava.user{background:rgba(0,212,200,0.06);color:var(--teal);border-color:rgba(0,212,200,0.12)}
-.bubble{max-width:72%;padding:13px 17px;border-radius:14px;font-size:13.5px;line-height:1.8;border:1px solid var(--border);background:var(--s2);color:var(--text);}
-.msg.user .bubble{background:rgba(0,212,200,0.04);border-color:rgba(0,212,200,0.15);}
-.bubble-meta{font-family:var(--fh);font-size:9.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:2px;}
-.chat-src-tags{display:flex;flex-wrap:wrap;gap:7px;padding:10px 14px;background:var(--s2);border-radius:12px;border:1px solid var(--border);flex-shrink:0;}
-.src-tag{padding:4px 12px;border-radius:20px;font-size:10px;cursor:pointer;border:1px solid;font-family:var(--fm);transition:all .2s var(--ease);font-weight:500}
-.chat-input-row{display:flex;gap:8px;align-items:stretch;flex-shrink:0;padding-top:4px;}
-.chat-ta{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:11px 16px;color:var(--text);font-family:var(--fh);font-size:13.5px;outline:none;resize:none;max-height:100px;transition:all .25s var(--ease);font-weight:400;line-height:1.5;flex:1;}
-.chat-ta:focus{border-color:rgba(0,201,190,0.35);box-shadow:0 0 0 3px rgba(0,201,190,0.06);background:var(--s3)}
-.chat-ta::placeholder{color:var(--muted);font-weight:400}
-.chat-cat-row{display:flex;gap:5px;flex-shrink:0;padding:6px 0;overflow-x:auto;-ms-overflow-style:none;scrollbar-width:none;}
-.chat-cat-row::-webkit-scrollbar{display:none}
-.chat-q-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;padding:4px 0;}
-.chat-q-arrow{width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s var(--ease);flex-shrink:0;}
-.chat-q-arrow:hover{border-color:var(--teal);color:var(--teal);background:var(--s3)}
-.chat-q-scroll{display:flex;gap:5px;overflow-x:auto;flex:1;padding:2px 0;scroll-behavior:smooth;-ms-overflow-style:none;scrollbar-width:none;min-width:0;}
-.chat-q-scroll::-webkit-scrollbar{display:none}
-.qchip{padding:5px 11px 5px 7px;border-radius:9px;font-size:10.5px;font-family:var(--fh);border:1px solid var(--border);background:var(--s2);color:var(--text2);cursor:pointer;transition:all .2s var(--ease);font-weight:500;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;}
-.qchip-icon{font-size:12px;flex-shrink:0;}
-.qchip:hover{border-color:var(--qc,rgba(212,168,83,0.4));color:var(--qc,var(--gold));background:rgba(255,255,255,0.03);box-shadow:0 2px 8px rgba(0,0,0,0.12)}
-.qchip:active{transform:scale(0.97)}
-.qcat{padding:4px 9px;border-radius:7px;font-size:9px;font-family:var(--fh);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;flex-shrink:0;}
-.qcat:hover{border-color:rgba(0,201,190,0.3);color:var(--teal)}
-.chat-send-btn{min-width:44px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--teal),#00A89E);color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-weight:700;}
-.chat-send-btn:hover:not(:disabled){transform:scale(1.05);box-shadow:0 4px 16px rgba(0,201,190,0.3)}
-.chat-send-btn:active:not(:disabled){transform:scale(0.95)}
-.chat-send-btn:disabled{opacity:.35;cursor:not-allowed;background:var(--s3)}
-@keyframes pulse-voice{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,0.4)}50%{box-shadow:0 0 0 8px rgba(248,113,113,0)}}
-@keyframes dashProg{0%{width:10%;opacity:.7}50%{width:80%;opacity:1}100%{width:10%;opacity:.7}}
-@keyframes aiSweep{0%{left:-30%;width:30%}50%{width:45%}100%{left:100%;width:30%}}
-@keyframes aiPulse{0%,100%{opacity:0.65}50%{opacity:1}}
-.chat-export-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:8px;cursor:pointer;font-size:12px;transition:all .2s var(--ease);display:flex;align-items:center;gap:4px;font-family:var(--fh);font-size:10px;font-weight:500;}
-.chat-export-btn:hover{border-color:var(--border-hi);color:var(--text);background:var(--s3)}
-.typing-ind{display:flex;gap:5px;align-items:center}
-.typing-ind span{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:tdot 1.4s ease infinite;}
-.typing-ind span:nth-child(2){animation-delay:.2s}
-.typing-ind span:nth-child(3){animation-delay:.4s}
-@keyframes tdot{0%,60%,100%{transform:none;opacity:.35}30%{transform:translateY(-6px);opacity:1}}
-
-/* ═══ CHARTS ═══ */
-.chart-tabs{display:flex;gap:7px;margin-bottom:20px;flex-wrap:wrap}
-
-/* ═══ ANALYTICS / REPORTS ═══ */
-.ana-btn{padding:12px 18px;border-radius:12px;border:1px solid var(--border);background:var(--s2);cursor:pointer;font-family:var(--fh);font-size:12.5px;font-weight:600;color:var(--text2);transition:all .25s var(--ease);}
-.ana-btn:hover{border-color:rgba(212,168,83,0.3);color:var(--gold);background:rgba(212,168,83,0.04);box-shadow:0 0 16px rgba(212,168,83,0.06);transform:translateY(-1px)}
-.ana-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
-.report-row{display:flex;align-items:center;gap:16px;padding:18px 20px;background:var(--s2);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:10px;cursor:pointer;transition:all .25s var(--ease);}
-.report-row:hover{border-color:rgba(212,168,83,0.25);background:var(--s3);transform:translateX(3px);box-shadow:var(--shadow-sm)}
-
-/* ═══ SETTINGS ═══ */
-.model-opt{padding:11px 15px;border-radius:10px;border:1px solid var(--border);background:var(--s2);cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-family:var(--fh);margin-bottom:8px;transition:all .2s var(--ease);font-weight:500}
-.model-opt:hover{border-color:var(--border-hi);background:var(--s3);box-shadow:var(--shadow-sm)}
-.model-opt.sel{border-color:rgba(212,168,83,0.3);background:rgba(212,168,83,0.04);color:var(--gold);box-shadow:0 0 12px rgba(212,168,83,0.06)}
-
-/* ═══ NOTIFICATION ═══ */
-.notif-stack{position:fixed;top:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
-.notif{padding:13px 18px;background:var(--s1);border:1px solid var(--border-hi);border-radius:12px;font-size:12.5px;font-family:var(--fh);font-weight:500;max-width:340px;box-shadow:var(--shadow-lg);animation:notifIn .3s var(--ease-spring);pointer-events:all;backdrop-filter:blur(12px);}
-@keyframes notifIn{from{opacity:0;transform:translateX(18px) scale(0.95)}to{opacity:1;transform:none}}
-
-/* ═══ MISC ═══ */
-.flex{display:flex}.aic{align-items:center}.jb{justify-content:space-between}.f1{flex:1}.fc{flex-direction:column}
-.gap4{gap:4px}.gap5{gap:5px}.gap6{gap:6px}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}.gap20{gap:20px}
-.flex-wrap{flex-wrap:wrap}
-.notice{padding:10px 14px;background:var(--s3);border:1px solid var(--border);border-radius:8px}
-.mb6{margin-bottom:6px}.mb8{margin-bottom:8px}.mb10{margin-bottom:10px}.mb12{margin-bottom:12px}.mb14{margin-bottom:14px}.mb16{margin-bottom:16px}.mb20{margin-bottom:20px}.mb24{margin-bottom:24px}
-.mt4{margin-top:4px}.mt6{margin-top:6px}.mt8{margin-top:8px}.mt10{margin-top:10px}.mt16{margin-top:16px}
-.ml-auto{margin-left:auto}.mr8{margin-right:8px}
-.text-gold{color:var(--gold)}.text-teal{color:var(--teal)}.text-green{color:var(--green)}.text-red{color:var(--red)}.text-muted{color:var(--muted)}.text-cyan{color:var(--teal)}
-.text-xs{font-size:10.5px}.text-sm{font-size:12px}.text-base{font-size:13.5px}.text-center{text-align:center}
-.font-hd{font-family:var(--fh)}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}
-.rounded{border-radius:10px}.overflow-x{overflow-x:auto}
-::selection{background:rgba(212,168,83,0.2);color:var(--text)}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.06);border-radius:4px}
-::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.12)}
-
-/* ═══ MOBILE ═══ */
-.hamburger-btn{display:none;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:16px;line-height:1;transition:all .2s var(--ease);}
-.hamburger-btn:hover{border-color:var(--border-hi);background:var(--s2)}
-.sidebar-close-btn{display:none;background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:16px;position:absolute;top:18px;right:16px;transition:color .2s}
-.sidebar-close-btn:hover{color:var(--text)}
-.mob-overlay{display:none}.hide-mobile{display:inline}
-
-/* ═══ THEME-SPECIFIC STYLES ═══ */
-
-/* MIDNIGHT — neon glow kartalar, ko'k borderlar */
-[data-theme="midnight"] .logo-main span{color:#38BDF8}
-[data-theme="midnight"] .grad{background:linear-gradient(135deg,#38BDF8,#34D399);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="midnight"] .btn-primary{background:linear-gradient(135deg,#0EA5E9,#0284C7);box-shadow:0 2px 12px rgba(14,165,233,0.3)}
-[data-theme="midnight"] .card{border-color:rgba(56,189,248,0.08);box-shadow:0 0 20px rgba(56,189,248,0.03),0 4px 16px rgba(0,0,0,0.3)}
-[data-theme="midnight"] .card:hover{box-shadow:0 0 30px rgba(56,189,248,0.06),0 8px 24px rgba(0,0,0,0.3)}
-[data-theme="midnight"] .sidebar{border-right-color:rgba(56,189,248,0.06)}
-[data-theme="midnight"] .nav-btn.active{border-left-color:#38BDF8}
-
-/* ═══ SANDSTONE — Warm editorial light ═══ */
-[data-theme="sandstone"] .logo-main span{color:#c4a55a}
-[data-theme="sandstone"] .grad{background:linear-gradient(135deg,#c4a55a,#16a764);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="sandstone"] .btn-primary{background:linear-gradient(135deg,#c4a55a,#a8873f);color:#fff;box-shadow:0 2px 12px rgba(196,165,90,0.3)}
-[data-theme="sandstone"] .card{background:#ffffff;border-color:#e8e5da;box-shadow:0 1px 3px rgba(28,24,15,0.04),0 2px 8px rgba(28,24,15,0.03)}
-[data-theme="sandstone"] .card:hover{border-color:#d6d2c2;box-shadow:0 4px 12px rgba(28,24,15,0.06)}
-[data-theme="sandstone"] .sidebar{background:#ffffff;border-right-color:#e8e5da}
-[data-theme="sandstone"] .topbar{background:rgba(255,255,255,0.85);backdrop-filter:blur(10px);border-bottom-color:#e8e5da}
-[data-theme="sandstone"] .field{background:#f5f4ef;border-color:#e8e5da;color:#1a1f1c}
-[data-theme="sandstone"] .field:focus{border-color:#c4a55a;box-shadow:0 0 0 3px rgba(196,165,90,0.15)}
-[data-theme="sandstone"] .nav-btn{color:#5c665f}
-[data-theme="sandstone"] .nav-btn:hover{background:#f5f4ef;color:#1a1f1c}
-[data-theme="sandstone"] .nav-btn.active{background:rgba(196,165,90,0.12);color:#8a7230;border-left-color:#c4a55a}
-[data-theme="sandstone"] .btn-ghost{border-color:#e8e5da;color:#3d4640}
-[data-theme="sandstone"] .btn-ghost:hover{background:#f5f4ef;border-color:#d6d2c2}
-[data-theme="sandstone"] .msg .bubble{background:#f5f4ef;border-color:#e8e5da}
-[data-theme="sandstone"] .msg.user .bubble{background:#faf5e6;border-color:#e8d7a0}
-[data-theme="sandstone"] .landing{background:#fafaf7}
-[data-theme="sandstone"] .land-nav{background:rgba(250,250,247,0.92)}
-[data-theme="sandstone"] .modal-overlay{background:rgba(28,24,15,0.35)}
-[data-theme="sandstone"] .modal-box{background:#ffffff;border-color:#e8e5da;box-shadow:0 24px 64px rgba(28,24,15,0.12)}
-[data-theme="sandstone"] .notif{background:#ffffff;border-color:#e8e5da;box-shadow:0 4px 12px rgba(28,24,15,0.06)}
-[data-theme="sandstone"] .drop-zone{border-color:#d6d2c2;background:linear-gradient(135deg,rgba(196,165,90,0.03),rgba(196,165,90,0.06))}
-
-/* ═══ PORCELAIN — Cool minimalist light ═══ */
-[data-theme="porcelain"] .logo-main span{color:#1e3a5f}
-[data-theme="porcelain"] .grad{background:linear-gradient(135deg,#1e3a5f,#6b9080);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-[data-theme="porcelain"] .btn-primary{background:linear-gradient(135deg,#1e3a5f,#2e5186);color:#fff;box-shadow:0 2px 12px rgba(30,58,95,0.25)}
-[data-theme="porcelain"] .card{background:#ffffff;border-color:#dde3ec;box-shadow:0 1px 3px rgba(15,26,46,0.04),0 2px 8px rgba(15,26,46,0.03)}
-[data-theme="porcelain"] .card:hover{border-color:#c4cbd9;box-shadow:0 4px 12px rgba(15,26,46,0.06)}
-[data-theme="porcelain"] .sidebar{background:#ffffff;border-right-color:#dde3ec}
-[data-theme="porcelain"] .topbar{background:rgba(255,255,255,0.88);backdrop-filter:blur(10px);border-bottom-color:#dde3ec}
-[data-theme="porcelain"] .field{background:#f1f3f7;border-color:#dde3ec;color:#0f1a2e}
-[data-theme="porcelain"] .field:focus{border-color:#1e3a5f;box-shadow:0 0 0 3px rgba(30,58,95,0.12)}
-[data-theme="porcelain"] .nav-btn{color:#4a5973}
-[data-theme="porcelain"] .nav-btn:hover{background:#f1f3f7;color:#0f1a2e}
-[data-theme="porcelain"] .nav-btn.active{background:rgba(30,58,95,0.08);color:#1e3a5f;border-left-color:#1e3a5f}
-[data-theme="porcelain"] .btn-ghost{border-color:#dde3ec;color:#2a3548}
-[data-theme="porcelain"] .btn-ghost:hover{background:#f1f3f7;border-color:#c4cbd9}
-[data-theme="porcelain"] .msg .bubble{background:#f1f3f7;border-color:#dde3ec}
-[data-theme="porcelain"] .msg.user .bubble{background:rgba(30,58,95,0.06);border-color:rgba(30,58,95,0.15)}
-[data-theme="porcelain"] .landing{background:#f8f9fb}
-[data-theme="porcelain"] .land-nav{background:rgba(248,249,251,0.92)}
-[data-theme="porcelain"] .modal-overlay{background:rgba(15,26,46,0.4)}
-[data-theme="porcelain"] .modal-box{background:#ffffff;border-color:#dde3ec;box-shadow:0 24px 64px rgba(15,26,46,0.15)}
-[data-theme="porcelain"] .notif{background:#ffffff;border-color:#dde3ec;box-shadow:0 4px 12px rgba(15,26,46,0.08)}
-[data-theme="porcelain"] .drop-zone{border-color:#c4cbd9;background:linear-gradient(135deg,rgba(30,58,95,0.03),rgba(107,144,128,0.04))}
-
-@media(max-width:768px){
-  .hamburger-btn{display:flex;align-items:center}
-  .sidebar-close-btn{display:block}
-  .hide-mobile{display:none}
-  .sidebar{position:fixed;top:0;left:0;height:100vh;z-index:1000;transform:translateX(0);box-shadow:8px 0 40px rgba(0,0,0,0.7);backdrop-filter:blur(20px)}
-  .sidebar.sidebar-closed{transform:translateX(-100%)}
-  .mob-overlay{display:block;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:999;backdrop-filter:blur(4px);}
-  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}
-  .pricing-grid{grid-template-columns:1fr 1fr}.feat-grid{grid-template-columns:1fr 1fr}
-  .land-stats{grid-template-columns:repeat(3,1fr)}.land-hero{padding:60px 20px 48px;}
-  .land-nav,.land-section,.land-stats{padding-left:16px;padding-right:16px}
-  .chat-wrap{height:calc(100vh - 56px - 32px)}.bubble{max-width:92%}
-  .type-grid{grid-template-columns:repeat(2,1fr)}.content{padding:12px}.topbar{padding:0 12px}
-  .topbar-right{gap:4px}
-  .tb-item{height:30px;padding:0 8px;font-size:10px;border-radius:8px}
-  .page-title{font-size:14px}
-  .card{padding:14px;border-radius:12px}
-  .chat-ta{font-size:13px}
-  .chat-send-btn{min-width:38px;height:38px;border-radius:10px}
-  .chat-voice-btn{min-width:38px;height:38px;border-radius:10px}
-  .drop-zone{min-height:120px;padding:24px 16px}
-  .modal-box{padding:20px;width:calc(100vw - 16px);max-height:85vh}
-}
-@media(max-width:480px){
-  .g4{grid-template-columns:1fr}.pricing-grid{grid-template-columns:1fr}.feat-grid{grid-template-columns:1fr}
-  .land-stats{grid-template-columns:1fr 1fr}.stat-block{border-bottom:1px solid var(--border)}
-  .hero-title{font-size:28px;letter-spacing:-1px}
-  .hero-sub{font-size:13px}
-  .land-nav{flex-wrap:wrap;gap:8px}
-  .content{padding:8px}
-  .card{padding:12px}
-  .bubble{max-width:95%}
-}
-/* ═══ SKELETON LOADING ═══ */
-@keyframes skPulse{0%,100%{opacity:.06}50%{opacity:.12}}
-.sk{background:var(--s3);border-radius:8px;animation:skPulse 1.5s ease-in-out infinite}
-.sk-card{height:80px;border-radius:var(--radius-lg);margin-bottom:10px}
-.sk-line{height:12px;border-radius:4px;margin-bottom:8px}
-.sk-line.w60{width:60%}.sk-line.w80{width:80%}.sk-line.w40{width:40%}
-.sk-circle{width:40px;height:40px;border-radius:50%}
-.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
-`;
 // ─────────────────────────────────────────────────────────────
 // NOTIFICATION HOOK
 // ─────────────────────────────────────────────────────────────
@@ -1828,7 +382,7 @@ function LoginPage({ onAuth, onGoRegister, onGoLanding }) {
 
   return (
     <div className="auth-wrap">
-      <style>{CSS}</style>
+
       <div className="auth-card">
         <div className="auth-logo">ANA<span>LIX</span></div>
         <div className="auth-sub">Hisobingizga kiring</div>
@@ -1889,7 +443,7 @@ function RegisterPage({ onAuth, onGoLogin, onGoLanding }) {
 
   return (
     <div className="auth-wrap">
-      <style>{CSS}</style>
+
       <div className="auth-card">
         <div className="auth-logo">ANA<span>LIX</span></div>
         <div className="auth-sub">Yangi hisob yarating — bepul tarifda boshlang</div>
@@ -5103,7 +3657,7 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
                     }}
                     disabled={!src.id}
                   >
-                     Instagram bilan ulash
+                    Instagram bilan ulash
                   </button>
 
                   <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 10, marginBottom: 14 }}>— yoki qo'lda token kiriting —</div>
@@ -5121,7 +3675,7 @@ function SourceItem({ src, onUpdate, onDelete, push, bulkExpand }) {
                   )}
 
                   <div style={{ background: "var(--s3)", borderRadius: 8, padding: "10px 12px", fontSize: 10, color: "var(--muted)", lineHeight: 1.8, border: "1px solid var(--border)" }}>
-                    <strong style={{ color: "var(--text2)" }}>Talab:</strong> Instagram Business yoki Creator akkaunt + Facebook Page<br/>
+                    <strong style={{ color: "var(--text2)" }}>Talab:</strong> Instagram Business yoki Creator akkaunt + Facebook Page<br />
                     <strong style={{ color: "var(--text2)" }}>Ruxsatlar:</strong> instagram_basic, instagram_manage_insights, pages_show_list
                   </div>
                 </div>
@@ -5511,8 +4065,6 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
   const [bulkExpand, setBulkExpand] = useState(null);
   // YANGI: status filter (all/active/inactive/stale) + view mode (cards/table)
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState(() => LS.get("sources_view_mode", "table"));
-  useEffect(() => { LS.set("sources_view_mode", viewMode); }, [viewMode]);
 
   // Faol bo'lim o'zgarsa — yangi manba formasida ham default aktiv bo'lsin
   useEffect(() => {
@@ -5637,24 +4189,24 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
   return (
     <div>
       {/* Stats — 4 tile */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 10 }}>
         {[
           { l: "Jami manbalar", v: sources.length, sub: `${[...new Set(sources.map(s => s.type))].length} xil turdan`, c: "var(--text)" },
           { l: "Faol manbalar", v: activeSources.length, sub: "So'nggi 24 soatda", c: "var(--green)" },
           { l: "Jami yozuvlar", v: totalRows.toLocaleString(), sub: staleSources.length ? `${staleSources.length} eskirgan` : "Hammasi yangi", c: "var(--gold)" },
           { l: "Oxirgi sinxron", v: lastSyncStr, sub: newest ? newest.name : "—", c: "var(--text)", small: true },
         ].map((c, i) => (
-          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
-            <div style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: "var(--muted)", marginBottom: 6 }}>{c.l}</div>
-            <div style={{ fontFamily: "var(--fh)", fontSize: c.small ? 17 : 26, fontWeight: 800, color: c.c, letterSpacing: "-0.5px", lineHeight: 1.1 }}>{c.v}</div>
-            <div style={{ fontSize: 11, marginTop: 4, fontFamily: "var(--fm)", color: "var(--muted)" }}>{c.sub}</div>
+          <div key={i} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+            <div style={{ fontFamily: "var(--fm)", fontSize: 9.5, letterSpacing: 0.8, textTransform: "uppercase", color: "var(--muted)", marginBottom: 3 }}>{c.l}</div>
+            <div style={{ fontFamily: "var(--fh)", fontSize: c.small ? 15 : 22, fontWeight: 800, color: c.c, letterSpacing: "-0.5px", lineHeight: 1.1 }}>{c.v}</div>
+            <div style={{ fontSize: 10.5, marginTop: 2, fontFamily: "var(--fm)", color: "var(--muted)" }}>{c.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Filter tabs + view toggle */}
-      {sources.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      {/* Top row: filter tabs (chap) + Yangi manba tugmasi (o'ng) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+        {sources.length > 0 && (
           <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 9 }}>
             {[
               { id: "all", lbl: "Barchasi", count: sources.length },
@@ -5664,7 +4216,7 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
             ].map(t => (
               <div key={t.id} onClick={() => setStatusFilter(t.id)}
                 style={{
-                  padding: "6px 12px", fontSize: 12.5, cursor: "pointer", borderRadius: 6,
+                  padding: "5px 11px", fontSize: 12, cursor: "pointer", borderRadius: 6,
                   background: statusFilter === t.id ? "var(--s1)" : "transparent",
                   color: statusFilter === t.id ? "var(--text)" : "var(--text2)",
                   fontWeight: statusFilter === t.id ? 600 : 500,
@@ -5676,33 +4228,15 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
               </div>
             ))}
           </div>
-          <div style={{ flex: 1 }}></div>
-          {/* View toggle: cards | table */}
-          <div style={{ display: "flex", gap: 2, padding: 3, background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 9 }}>
-            {[
-              { id: "table", lbl: "☰ Jadval" },
-              { id: "cards", lbl: "⊞ Kartalar" },
-            ].map(v => (
-              <div key={v.id} onClick={() => setViewMode(v.id)}
-                style={{
-                  padding: "6px 12px", fontSize: 12, cursor: "pointer", borderRadius: 6,
-                  background: viewMode === v.id ? "var(--s1)" : "transparent",
-                  color: viewMode === v.id ? "var(--text)" : "var(--muted)",
-                  fontWeight: viewMode === v.id ? 600 : 500,
-                  boxShadow: viewMode === v.id ? "var(--shadow-sm)" : "none",
-                  fontFamily: "var(--fh)", transition: "all .15s",
-                }}>
-                {v.lbl}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
+        <div style={{ flex: 1 }}></div>
+        {!adding && (
+          <button className="btn btn-primary btn-sm" onClick={() => setAdding(true)}>+ Yangi Manba Qo'shish</button>
+        )}
+      </div>
 
-      {/* Manba qo'shish */}
-      {!adding ? (
-        <button className="btn btn-primary mb16" onClick={() => setAdding(true)}>+ Yangi Manba Qo'shish</button>
-      ) : (
+      {/* Add panel — faqat tugma bosilganda */}
+      {adding && (
         <div className="add-panel mb16" style={{ position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div className="section-hd" style={{ margin: 0 }}>Manba Turi Tanlang</div>
@@ -5909,49 +4443,15 @@ function DataHubPage({ sources, setSources, push, user, orgContext, activeDepart
         </div>
       ) : (
         <>
-          {/* Bulk expand/collapse tugmalari */}
-          {sources.length > 1 && (
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10 }}>
-              <button className="btn btn-ghost btn-xs"
-                onClick={() => setBulkExpand({ v: true, ts: Date.now() })}
-                style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-                Hammasini ochish
-              </button>
-              <button className="btn btn-ghost btn-xs"
-                onClick={() => setBulkExpand({ v: false, ts: Date.now() })}
-                style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="18 15 12 9 6 15" />
-                </svg>
-                Hammasini yig'ish
-              </button>
-            </div>
-          )}
-          {viewMode === "cards" ? (
-            filteredSources.map(src => (
-              <SourceItem
-                key={src.id}
-                src={src}
-                onUpdate={updateSource}
-                onDelete={deleteSource}
-                push={push}
-                bulkExpand={bulkExpand}
-              />
-            ))
-          ) : (
-            <SourcesTable
-              sources={filteredSources}
-              isStale={isStale}
-              onUpdate={updateSource}
-              onDelete={deleteSource}
-              push={push}
-              setBulkExpand={setBulkExpand}
-              bulkExpand={bulkExpand}
-            />
-          )}
+          <SourcesTable
+            sources={filteredSources}
+            isStale={isStale}
+            onUpdate={updateSource}
+            onDelete={deleteSource}
+            push={push}
+            setBulkExpand={setBulkExpand}
+            bulkExpand={bulkExpand}
+          />
           {filteredSources.length === 0 && sources.length > 0 && (
             <div style={{ padding: 32, textAlign: "center", background: "var(--s1)", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--muted)", fontSize: 13 }}>
               Tanlangan filtr bo'yicha manba topilmadi
@@ -6119,9 +4619,35 @@ function SourcesTable({ sources, isStale, onUpdate, onDelete, push, setBulkExpan
               </button>
             </div>
 
-            {/* Expanded panel — existing SourceItem full editor */}
+            {/* Expanded panel — embed SourceItem body (header yashirilgan) */}
             {isOpen && (
-              <div style={{ padding: "0 20px 16px", background: "var(--s2)", borderBottom: "1px solid var(--border)" }}>
+              <div className="embed-source" style={{
+                padding: "18px 24px 22px",
+                background: "var(--s2)",
+                borderBottom: "1px solid var(--border)",
+                position: "relative",
+              }}>
+                {/* Mini header: "Boshqarish" ekanligini eslatuvchi label */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  marginBottom: 14, paddingBottom: 10, borderBottom: "1px dashed var(--border)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "var(--fm)", fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)", fontWeight: 600 }}>
+                      Manbani boshqarish
+                    </span>
+                    <span style={{ fontFamily: "var(--fh)", fontSize: 12, color: "var(--text)", fontWeight: 600 }}>· {src.name}</span>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); onDelete(src.id); }}
+                    title="Manbani o'chirish"
+                    style={{
+                      padding: "5px 10px", fontSize: 11, background: "rgba(248,113,113,0.08)",
+                      border: "1px solid rgba(248,113,113,0.2)", borderRadius: 6,
+                      color: "var(--red)", cursor: "pointer", fontFamily: "var(--fh)", fontWeight: 600,
+                    }}>
+                    ✕ O'chirish
+                  </button>
+                </div>
                 <SourceItem
                   src={src}
                   onUpdate={onUpdate}
@@ -6148,18 +4674,18 @@ function OnboardingModal({ open, onClose, onGoSources, onGoDemo }) {
   if (!open) return null;
 
   const SOURCE_OPTIONS = [
-    { id: "excel",     icon: "📊", name: "Excel / CSV",    desc: "Fayl yuklash" },
-    { id: "sheets",    icon: "📑", name: "Google Sheets",  desc: "Havola orqali" },
-    { id: "instagram", icon: "📷", name: "Instagram",       desc: "Akkaunt ulash" },
-    { id: "telegram",  icon: "✈️", name: "Telegram Bot",    desc: "Tezkor ma'lumot" },
-    { id: "crm",       icon: "🏫", name: "CRM Tizim",       desc: "Integratsiya" },
-    { id: "manual",    icon: "✏️", name: "Qo'lda kiritish", desc: "Oddiy jadval" },
+    { id: "excel", icon: "📊", name: "Excel / CSV", desc: "Fayl yuklash" },
+    { id: "sheets", icon: "📑", name: "Google Sheets", desc: "Havola orqali" },
+    { id: "instagram", icon: "📷", name: "Instagram", desc: "Akkaunt ulash" },
+    { id: "telegram", icon: "✈️", name: "Telegram Bot", desc: "Tezkor ma'lumot" },
+    { id: "crm", icon: "🏫", name: "CRM Tizim", desc: "Integratsiya" },
+    { id: "manual", icon: "✏️", name: "Qo'lda kiritish", desc: "Oddiy jadval" },
   ];
 
   const STEPS = [
     { label: "Xush kelibsiz", title: "ANALIX'ga xush kelibsiz! 👋", sub: "3 daqiqada birinchi tahlilingizni oling" },
-    { label: "Manba ulang",    title: "Birinchi manbangizni tanlang", sub: "ANALIX ma'lumotlaringizni o'qib, avtomatik tahlil qiladi" },
-    { label: "Boshlash",       title: "Tayyormisiz?",                  sub: "Manba ulagach — AI'dan har qanday biznes savolingizni so'rang" },
+    { label: "Manba ulang", title: "Birinchi manbangizni tanlang", sub: "ANALIX ma'lumotlaringizni o'qib, avtomatik tahlil qiladi" },
+    { label: "Boshlash", title: "Tayyormisiz?", sub: "Manba ulagach — AI'dan har qanday biznes savolingizni so'rang" },
   ];
 
   const next = () => step < STEPS.length - 1 ? setStep(step + 1) : onClose();
@@ -6288,7 +4814,7 @@ function OnboardingModal({ open, onClose, onGoSources, onGoDemo }) {
                   { k: "⌘K", d: "Tezkor qidiruv / buyruqlar" },
                   { k: "G D", d: "Bosh sahifaga o'tish" },
                   { k: "G A", d: "Tahlilga o'tish" },
-                  { k: "?",   d: "Bu panelni qayta ochish" },
+                  { k: "?", d: "Bu panelni qayta ochish" },
                 ].map((s, i) => (
                   <div key={i} style={{ padding: "10px 14px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontFamily: "var(--fm)", fontSize: 11, padding: "3px 8px", background: "var(--s3)", border: "1px solid var(--border)", borderRadius: 5, fontWeight: 600 }}>{s.k}</span>
@@ -6457,147 +4983,147 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
     if (!data.length) return { ctx: "", meta: {} };
     const tp = source.type || "generic";
 
-    const f = (n) => { n = Number(n)||0; return n>=1e9?(n/1e9).toFixed(1)+"B":n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?(n/1e3).toFixed(1)+"K":String(Math.round(n)); };
-    const sh = (v, n=18) => String(v??"-").replace(/\s+/g," ").slice(0,n);
-    const numVals = (arr, col) => arr.map(r=>parseFloat(r[col])).filter(v=>!isNaN(v)&&v>=0);
-    const stats = (vals) => { if(!vals.length) return null; const sum=vals.reduce((a,b)=>a+b,0); return {sum,avg:sum/vals.length,max:Math.max(...vals),min:Math.min(...vals),n:vals.length}; };
-    const topCnt = (arr, col, n=7) => { const c={}; arr.forEach(r=>{const v=sh(r[col]);if(v&&v!=="-"&&v!=="null"&&v!=="undefined")c[v]=(c[v]||0)+1;}); return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,n); };
-    const topSum = (arr, catCol, numCol, n=7) => { const c={}; arr.forEach(r=>{const k=sh(r[catCol]);const v=parseFloat(r[numCol]);if(k&&k!=="-"&&k!=="null"&&!isNaN(v)&&v>=0)c[k]=(c[k]||0)+v;}); return Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,n); };
-    const monthTrend = (arr, dateCol, valFn, n=8) => { const m={}; arr.forEach(r=>{const d=String(r[dateCol]||"").slice(0,7);if(/^\d{4}-\d{2}$/.test(d)){if(!m[d])m[d]=0;m[d]+=valFn(r);}}); return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0])).slice(-n); };
-    const cap = (s) => s.length>3500?s.slice(0,3500)+"\n...[qisqartirildi]":s;
+    const f = (n) => { n = Number(n) || 0; return n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(Math.round(n)); };
+    const sh = (v, n = 18) => String(v ?? "-").replace(/\s+/g, " ").slice(0, n);
+    const numVals = (arr, col) => arr.map(r => parseFloat(r[col])).filter(v => !isNaN(v) && v >= 0);
+    const stats = (vals) => { if (!vals.length) return null; const sum = vals.reduce((a, b) => a + b, 0); return { sum, avg: sum / vals.length, max: Math.max(...vals), min: Math.min(...vals), n: vals.length }; };
+    const topCnt = (arr, col, n = 7) => { const c = {}; arr.forEach(r => { const v = sh(r[col]); if (v && v !== "-" && v !== "null" && v !== "undefined") c[v] = (c[v] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, n); };
+    const topSum = (arr, catCol, numCol, n = 7) => { const c = {}; arr.forEach(r => { const k = sh(r[catCol]); const v = parseFloat(r[numCol]); if (k && k !== "-" && k !== "null" && !isNaN(v) && v >= 0) c[k] = (c[k] || 0) + v; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, n); };
+    const monthTrend = (arr, dateCol, valFn, n = 8) => { const m = {}; arr.forEach(r => { const d = String(r[dateCol] || "").slice(0, 7); if (/^\d{4}-\d{2}$/.test(d)) { if (!m[d]) m[d] = 0; m[d] += valFn(r); } }); return Object.entries(m).sort((a, b) => a[0].localeCompare(b[0])).slice(-n); };
+    const cap = (s) => s.length > 3500 ? s.slice(0, 3500) + "\n...[qisqartirildi]" : s;
 
     // ── INSTAGRAM ──
     if (tp === "instagram") {
-      const profile = data.find(d=>d._type==="PROFIL_STATISTIKA")||{};
-      const posts = data.filter(d=>!d._type&&!d._entity).slice(0,60);
-      const L = [`INSTAGRAM: "@${source.profileName||source.name}" | ${posts.length} post`];
-      if (profile.followers) L.push(`Followers:${f(profile.followers)} | Following:${f(profile.following||0)} | Media:${f(profile.media_count||posts.length)}`);
+      const profile = data.find(d => d._type === "PROFIL_STATISTIKA") || {};
+      const posts = data.filter(d => !d._type && !d._entity).slice(0, 60);
+      const L = [`INSTAGRAM: "@${source.profileName || source.name}" | ${posts.length} post`];
+      if (profile.followers) L.push(`Followers:${f(profile.followers)} | Following:${f(profile.following || 0)} | Media:${f(profile.media_count || posts.length)}`);
       if (posts.length) {
-        const lk = numVals(posts,"like_count"); const cm = numVals(posts,"comments_count"); const vw = numVals(posts.filter(p=>p.video_views>0),"video_views");
+        const lk = numVals(posts, "like_count"); const cm = numVals(posts, "comments_count"); const vw = numVals(posts.filter(p => p.video_views > 0), "video_views");
         const sl = stats(lk); const sc = stats(cm); const sv = stats(vw);
         L.push(`\nPOST METRIKALAR (${posts.length} ta):`);
-        if(sl) L.push(`Like: jami=${f(sl.sum)} | o'rtacha=${f(sl.avg)} | max=${f(sl.max)}`);
-        if(sc) L.push(`Comment: jami=${f(sc.sum)} | o'rtacha=${f(sc.avg)} | max=${f(sc.max)}`);
-        if(sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
-        const top7 = [...posts].map(p=>({...p,eng:(p.like_count||0)+(p.comments_count||0)})).sort((a,b)=>b.eng-a.eng).slice(0,7);
+        if (sl) L.push(`Like: jami=${f(sl.sum)} | o'rtacha=${f(sl.avg)} | max=${f(sl.max)}`);
+        if (sc) L.push(`Comment: jami=${f(sc.sum)} | o'rtacha=${f(sc.avg)} | max=${f(sc.max)}`);
+        if (sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
+        const top7 = [...posts].map(p => ({ ...p, eng: (p.like_count || 0) + (p.comments_count || 0) })).sort((a, b) => b.eng - a.eng).slice(0, 7);
         L.push(`\nTOP 7 POST:`);
-        top7.forEach((p,i)=>L.push(`${i+1}. like=${f(p.like_count||0)} comment=${f(p.comments_count||0)} | "${sh(p.caption||"",25)}" | ${String(p.timestamp||"").slice(0,10)}`));
-        const mTrend = monthTrend(posts,"timestamp",p=>(p.like_count||0)+(p.comments_count||0));
-        if(mTrend.length>1){L.push(`\nOYLIK ENGAGEMENT TREND:`);L.push(mTrend.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | "));}
-        const mPost = monthTrend(posts,"timestamp",()=>1);
-        if(mPost.length>1) L.push(`Post soni: ${mPost.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
-        const types={}; posts.forEach(p=>{const t=p.media_type||"IMAGE";types[t]=(types[t]||0)+1;});
-        if(Object.keys(types).length>1) L.push(`Media turi: ${Object.entries(types).map(([k,v])=>`${k}=${v}`).join(", ")}`);
+        top7.forEach((p, i) => L.push(`${i + 1}. like=${f(p.like_count || 0)} comment=${f(p.comments_count || 0)} | "${sh(p.caption || "", 25)}" | ${String(p.timestamp || "").slice(0, 10)}`));
+        const mTrend = monthTrend(posts, "timestamp", p => (p.like_count || 0) + (p.comments_count || 0));
+        if (mTrend.length > 1) { L.push(`\nOYLIK ENGAGEMENT TREND:`); L.push(mTrend.map(([m, v]) => `${m.slice(5)}=${f(v)}`).join(" | ")); }
+        const mPost = monthTrend(posts, "timestamp", () => 1);
+        if (mPost.length > 1) L.push(`Post soni: ${mPost.map(([m, v]) => `${m.slice(5)}=${v}`).join(" | ")}`);
+        const types = {}; posts.forEach(p => { const t = p.media_type || "IMAGE"; types[t] = (types[t] || 0) + 1; });
+        if (Object.keys(types).length > 1) L.push(`Media turi: ${Object.entries(types).map(([k, v]) => `${k}=${v}`).join(", ")}`);
       }
-      return { ctx:cap(L.join("\n")), meta:{type:"instagram"} };
+      return { ctx: cap(L.join("\n")), meta: { type: "instagram" } };
     }
 
     // ── TELEGRAM ──
     if (tp === "telegram") {
-      const chStat = data.find(d=>d._type==="KANAL_STATISTIKA")||{};
-      const posts = data.filter(d=>!d._type&&!d._entity).slice(0,60);
-      const L = [`TELEGRAM: "${source.name||source.profileName}"`];
-      const subs = chStat.subscribers||chStat.members_count||chStat.members;
-      if(subs) L.push(`Obunachi: ${f(subs)}`);
-      if(posts.length){
-        const vw=numVals(posts,"views"); const rc=numVals(posts,"reactions");
-        const sv=stats(vw); const sr=stats(rc);
+      const chStat = data.find(d => d._type === "KANAL_STATISTIKA") || {};
+      const posts = data.filter(d => !d._type && !d._entity).slice(0, 60);
+      const L = [`TELEGRAM: "${source.name || source.profileName}"`];
+      const subs = chStat.subscribers || chStat.members_count || chStat.members;
+      if (subs) L.push(`Obunachi: ${f(subs)}`);
+      if (posts.length) {
+        const vw = numVals(posts, "views"); const rc = numVals(posts, "reactions");
+        const sv = stats(vw); const sr = stats(rc);
         L.push(`\nPOST METRIKALAR (${posts.length} ta):`);
-        if(sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
-        if(sr) L.push(`Reactions: jami=${f(sr.sum)} | o'rtacha=${f(sr.avg)} | max=${f(sr.max)}`);
-        const top7=[...posts].sort((a,b)=>(b.views||0)-(a.views||0)).slice(0,7);
+        if (sv) L.push(`Views: jami=${f(sv.sum)} | o'rtacha=${f(sv.avg)} | max=${f(sv.max)}`);
+        if (sr) L.push(`Reactions: jami=${f(sr.sum)} | o'rtacha=${f(sr.avg)} | max=${f(sr.max)}`);
+        const top7 = [...posts].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 7);
         L.push(`\nTOP 7 POST (views):`);
-        top7.forEach((p,i)=>L.push(`${i+1}. views=${f(p.views||0)} reactions=${f(p.reactions||0)} | "${sh(p.text||p.message||"",25)}" | ${String(p.date||"").slice(0,10)}`));
-        const mTrend=monthTrend(posts,"date",p=>p.views||0);
-        if(mTrend.length>1){L.push(`\nOYLIK VIEWS TREND:`);L.push(mTrend.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | "));}
-        const mPost=monthTrend(posts,"date",()=>1);
-        if(mPost.length>1) L.push(`Post soni: ${mPost.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
+        top7.forEach((p, i) => L.push(`${i + 1}. views=${f(p.views || 0)} reactions=${f(p.reactions || 0)} | "${sh(p.text || p.message || "", 25)}" | ${String(p.date || "").slice(0, 10)}`));
+        const mTrend = monthTrend(posts, "date", p => p.views || 0);
+        if (mTrend.length > 1) { L.push(`\nOYLIK VIEWS TREND:`); L.push(mTrend.map(([m, v]) => `${m.slice(5)}=${f(v)}`).join(" | ")); }
+        const mPost = monthTrend(posts, "date", () => 1);
+        if (mPost.length > 1) L.push(`Post soni: ${mPost.map(([m, v]) => `${m.slice(5)}=${v}`).join(" | ")}`);
       }
-      return { ctx:cap(L.join("\n")), meta:{type:"telegram"} };
+      return { ctx: cap(L.join("\n")), meta: { type: "telegram" } };
     }
 
     // ── CRM ──
     if (tp === "crm") {
-      const summary = data.find(d=>d._type==="CRM_STATISTIKA")||{};
-      const students = data.filter(d=>d._entity==="student");
-      const groups   = data.filter(d=>d._entity==="group");
-      const teachers = data.filter(d=>d._entity==="teacher");
-      const leads    = data.filter(d=>d._entity==="lid");
+      const summary = data.find(d => d._type === "CRM_STATISTIKA") || {};
+      const students = data.filter(d => d._entity === "student");
+      const groups = data.filter(d => d._entity === "group");
+      const teachers = data.filter(d => d._entity === "teacher");
+      const leads = data.filter(d => d._entity === "lid");
       const L = [`CRM: "${source.name}" | o'quvchi:${students.length} guruh:${groups.length} o'qituvchi:${teachers.length} lid:${leads.length}`];
-      const smKeys = Object.keys(summary).filter(k=>!["_type","id","_id"].includes(k)&&summary[k]!=null);
-      if(smKeys.length) L.push(`Umumiy: ${smKeys.slice(0,8).map(k=>`${k}=${f(summary[k])}`).join(" | ")}`);
-      if(students.length){
+      const smKeys = Object.keys(summary).filter(k => !["_type", "id", "_id"].includes(k) && summary[k] != null);
+      if (smKeys.length) L.push(`Umumiy: ${smKeys.slice(0, 8).map(k => `${k}=${f(summary[k])}`).join(" | ")}`);
+      if (students.length) {
         L.push(`\nO'QUVCHILAR (${students.length}):`);
-        const bySt=topCnt(students,"status"); if(bySt.length) L.push(`Status: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
-        const byTe=topCnt(students,"teacher"||"o_qituvchi"); if(byTe.length) L.push(`O'qituvchi: ${byTe.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
-        const byGr=topCnt(students,"group"||"guruh"); if(byGr.length) L.push(`Guruh: ${byGr.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
-        const payCol=["payment","to'lov","summa","amount"].find(c=>students[0]?.[c]!=null);
-        if(payCol){const ps=stats(numVals(students,payCol));if(ps)L.push(`To'lov: jami=${f(ps.sum)} | o'rtacha=${f(ps.avg)}`);}
-        const dateCol=["created_at","sana","date"].find(c=>students[0]?.[c]!=null);
-        if(dateCol){const mT=monthTrend(students,dateCol,()=>1);if(mT.length>1)L.push(`Oylik qabul: ${mT.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);}
+        const bySt = topCnt(students, "status"); if (bySt.length) L.push(`Status: ${bySt.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+        const byTe = topCnt(students, "teacher" || "o_qituvchi"); if (byTe.length) L.push(`O'qituvchi: ${byTe.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+        const byGr = topCnt(students, "group" || "guruh"); if (byGr.length) L.push(`Guruh: ${byGr.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+        const payCol = ["payment", "to'lov", "summa", "amount"].find(c => students[0]?.[c] != null);
+        if (payCol) { const ps = stats(numVals(students, payCol)); if (ps) L.push(`To'lov: jami=${f(ps.sum)} | o'rtacha=${f(ps.avg)}`); }
+        const dateCol = ["created_at", "sana", "date"].find(c => students[0]?.[c] != null);
+        if (dateCol) { const mT = monthTrend(students, dateCol, () => 1); if (mT.length > 1) L.push(`Oylik qabul: ${mT.map(([m, v]) => `${m.slice(5)}=${v}`).join(" | ")}`); }
       }
-      if(groups.length){
+      if (groups.length) {
         L.push(`\nGURUHLAR (${groups.length}):`);
-        const bySt=topCnt(groups,"status"); if(bySt.length) L.push(`Status: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
-        const byTe=topCnt(groups,"teacher"||"teacher_name"); if(byTe.length) L.push(`O'qituvchi: ${byTe.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
+        const bySt = topCnt(groups, "status"); if (bySt.length) L.push(`Status: ${bySt.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+        const byTe = topCnt(groups, "teacher" || "teacher_name"); if (byTe.length) L.push(`O'qituvchi: ${byTe.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
       }
-      if(leads.length){
+      if (leads.length) {
         L.push(`\nLIDLAR (${leads.length}):`);
-        const bySt=topCnt(leads,"status"); if(bySt.length) L.push(`Holat: ${bySt.map(([k,v])=>`${k}=${v}`).join(" | ")}`);
-        const dateLead=["created_at","sana","date"].find(c=>leads[0]?.[c]!=null);
-        if(dateLead){const mT=monthTrend(leads,dateLead,()=>1);if(mT.length>1)L.push(`Oylik lid: ${mT.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);}
+        const bySt = topCnt(leads, "status"); if (bySt.length) L.push(`Holat: ${bySt.map(([k, v]) => `${k}=${v}`).join(" | ")}`);
+        const dateLead = ["created_at", "sana", "date"].find(c => leads[0]?.[c] != null);
+        if (dateLead) { const mT = monthTrend(leads, dateLead, () => 1); if (mT.length > 1) L.push(`Oylik lid: ${mT.map(([m, v]) => `${m.slice(5)}=${v}`).join(" | ")}`); }
       }
-      return { ctx:cap(L.join("\n")), meta:{type:"crm",students:students.length,groups:groups.length,leads:leads.length} };
+      return { ctx: cap(L.join("\n")), meta: { type: "crm", students: students.length, groups: groups.length, leads: leads.length } };
     }
 
     // ── GENERIC (Sheets / Excel / CSV / Document) ──
-    const SKIP = new Set(["id","_id","_type","_entity","webhook_url","source_id","__v","token","password"]);
-    const firstRow = data.find(r=>typeof r==="object"&&r!==null)||{};
-    const allCols = Object.keys(firstRow).filter(k=>!SKIP.has(k));
+    const SKIP = new Set(["id", "_id", "_type", "_entity", "webhook_url", "source_id", "__v", "token", "password"]);
+    const firstRow = data.find(r => typeof r === "object" && r !== null) || {};
+    const allCols = Object.keys(firstRow).filter(k => !SKIP.has(k));
 
     // Excel/Sheets fayl tuzilmasi (sheet metadata) ni aniqla
-    const FILE_META = new Set(["row_count","rows","is_hidden","sheet_name","sheet_index","header_rows","column_count"]);
-    const metaHit = allCols.filter(c=>FILE_META.has(c.toLowerCase())).length;
-    if (metaHit >= 2) return { ctx:"", meta:{ isFileMeta:true, sheetNames: data.map(r=>r.sheet_name||r.list_nomi||"").filter(Boolean).slice(0,24) } };
+    const FILE_META = new Set(["row_count", "rows", "is_hidden", "sheet_name", "sheet_index", "header_rows", "column_count"]);
+    const metaHit = allCols.filter(c => FILE_META.has(c.toLowerCase())).length;
+    if (metaHit >= 2) return { ctx: "", meta: { isFileMeta: true, sheetNames: data.map(r => r.sheet_name || r.list_nomi || "").filter(Boolean).slice(0, 24) } };
 
-    const numCols=[], dateCols=[], catCols=[];
-    allCols.forEach(col=>{
-      const vals=data.slice(0,100).map(r=>r[col]).filter(v=>v!=null&&v!=="");
-      if(!vals.length) return;
-      const isDate=vals.filter(v=>/\d{4}-\d{2}/.test(String(v))).length>vals.length*0.5;
-      const isNum=vals.filter(v=>!isNaN(parseFloat(v))&&isFinite(String(v))).length>vals.length*0.6;
-      if(isDate) dateCols.push(col);
-      else if(isNum) numCols.push(col);
+    const numCols = [], dateCols = [], catCols = [];
+    allCols.forEach(col => {
+      const vals = data.slice(0, 100).map(r => r[col]).filter(v => v != null && v !== "");
+      if (!vals.length) return;
+      const isDate = vals.filter(v => /\d{4}-\d{2}/.test(String(v))).length > vals.length * 0.5;
+      const isNum = vals.filter(v => !isNaN(parseFloat(v)) && isFinite(String(v))).length > vals.length * 0.6;
+      if (isDate) dateCols.push(col);
+      else if (isNum) numCols.push(col);
       else catCols.push(col);
     });
-    const L=[];
-    L.push(`MANBA: "${source.name}" | ${data.length} yozuv | ustunlar:[${allCols.slice(0,10).join(",")}]`);
+    const L = [];
+    L.push(`MANBA: "${source.name}" | ${data.length} yozuv | ustunlar:[${allCols.slice(0, 10).join(",")}]`);
     L.push(`Raqamli:[${numCols.join(",")}] | Sana:[${dateCols.join(",")}] | Kategoriya:[${catCols.join(",")}]`);
     L.push("");
-    if(numCols.length){
+    if (numCols.length) {
       L.push("## RAQAMLI STATISTIKA:");
-      numCols.slice(0,5).forEach(col=>{const st=stats(numVals(data,col));if(st)L.push(`${col}: jami=${f(st.sum)} | o'rtacha=${f(st.avg)} | max=${f(st.max)} | min=${f(st.min)} | n=${st.n}`);});
+      numCols.slice(0, 5).forEach(col => { const st = stats(numVals(data, col)); if (st) L.push(`${col}: jami=${f(st.sum)} | o'rtacha=${f(st.avg)} | max=${f(st.max)} | min=${f(st.min)} | n=${st.n}`); });
       L.push("");
     }
-    if(catCols.length){
+    if (catCols.length) {
       L.push("## KATEGORIYA TAQSIMOTI:");
-      catCols.slice(0,3).forEach(col=>{const top=topCnt(data,col);if(top.length>1)L.push(`${col}: ${top.map(([k,v])=>`${k}=${v}`).join(" | ")}`);});
+      catCols.slice(0, 3).forEach(col => { const top = topCnt(data, col); if (top.length > 1) L.push(`${col}: ${top.map(([k, v]) => `${k}=${v}`).join(" | ")}`); });
       L.push("");
     }
-    if(catCols.length&&numCols.length){
+    if (catCols.length && numCols.length) {
       L.push("## KATEGORIYA × RAQAM (bar chart):");
-      catCols.slice(0,2).forEach(cc=>numCols.slice(0,2).forEach(nc=>{const top=topSum(data,cc,nc);if(top.length>1)L.push(`${cc}→${nc}: ${top.map(([k,v])=>`${k}=${f(v)}`).join(" | ")}`); }));
+      catCols.slice(0, 2).forEach(cc => numCols.slice(0, 2).forEach(nc => { const top = topSum(data, cc, nc); if (top.length > 1) L.push(`${cc}→${nc}: ${top.map(([k, v]) => `${k}=${f(v)}`).join(" | ")}`); }));
       L.push("");
     }
-    if(dateCols.length&&numCols.length){
+    if (dateCols.length && numCols.length) {
       L.push("## OYLIK TREND:");
-      const dc=dateCols[0];
-      numCols.slice(0,2).forEach(nc=>{const tr=monthTrend(data,dc,r=>parseFloat(r[nc])||0);if(tr.length>1)L.push(`${nc}: ${tr.map(([m,v])=>`${m.slice(5)}=${f(v)}`).join(" | ")}`);});
-      const mCnt=monthTrend(data,dc,()=>1);if(mCnt.length>1)L.push(`yozuv_soni: ${mCnt.map(([m,v])=>`${m.slice(5)}=${v}`).join(" | ")}`);
+      const dc = dateCols[0];
+      numCols.slice(0, 2).forEach(nc => { const tr = monthTrend(data, dc, r => parseFloat(r[nc]) || 0); if (tr.length > 1) L.push(`${nc}: ${tr.map(([m, v]) => `${m.slice(5)}=${f(v)}`).join(" | ")}`); });
+      const mCnt = monthTrend(data, dc, () => 1); if (mCnt.length > 1) L.push(`yozuv_soni: ${mCnt.map(([m, v]) => `${m.slice(5)}=${v}`).join(" | ")}`);
       L.push("");
     }
-    const raw=L.join("\n");
-    return { ctx:cap(raw), meta:{numCols,dateCols,catCols,total:data.length,type:"generic"} };
+    const raw = L.join("\n");
+    return { ctx: cap(raw), meta: { numCols, dateCols, catCols, total: data.length, type: "generic" } };
   };
 
   // Avtomatik chart generatsiya
@@ -6639,7 +5165,7 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
 
       // Excel fayl tuzilmasi aniqlandi — foydalanuvchiga yo'naltirish
       if (meta.isFileMeta) {
-        const sheets = meta.sheetNames?.length ? `\n\nMavjud varaqlar: ${meta.sheetNames.map(s=>`"${s}"`).join(", ")}` : "";
+        const sheets = meta.sheetNames?.length ? `\n\nMavjud varaqlar: ${meta.sheetNames.map(s => `"${s}"`).join(", ")}` : "";
         setAiError(`📊 Bu manba Excel fayl tuzilmasini ko'rsatmoqda (sheet ro'yxati — nechta qator, yashirin yoki yo'q).${sheets}\n\n💡 Haqiqiy biznes ma'lumotlari uchun quyidagi qidiruv maydoniga murojaat qiling:\n• "Kassa I oylik daromad trend"\n• "Guruh bo'yicha o'quvchilar soni"\n• "Umumiy savdo statistikasi"`);
         setAiLoading(false);
         return;
@@ -6648,12 +5174,12 @@ function ChartsPage({ sources, aiConfig, user, hasPersonalKey, onAiUsed, runBack
       // Qattiq chek — token limit uchun
       if (ctx.length > 3500) ctx = ctx.slice(0, 3500) + "\n...[qisqartirildi]";
 
-      const hasNum  = meta.numCols?.length > 0;
-      const hasCat  = meta.catCols?.length > 0;
+      const hasNum = meta.numCols?.length > 0;
+      const hasCat = meta.catCols?.length > 0;
       const hasDate = meta.dateCols?.length > 0;
 
       const autoRules = `VAZIFA: Quyidagi qoidalarga amal qilib chart yarat (faqat mavjud ma'lumot uchun):
-${hasNum  ? "✅ Raqamli ma'lumot bor → STATS karta (jami, o'rtacha, max, min — haqiqiy raqamlar)" : ""}
+${hasNum ? "✅ Raqamli ma'lumot bor → STATS karta (jami, o'rtacha, max, min — haqiqiy raqamlar)" : ""}
 ${hasCat && hasNum ? "✅ Kategoriya × Raqam bor → BAR chart (top-7 kategoriya)" : ""}
 ${hasDate && hasNum ? "✅ Oylik trend bor → LINE yoki AREA chart" : ""}
 ${hasCat ? "✅ Kategoriya taqsimoti bor → PIE chart" : ""}
@@ -6698,7 +5224,30 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
       // Backend orqali AI chaqiruv (CORS/network muammolarini oldini olish)
       const curCacheKey = cacheKey;
       let result = "";
-      if (Token.get()) {
+
+      // YANGI: AI Brain orchestrator (chart.generate intent — bir o'qli, JSON output)
+      const useBrain = LS.get("brain_charts", 1) !== 0 && Token.get();
+
+      if (useBrain) {
+        try {
+          const brainResult = await AiBrainAPI.run('chart.generate', {
+            customPrompt: prompt,
+            sourceId: workingSource?.id,
+            sourceName: workingSource?.name,
+          }, { language: 'uz' });
+          if (brainResult?.parsed) {
+            // Brain JSON parse qilingan — to'g'ridan-to'g'ri ishlatamiz
+            result = JSON.stringify(brainResult.parsed);
+          } else {
+            result = brainResult?.reply || "";
+          }
+        } catch (be) {
+          console.warn("[brain] chart.generate fail, falling back:", be.message);
+        }
+      }
+
+      // FALLBACK: eski /api/ai/complete (brain o'chirilgan yoki fail bo'lsa)
+      if (!result && Token.get()) {
         const resp = await fetch("/api/ai/complete", {
           method: "POST",
           headers: { "content-type": "application/json", "authorization": `Bearer ${Token.get()}` },
@@ -6709,7 +5258,7 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
         try { d = JSON.parse(text); } catch { throw new Error(`Server xato (${resp.status}). AI javob qaytarmadi — qayta urinib ko'ring.`); }
         if (!resp.ok) throw new Error(d.error || `Server xato ${resp.status}`);
         result = d.result || "";
-      } else {
+      } else if (!result) {
         await callAI([{ role: "user", content: prompt }], aiConfig, (chunk) => { result = chunk; });
       }
 
@@ -6721,7 +5270,7 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
         try { parsed = JSON.parse(jsonMatch[0]); } catch {
           // Kesilgan JSON — oxirgi to'liq ] gacha qisqartirib urinish
           const fixed = jsonMatch[0].replace(/,\s*$/, '').replace(/,\s*\]/, ']');
-          try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : ']}') ); } catch {}
+          try { parsed = JSON.parse(fixed + (fixed.endsWith('}') ? '' : ']}')); } catch { }
         }
       }
       if (!parsed) throw new Error("AI javob noto'g'ri formatda qaytdi. Qayta urinib ko'ring.");
@@ -6813,8 +5362,8 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
 
   const filteredByType = chartTypeFilter === "all" ? allCards
     : chartTypeFilter === "stats" ? allCards.filter(c => c.type === "stats" || c.type === "gauge")
-    : chartTypeFilter === "highlight" ? allCards.filter(c => c.type === "highlight")
-    : allCards.filter(c => c.type === "chart" && c.chartType === chartTypeFilter);
+      : chartTypeFilter === "highlight" ? allCards.filter(c => c.type === "highlight")
+        : allCards.filter(c => c.type === "chart" && c.chartType === chartTypeFilter);
 
   const filteredCards = filter === "table" ? allCards : filteredByType;
   const filters = [
@@ -6901,8 +5450,8 @@ JSON SCHEMA (FAQAT JSON qaytarasan, boshqa hech narsa yozma):
           {CHART_TYPE_FILTERS.map(f => {
             const count = f.id === "all" ? allCards.length
               : f.id === "stats" ? allCards.filter(c => c.type === "stats" || c.type === "gauge").length
-              : f.id === "highlight" ? allCards.filter(c => c.type === "highlight").length
-              : allCards.filter(c => c.type === "chart" && c.chartType === f.id).length;
+                : f.id === "highlight" ? allCards.filter(c => c.type === "highlight").length
+                  : allCards.filter(c => c.type === "chart" && c.chartType === f.id).length;
             if (f.id !== "all" && count === 0) return null;
             const active = chartTypeFilter === f.id;
             return (
@@ -7044,6 +5593,107 @@ function VoiceButton({ onResult }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Source select dropdown — ko'rinarli va guruhlangan manba tanlovi
+// ─────────────────────────────────────────────────────────────
+function SourceSelectDropdown({ sources, activeIds, onToggle, onSelectAll, onClearAll }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const activeCount = sources.filter(s => activeIds.includes(s.id)).length;
+  const allOn = activeCount === sources.length;
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  // Manba turi bo'yicha guruhlash
+  const grouped = sources.reduce((acc, s) => {
+    const key = s.type || "other";
+    (acc[key] = acc[key] || []).push(s);
+    return acc;
+  }, {});
+  const groupOrder = Object.keys(grouped).sort();
+
+  const summary = activeCount === 0
+    ? "Hech qaysi tanlanmagan"
+    : allOn
+      ? `${sources.length} ta manba`
+      : `${activeCount} / ${sources.length} manba`;
+
+  return (
+    <div ref={wrapRef} className="src-select-wrap" style={{ position: "relative" }}>
+      <button
+        className={`src-select-trigger ${activeCount > 0 ? "has-active" : ""}`}
+        onClick={() => setOpen(v => !v)}
+        title="Manbalarni tanlang — AI faqat tanlanganlardan ma'lumot oladi"
+      >
+        <span className="src-select-dot" data-on={activeCount > 0 ? "1" : "0"} />
+        <span className="src-select-summary">{summary}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ transition: "transform .2s", transform: open ? "rotate(180deg)" : "none" }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="src-select-popup">
+          <div className="src-select-head">
+            <div>
+              <div className="src-select-head-title">AI uchun manbalar</div>
+              <div className="src-select-head-sub">Tanlanganlar javobda ishlatiladi</div>
+            </div>
+            <button
+              className="src-select-toggle-all"
+              onClick={() => allOn ? onClearAll() : onSelectAll()}
+            >
+              {allOn ? "Hech qaysi" : "Hammasi"}
+            </button>
+          </div>
+
+          <div className="src-select-list">
+            {groupOrder.map(typeKey => {
+              const meta = SOURCE_TYPES[typeKey] || { label: typeKey, icon: "•", color: "var(--muted)" };
+              return (
+                <div key={typeKey} className="src-select-group">
+                  <div className="src-select-group-head">
+                    <span style={{ color: meta.color }}>{meta.icon}</span>
+                    <span>{meta.label}</span>
+                    <span className="src-select-group-count">{grouped[typeKey].length}</span>
+                  </div>
+                  {grouped[typeKey].map(s => {
+                    const active = activeIds.includes(s.id);
+                    const rows = s.data?.length || 0;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`src-select-item ${active ? "is-active" : ""}`}
+                        onClick={() => onToggle(s.id)}
+                      >
+                        <span className={`src-select-check ${active ? "on" : ""}`}>
+                          {active && (
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="src-select-item-dot" style={{ background: s.color || meta.color }} />
+                        <span className="src-select-item-name" title={s.name}>{s.name}</span>
+                        <span className="src-select-item-rows">{fmtNum(rows)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // CHAT PAGE
 // ─────────────────────────────────────────────────────────────
 function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
@@ -7069,10 +5719,16 @@ function ChatPage({ aiConfig, sources, user, hasPersonalKey, onAiUsed }) {
   const pinnedKey = "u_" + uid + "_chat_pinned";
   const [pinnedIds, setPinnedIds] = useState(() => LS.get(pinnedKey, []));
   const [threadSearch, setThreadSearch] = useState("");
-  const [historyOpen, setHistoryOpen] = useState(() => {
-    // Mobilda default yopiq
-    try { return window.innerWidth >= 920; } catch { return true; }
-  });
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest(".chat-export-menu")) setExportMenuOpen(false);
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [exportMenuOpen]);
   const togglePin = (sid) => {
     const next = pinnedIds.includes(sid) ? pinnedIds.filter(x => x !== sid) : [...pinnedIds, sid];
     setPinnedIds(next);
@@ -7342,23 +5998,23 @@ MAZMUN QOIDALARI:
           const getToolLabel = (name, input = {}) => {
             const src = input.sourceId || input.source_id || '';
             const col = input.column || input.dateColumn || '';
-            const op  = input.operation || '';
-            const q   = input.query || input.searchQuery || '';
+            const op = input.operation || '';
+            const q = input.query || input.searchQuery || '';
             const grp = input.groupBy || input.group_by || '';
             const lim = input.limit ? `top ${input.limit}` : '';
             const srcLabel = src ? ` · ${src}` : '';
             switch (name) {
-              case 'list_sources':        return `📚 Manbalar ro'yxati`;
-              case 'get_source_schema':   return `🗂 Sxema${srcLabel}`;
-              case 'search_rows':         return `🔎 Qidiruv${srcLabel}${q ? `: "${q.slice(0,20)}"` : ''}`;
-              case 'aggregate':           return `🧮 ${op||'Hisob'}${srcLabel}${col ? ` [${col}]` : ''}`;
-              case 'group_by':            return `📊 Guruhlash${srcLabel}${grp ? ` [${grp}]` : ''}`;
+              case 'list_sources': return `📚 Manbalar ro'yxati`;
+              case 'get_source_schema': return `🗂 Sxema${srcLabel}`;
+              case 'search_rows': return `🔎 Qidiruv${srcLabel}${q ? `: "${q.slice(0, 20)}"` : ''}`;
+              case 'aggregate': return `🧮 ${op || 'Hisob'}${srcLabel}${col ? ` [${col}]` : ''}`;
+              case 'group_by': return `📊 Guruhlash${srcLabel}${grp ? ` [${grp}]` : ''}`;
               case 'get_distinct_values': return `🔣 Noyob${srcLabel}${col ? ` [${col}]` : ''}`;
-              case 'cross_source_search': return `🌐 Umumiy qidiruv${q ? `: "${q.slice(0,20)}"` : ''}`;
-              case 'time_series':         return `📈 Trend${srcLabel}${col ? ` [${col}]` : ''}`;
-              case 'query_data':          return `⚡ So'rov${srcLabel}${grp ? ` [${grp}]` : col ? ` [${col}]` : ''}${lim ? ` ${lim}` : ''}`;
-              case 'save_memory':         return `💾 Eslab qolish`;
-              default:                    return `🔧 ${name}`;
+              case 'cross_source_search': return `🌐 Umumiy qidiruv${q ? `: "${q.slice(0, 20)}"` : ''}`;
+              case 'time_series': return `📈 Trend${srcLabel}${col ? ` [${col}]` : ''}`;
+              case 'query_data': return `⚡ So'rov${srcLabel}${grp ? ` [${grp}]` : col ? ` [${col}]` : ''}${lim ? ` ${lim}` : ''}`;
+              case 'save_memory': return `💾 Eslab qolish`;
+              default: return `🔧 ${name}`;
             }
           };
           const seenTools = [];
@@ -7376,8 +6032,8 @@ MAZMUN QOIDALARI:
             if (remaining > 0) {
               // Buffer katta bo'lsa katta qadam (tez yetkazish), kichik bo'lsa 1-2 belgi
               const step = remaining > 200 ? Math.ceil(remaining / 20)
-                         : remaining > 50 ? 6
-                         : remaining > 10 ? 3 : 1;
+                : remaining > 50 ? 6
+                  : remaining > 10 ? 3 : 1;
               displayedText = pendingText.slice(0, displayedText.length + step);
               setMessages(m => {
                 const c = [...m];
@@ -7412,6 +6068,12 @@ MAZMUN QOIDALARI:
                 };
                 return c;
               });
+            } else if (evt.type === 'thinking' && typeof evt.data?.text === 'string') {
+              // Extended thinking — AI ichki fikrlash matni (debug, log)
+              // Foydalanuvchiga ko'rinmaydi, lekin console.log orqali kuzatilishi mumkin
+              if (typeof window !== 'undefined' && window.__DEBUG_AI_THINKING) {
+                console.debug('[AI thinking]', evt.data.text);
+              }
             } else if (evt.type === 'delta' && typeof evt.data?.text === 'string') {
               pendingText += evt.data.text;
               if (!streaming) {
@@ -7666,12 +6328,21 @@ MAZMUN QOIDALARI:
     <div className={`chat-hub ${historyOpen ? "" : "collapsed"}`}>
       {/* ═══ CHAT HISTORY (ChatGPT-style chap panel) ═══ */}
       <aside className={`chat-history ${historyOpen ? "" : "mobile-closed"}`}>
+        <div className="chat-history-head">
+          <div className="chat-history-head-main">
+            <div className="chat-history-title">Suhbatlar</div>
+            <div className="chat-history-sub">{sessions.length} ta · 3 kun saqlanadi</div>
+          </div>
+          <button className="chat-history-toggle" onClick={() => setHistoryOpen(false)} title="Panelni yopish">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+          </button>
+        </div>
         <button className="chat-history-new" onClick={newSession}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Yangi suhbat
         </button>
         <div className="chat-history-search">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input placeholder="Suhbatlarni qidirish..." value={threadSearch} onChange={e => setThreadSearch(e.target.value)} />
           {threadSearch && <span style={{ cursor: "pointer", color: "var(--muted)", fontSize: 11 }} onClick={() => setThreadSearch("")}>✕</span>}
         </div>
@@ -7699,180 +6370,168 @@ MAZMUN QOIDALARI:
       </aside>
 
       {/* ═══ CHAT MAIN ═══ */}
-      <div className="chat-wrap">
-      {/* ── AI provayder info + export tugmalari ── */}
-      <div className="flex aic gap8" style={{ padding: "8px 12px", background: "var(--s2)", borderRadius: 10, border: `1px solid ${prov.color}25`, flexShrink: 0 }}>
-        <span style={{ color: prov.color, fontSize: 15 }}>{prov.icon}</span>
-        <span className="text-xs text-muted">Faol:</span>
-        <span style={{ fontSize: 11.5, color: prov.color, fontFamily: "var(--fh)", fontWeight: 600 }}>{prov.name} — {aiConfig.model}</span>
-        {!(aiConfig.apiKey || GlobalAI.get()?.apiKey) && <span className="badge b-warn ml-auto"> Kalit kerak</span>}
-        {(aiConfig.apiKey || GlobalAI.get()?.apiKey) && <span className="badge b-ok ml-auto">✓ Ulangan</span>}
-        <div style={{ marginLeft: aiConfig.apiKey ? "8px" : "auto", display: "flex", gap: 4 }}>
-          <button className="chat-export-btn" onClick={copyChat} title="Nusxalash">Nusxa</button>
-          <button className="chat-export-btn" onClick={downloadChat} title="TXT yuklab olish">TXT</button>
-          <button className="chat-export-btn" onClick={downloadChatExcel} title="Excel yuklab olish">Excel</button>
-          <button className="chat-export-btn" onClick={shareChat} title="Ulashish"> Ulash</button>
-        </div>
-        <button onClick={newSession}
-          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(0,201,190,0.3)", background: "rgba(0,201,190,0.08)", color: "var(--teal)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "rgba(0,201,190,0.15)" }}
-          onMouseLeave={e => { e.currentTarget.style.background = "rgba(0,201,190,0.08)" }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          Yangi
-        </button>
-        <button onClick={() => setHistoryOpen(p => !p)}
-          title="Tarix panelini ochish/yopish"
-          style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: historyOpen ? "var(--s3)" : "var(--s2)", color: "var(--text2)", fontSize: 11, fontFamily: "var(--fh)", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "all .2s" }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
-          Tarix ({sessions.length})
-        </button>
-      </div>
-
-      {/* ── Manbalar tanlash ── */}
-      {connectedSources.length > 0 && (
-        <div className="chat-src-tags" style={{ marginTop: 8 }}>
-          <span className="text-xs text-muted" style={{ alignSelf: "center", flexShrink: 0 }}>Manbalar:</span>
-          {connectedSources.map(s => (
-            <span key={s.id} className="src-tag" onClick={() => toggleSrc(s.id)}
-              style={{ borderColor: activeSrcIds.includes(s.id) ? s.color : "var(--border)", color: activeSrcIds.includes(s.id) ? s.color : "var(--muted)", background: activeSrcIds.includes(s.id) ? `${s.color}12` : "transparent" }}>
-              {SOURCE_TYPES[s.type]?.icon} {s.name} ({s.data.length})
-            </span>
-          ))}
-          {activeSrcIds.length === 0 && <span className="text-xs text-muted">Hech bir manba tanlanmagan</span>}
-        </div>
-      )}
-      {connectedSources.length === 0 && <div className="notice text-xs text-muted" style={{ padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", flexShrink: 0, marginTop: 8 }}>Data Hub da manba ulang — AI shu ma'lumotlar asosida javob beradi</div>}
-
-      {/* ── Kategoriya filtrlari ── */}
-      <div className="chat-cat-row">
-        {["all", ...cats].map(c => (
-          <button key={c} className="qcat" onClick={() => setQCat(c)}
-            style={qCat === c ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.1)" } : {}}>
-            {CAT_LABELS[c] || c}
+      <div className="chat-wrap" style={{ position: "relative" }}>
+        {!historyOpen && (
+          <button className="chat-open-tab" onClick={() => setHistoryOpen(true)} title="Tarixni ochish">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+            <span className="lbl">TARIX</span>
           </button>
-        ))}
-      </div>
-
-      {/* Chat history endi chap panel'da (chat-history) */}
-      <div className="chat-msgs-wrap">
-        <div className="chat-msgs">
-          <div ref={topRef} />
-          {messages.map((m, i) => (
-            <div key={i} className={`msg ${m.role === "user" ? "user" : ""}`}>
-              <div className={`ava ${m.role === "user" ? "user" : "ai"}`} style={m.role === "assistant" ? { color: prov.color } : {}}>{m.role === "user" ? "U" : prov.icon}</div>
-              <div className="bubble">
-                <div className="flex aic jb">
-                  <span className="bubble-meta">{m.role === "user" ? "Siz" : `${prov.name} AI`}</span>
-                  {m.time && <span style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{m.time}</span>}
-                </div>
-                {m.role === "user" && m.srcNames?.length > 0 && (
-                  <div className="flex gap4 mb6" style={{ flexWrap: "wrap" }}>
-                    {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
-                  </div>
-                )}
-                {m.role === "assistant" ? <RenderMD text={m.content} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>}
-                {m.role === "assistant" && (m.confidence || m.sourcesUsed?.length > 0 || m.toolsUsed?.length > 0) && (
-                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", fontSize: 10 }}>
-                    {m.confidence && (
-                      <span title="Javob ishonchliligi" style={{
-                        padding: "2px 8px", borderRadius: 10, fontWeight: 600, fontFamily: "var(--fm)",
-                        background: m.confidence === 'high' ? 'rgba(16,185,129,0.15)' : m.confidence === 'medium' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
-                        color: m.confidence === 'high' ? '#10B981' : m.confidence === 'medium' ? '#CA8A04' : '#EF4444',
-                      }}>
-                        {m.confidence === 'high' ? '✓ Yuqori ishonch' : m.confidence === 'medium' ? '~ O\'rtacha ishonch' : '? Past ishonch'}
-                      </span>
-                    )}
-                    {m.sourcesUsed?.map((s, j) => (
-                      <span key={j} title="Ishlatilgan manba" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(0,201,190,0.12)", color: "var(--teal)", fontWeight: 600 }}>📎 {s}</span>
-                    ))}
-                    {m.toolsUsed && m.toolsUsed.length > 0 && !m.toolProgress && (
-                      <span title="Bajarilgan amallar" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(148,163,184,0.12)", color: "var(--muted)" }}>
-                        🔧 {m.toolsUsed.length} ta amal
-                      </span>
-                    )}
-                  </div>
-                )}
+        )}
+        {/* ── Minimal topbar ── */}
+        <div className="chat-topbar">
+          <span style={{ color: prov.color, fontSize: 14 }}>{prov.icon}</span>
+          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "var(--fh)" }}>{prov.name}</span>
+          <span style={{ fontSize: 9, color: "var(--muted)", padding: "2px 6px", background: "var(--s3)", borderRadius: 4, fontFamily: "var(--fm)" }}>{aiConfig.model}</span>
+          {(aiConfig.apiKey || GlobalAI.get()?.apiKey)
+            ? <span className="chat-topbar-status ok">✓</span>
+            : <span className="chat-topbar-status warn">⚠</span>}
+          <div className="chat-topbar-actions">
+            {connectedSources.length > 0 && (
+              <SourceSelectDropdown
+                sources={connectedSources}
+                activeIds={activeSrcIds}
+                onToggle={toggleSrc}
+                onSelectAll={() => setActiveSrcIds(connectedSources.map(s => s.id))}
+                onClearAll={() => setActiveSrcIds([])}
+              />
+            )}
+            <div className={`chat-export-menu ${exportMenuOpen ? "open" : ""}`}>
+              <button className="chat-topbar-btn" onClick={() => setExportMenuOpen(v => !v)}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9" /></svg>
+              </button>
+              <div className="menu-popup" onClick={() => setExportMenuOpen(false)}>
+                <div className="menu-item" onClick={copyChat}><span className="menu-item-icon">📋</span><span>Nusxalash</span></div>
+                <div className="menu-item" onClick={downloadChat}><span className="menu-item-icon">TXT</span><span>TXT</span></div>
+                <div className="menu-item" onClick={downloadChatExcel}><span className="menu-item-icon">XLS</span><span>Excel</span></div>
+                <div className="menu-item" onClick={shareChat}><span className="menu-item-icon">🔗</span><span>Ulash</span></div>
               </div>
             </div>
-          ))}
-          {loading && <div className="msg"><div className="ava ai" style={{ color: prov.color }}>{prov.icon}</div><div className="bubble"><div className="typing-ind"><span /><span /><span /></div></div></div>}
-          <div ref={bottomRef} />
-        </div>
-        {/* ── Floating scroll tugmalari (o'ng tomonda yuqorida/pastda) ── */}
-        {messages.length > 3 && (
-          <div className="chat-float-btns">
-            <button className="chat-float-btn" onClick={scrollToTop} title="Yuqoriga">↑</button>
-            <button className="chat-float-btn" onClick={scrollToBottom} title="Pastga">↓</button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Tezkor savollar (chap/o'ng strelkalar bilan) ── */}
-      <div className="chat-q-wrap">
-        <button className="chat-q-arrow" onClick={() => scrollQ(-1)} title="Chapga">‹</button>
-        <div className="chat-q-scroll" ref={qScrollRef}>
-          {filteredQ.map((q, i) => (
-            <button key={i} className="qchip" onClick={() => { pendingSendRef.current = q.text; setInput(q.text); }} style={{ "--qc": q.c }} disabled={loading}>
-              <span className="qchip-icon">{q.icon}</span>
-              {q.text}
+            <button className="chat-topbar-btn primary" onClick={newSession} title="Yangi suhbat">+</button>
+            <button className="chat-topbar-btn" onClick={() => setHistoryOpen(p => !p)} style={{ position: "relative" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+              {sessions.length > 0 && <span style={{ position: "absolute", top: -3, right: -3, background: "var(--gold)", color: "#000", fontSize: 7, fontWeight: 700, borderRadius: 6, padding: "0 3px", minWidth: 10, textAlign: "center", lineHeight: "12px" }}>{sessions.length}</span>}
             </button>
-          ))}
+          </div>
         </div>
-        <button className="chat-q-arrow" onClick={() => scrollQ(1)} title="O'ngga">›</button>
-      </div>
 
-      {/* ── Attached file preview ── */}
-      {attachedFile && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "var(--s2)", borderRadius: "10px 10px 0 0", borderBottom: "none", margin: "0 0 -1px 0" }}>
-          {attachedFile.preview ? (
-            <img src={attachedFile.preview} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} />
-          ) : (
-            <div style={{ width: 32, height: 32, borderRadius: 6, background: "var(--s3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-              {attachedFile.ext === "pdf" ? "📕" : attachedFile.ext === "xlsx" || attachedFile.ext === "xls" ? "📊" : attachedFile.ext === "docx" ? "📘" : "📄"}
+        {/* Chat history endi chap panel'da (chat-history) */}
+        <div className="chat-msgs-wrap">
+          <div className="chat-msgs">
+            <div ref={topRef} />
+            {messages.length === 0 && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "flex-start", justifyContent: "center", textAlign: "left", padding: "40px 20px", color: "var(--muted)" }}>
+                <div style={{ fontSize: 48, marginBottom: 20, filter: "grayscale(1) opacity(0.3)" }}>{prov.icon}</div>
+                <h2 style={{ fontFamily: "var(--fh)", color: "var(--text)", fontSize: 24, marginBottom: 8 }}>Qanday yordam bera olaman?</h2>
+                <p style={{ maxWidth: 400, fontSize: 14, lineHeight: 1.6 }}>Biznes ma'lumotlaringizni tahlil qilish, strategiyalar yaratish va savollaringizga javob berishga tayyorman.</p>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} className={`msg ${m.role === "user" ? "user" : ""}`}>
+                <div className={`ava ${m.role === "user" ? "user" : "ai"}`} style={m.role === "assistant" ? { color: prov.color } : {}}>{m.role === "user" ? "U" : prov.icon}</div>
+                <div className="bubble">
+                  <div className="flex aic jb">
+                    <span className="bubble-meta">{m.role === "user" ? "Siz" : `${prov.name} AI`}</span>
+                    {m.time && <span style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>{m.time}</span>}
+                  </div>
+                  {m.role === "user" && m.srcNames?.length > 0 && (
+                    <div className="flex gap4 mb6" style={{ flexWrap: "wrap" }}>
+                      {m.srcNames.map((n, j) => <span key={j} style={{ fontSize: 9, padding: "1px 7px", borderRadius: 10, background: "rgba(0,201,190,0.1)", color: "var(--teal)" }}> {n}</span>)}
+                    </div>
+                  )}
+                  {m.role === "assistant" ? <RenderMD text={m.content} /> : <span style={{ whiteSpace: "pre-wrap" }}>{m.content}</span>}
+                  {m.role === "assistant" && (m.confidence || m.sourcesUsed?.length > 0 || m.toolsUsed?.length > 0) && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", fontSize: 10 }}>
+                      {m.confidence && (
+                        <span title="Javob ishonchliligi" style={{
+                          padding: "2px 8px", borderRadius: 10, fontWeight: 600, fontFamily: "var(--fm)",
+                          background: m.confidence === 'high' ? 'rgba(16,185,129,0.15)' : m.confidence === 'medium' ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
+                          color: m.confidence === 'high' ? '#10B981' : m.confidence === 'medium' ? '#CA8A04' : '#EF4444',
+                        }}>
+                          {m.confidence === 'high' ? '✓ Yuqori ishonch' : m.confidence === 'medium' ? '~ O\'rtacha ishonch' : '? Past ishonch'}
+                        </span>
+                      )}
+                      {m.sourcesUsed?.map((s, j) => (
+                        <span key={j} title="Ishlatilgan manba" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(0,201,190,0.12)", color: "var(--teal)", fontWeight: 600 }}>📎 {s}</span>
+                      ))}
+                      {m.toolsUsed && m.toolsUsed.length > 0 && !m.toolProgress && (
+                        <span title="Bajarilgan amallar" style={{ padding: "2px 8px", borderRadius: 10, background: "rgba(148,163,184,0.12)", color: "var(--muted)" }}>
+                          🔧 {m.toolsUsed.length} ta amal
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {loading && <div className="msg"><div className="ava ai" style={{ color: prov.color }}>{prov.icon}</div><div className="bubble"><div className="typing-ind"><span /><span /><span /></div></div></div>}
+            <div ref={bottomRef} />
+          </div>
+          {/* ── Floating scroll tugmalari (o'ng tomonda yuqorida/pastda) ── */}
+          {messages.length > 3 && (
+            <div className="chat-float-btns">
+              <button className="chat-float-btn" onClick={scrollToTop} title="Yuqoriga">↑</button>
+              <button className="chat-float-btn" onClick={scrollToBottom} title="Pastga">↓</button>
             </div>
           )}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</div>
-            <div style={{ fontSize: 9, color: "var(--muted)" }}>{(attachedFile.size / 1024).toFixed(1)} KB</div>
-          </div>
-          <button onClick={() => setAttachedFile(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 14 }}>✕</button>
         </div>
-      )}
-      {/* ── Input ── */}
-      <div className="chat-input-row">
-        <input ref={chatFileRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.txt,.csv,.md,.pdf,.docx,.doc,.xlsx,.xls,.json" style={{ display: "none" }}
-          onChange={e => { if (e.target.files[0]) handleChatFile(e.target.files[0]); e.target.value = ""; }} />
-        <button onClick={() => chatFileRef.current?.click()} title="Fayl yuklash (rasm, PDF, Excel, Word)"
-          style={{ minWidth: 44, height: 44, borderRadius: 12, border: "1px solid var(--border)", background: attachedFile ? "linear-gradient(135deg,rgba(0,201,190,0.15),rgba(0,201,190,0.08))" : "var(--s2)", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--teal)"; e.currentTarget.style.color = "var(--teal)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = attachedFile ? "var(--teal)" : "var(--muted)"; }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
-        </button>
-        <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing, fayl paste qiling yoki 🎤 bosing..."} value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
-          onPaste={e => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-            for (const item of items) {
-              if (item.kind === "file") {
-                e.preventDefault();
-                const file = item.getAsFile();
-                if (file) handleChatFile(file);
-                return;
-              }
-            }
-          }} />
-        <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
-        {loading ? (
-          <button className="chat-send-btn" onClick={stopAI} title="To'xtatish"
-            style={{ background: "linear-gradient(135deg,#F87171,#EF4444)", boxShadow: "0 4px 16px rgba(248,113,113,0.4)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-          </button>
-        ) : (
-          <button className="chat-send-btn" onClick={() => sendMsg()} disabled={!input.trim() && !attachedFile}>➤</button>
-        )}
-      </div>
+
+        {/* ── Bottom zone: input ── */}
+        <div style={{ flexShrink: 0, width: "100%", position: "relative", zIndex: 10 }}>
+
+          {/* ── Attached file preview ── */}
+          {attachedFile && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "var(--s2)", borderRadius: "10px 10px 0 0", borderBottom: "none", margin: "0 0 -1px 0" }}>
+              {attachedFile.preview ? (
+                <img src={attachedFile.preview} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover" }} />
+              ) : (
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: "var(--s3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+                  {attachedFile.ext === "pdf" ? "📕" : attachedFile.ext === "xlsx" || attachedFile.ext === "xls" ? "📊" : attachedFile.ext === "docx" ? "📘" : "📄"}
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{attachedFile.name}</div>
+                <div style={{ fontSize: 9, color: "var(--muted)" }}>{(attachedFile.size / 1024).toFixed(1)} KB</div>
+              </div>
+              <button onClick={() => setAttachedFile(null)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 14 }}>✕</button>
+            </div>
+          )}
+          {/* ── Input ── */}
+          <div className="chat-input-row">
+            <input ref={chatFileRef} type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.txt,.csv,.md,.pdf,.docx,.doc,.xlsx,.xls,.json" style={{ display: "none" }}
+              onChange={e => { if (e.target.files[0]) handleChatFile(e.target.files[0]); e.target.value = ""; }} />
+            <button onClick={() => chatFileRef.current?.click()} title="Fayl yuklash"
+              style={{ minWidth: 36, height: 36, borderRadius: 10, border: "1px solid var(--border)", background: attachedFile ? "linear-gradient(135deg,rgba(0,201,190,0.15),rgba(0,201,190,0.08))" : "transparent", color: attachedFile ? "var(--teal)" : "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--teal)"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = attachedFile ? "var(--teal)" : "var(--muted)"; }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+            </button>
+            <textarea className="chat-ta" rows={1} placeholder={attachedFile ? `${attachedFile.name} haqida savol bering...` : "Savolingizni yozing, fayl paste qiling yoki 🎤 bosing..."} value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
+              onPaste={e => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                for (const item of items) {
+                  if (item.kind === "file") {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) handleChatFile(file);
+                    return;
+                  }
+                }
+              }} />
+            <VoiceButton onResult={(text) => { setInput(prev => prev ? prev + ' ' + text : text); }} />
+            {loading ? (
+              <button className="chat-send-btn" onClick={stopAI} title="To'xtatish"
+                style={{ background: "linear-gradient(135deg,#F87171,#EF4444)", boxShadow: "0 4px 16px rgba(248,113,113,0.4)" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+              </button>
+            ) : (
+              <button className="chat-send-btn" onClick={() => sendMsg()} disabled={!input.trim() && !attachedFile}>➤</button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -7884,6 +6543,18 @@ MAZMUN QOIDALARI:
 function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
+  const [activeSrcIds, setActiveSrcIds] = useState(() => connectedSources.map(s => s.id));
+  // Manbalar o'zgarsa — yangilarini avto-tanlash
+  useEffect(() => {
+    setActiveSrcIds(prev => {
+      const validIds = new Set(connectedSources.map(s => s.id));
+      const kept = prev.filter(id => validIds.has(id));
+      const newOnes = connectedSources.filter(s => !prev.includes(s.id)).map(s => s.id);
+      return [...kept, ...newOnes];
+    });
+  }, [connectedSources.length]);
+  const toggleSrc = (id) => setActiveSrcIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const activeSources = connectedSources.filter(s => activeSrcIds.includes(s.id));
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeLabel, setActiveLabel] = useState("");
@@ -7909,44 +6580,49 @@ function AnalyticsPage({ aiConfig, sources, user, onAiUsed }) {
       return;
     }
     setLoading(true); setResult(""); setActiveLabel(mod.l); setActiveMod(mod);
-    // SMART CONTEXT — Backend dan aqlli qidiruv
-    let ctx = "";
-    if (Token.get() && connectedSources.length > 0) {
-      try {
-        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), mod.p);
-        if (smartResult?.context) ctx = smartResult.context;
-      } catch (e) { console.warn("[TAHLIL-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
-    }
-    if (!ctx) ctx = buildMergedContext(connectedSources);
-    const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
-    const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
 
-JAVOB FORMATI (QATIY):
+    // YANGI: AI Brain orchestrator orqali (tools + caching + thinking + streaming)
+    const useBrain = LS.get("brain_analytics", 1) !== 0 && Token.get();
 
-## 📊 Executive Xulosa
-> Eng muhim 2-3 topilma — Boss birinchi ko'rsin (masalan: Daromad 3.77B ↑12%, Muammo: Xarajat ↑18%)
-
-## 📈 KPI Jadvali
-| Ko'rsatkich | Joriy | O'tgan davr | O'zgarish | Holat |
-|-------------|-------|-------------|-----------|-------|
-| [Real raqam] | [qiymat] | [qiymat] | +X% ↑ / -X% ↓ | 🟢/🟡/🔴 |
-
-## 🔍 Chuqur Tahlil
-[Segment/kategoriya/vaqt bo'yicha breakdown — aniq raqamlar bilan]
-
-## ⚠️ Muammolar *(faqat mavjud bo'lsa)*
-> 🔴 [Muammo] — [raqam] — ta'sir: [XM so'm / X%]
-
-## 💡 Amaliy Qarorlar
-| # | Tavsiya | Asoslanishi | Natija | Muddat |
-|---|---------|-------------|--------|--------|
-| 1 | Aniq harakat | Real raqam | +X% | 2 hafta |
-
-## 🔮 Prognoz *(trend bo'lsa)*
-[Keyingi oy/kvartal — optimistik / realistik / pessimistik senariy raqamlar bilan]
-
-QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B so'm formati | Tahlil chuqurligi: CEO darajasi`;
     try {
+      if (useBrain) {
+        let accumulated = "";
+        try {
+          await AiBrainAPI.stream('analytics.module', {
+            moduleLabel: mod.l,
+            modulePrompt: mod.p,
+            activeSourceIds: activeSources.map(s => s.id),
+            scopeName: orgContext?.organization?.name || "Biznes",
+          }, (evt) => {
+            if (evt.type === 'delta' && typeof evt.data?.text === 'string') {
+              accumulated += evt.data.text;
+              setResult(accumulated);
+            }
+          }, { language: 'uz' });
+          if (!isPersonal && onAiUsed) onAiUsed();
+          setLoading(false);
+          return;
+        } catch (be) {
+          console.warn("[brain] analytics.module fail, falling back:", be.message);
+          // davom — fallback callAI
+        }
+      }
+
+      // FALLBACK: eski callAI (brain o'chirilgan yoki fail bo'lsa)
+      let ctx = "";
+      if (Token.get() && activeSources.length > 0) {
+        try {
+          const smartResult = await SourcesAPI.getSmartContext(activeSources.map(s => s.id), mod.p);
+          if (smartResult?.context) ctx = smartResult.context;
+        } catch (e) { console.warn("[TAHLIL-CTX] fallback:", e.message); ctx = buildMergedContext(activeSources); }
+      }
+      if (!ctx) ctx = buildMergedContext(activeSources);
+      const srcInfo = activeSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
+      const enrichedPrompt = mod.p + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "\n\n[Ma'lumot ulash uchun Data Hub dan manba qo'shing]") + `
+
+JAVOB FORMATI: Markdown — Executive Xulosa, KPI Jadvali, Chuqur Tahlil, Qarorlar.
+QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar | 1.5M/2.3B so'm formati`;
+
       await callAI([{ role: "user", content: enrichedPrompt }], aiConfig, setResult);
       if (!isPersonal && onAiUsed) onAiUsed();
     }
@@ -8073,24 +6749,25 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
           <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
 
-        {/* Ulangan manbalar xulosa */}
+        {/* Ulangan manbalar — dropdown selektor (chat kabi) */}
         {connectedSources.length > 0 && (
-          <div className="card" style={{ marginBottom: 14, background: "var(--s1)" }}>
-            <div className="card-title mb10"> Ulangan Manbalar</div>
-            <div className="flex gap8 flex-wrap">
-              {connectedSources.map(s => {
-                const st = SOURCE_TYPES[s.type];
-                return (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)", fontSize: 12 }}>
-                    <span style={{ fontSize: 16 }}>{st.icon}</span>
-                    <div>
-                      <div style={{ fontWeight: 600, color: "var(--text)" }}>{s.name}</div>
-                      <div style={{ fontSize: 10, color: "var(--muted)" }}>{st.label} — {s.data?.length || 0} ta yozuv</div>
-                    </div>
-                  </div>
-                );
-              })}
+          <div className="ana-source-bar">
+            <div className="ana-source-bar-info">
+              <span className="ana-source-bar-eyebrow">Tahlil manbalari</span>
+              <span className="ana-source-bar-sub">
+                {activeSources.length === connectedSources.length
+                  ? `Hammasi tanlangan — ${fmtNum(activeSources.reduce((a, s) => a + (s.data?.length || 0), 0))} qator`
+                  : `${activeSources.length} / ${connectedSources.length} manba — ${fmtNum(activeSources.reduce((a, s) => a + (s.data?.length || 0), 0))} qator`
+                }
+              </span>
             </div>
+            <SourceSelectDropdown
+              sources={connectedSources}
+              activeIds={activeSrcIds}
+              onToggle={toggleSrc}
+              onSelectAll={() => setActiveSrcIds(connectedSources.map(s => s.id))}
+              onClearAll={() => setActiveSrcIds([])}
+            />
           </div>
         )}
 
@@ -8128,67 +6805,67 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
             {modCat === "fav" ? "⭐ Sevimli modullar yo'q — har modul ustidagi yulduzchani bosing" : "Bu kategoriyada modul topilmadi"}
           </div>
         ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 14, marginBottom: 18 }}>
-          {sortedMods.map((m, i) => {
-            const isFav = favMods.includes(m.l);
-            const isLoading = loading && activeLabel === m.l;
-            const cleanTitle = m.l.replace(/^[^\s]+\s/, "");
-            return (
-              <div key={i}
-                style={{
-                  background: "var(--s1)",
-                  border: `1px solid ${isLoading ? m.color + "60" : "var(--border)"}`,
-                  borderRadius: 12, padding: "16px 18px",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  transition: "all .2s var(--ease)", position: "relative",
-                  display: "flex", flexDirection: "column", gap: 10,
-                }}
-                onClick={() => !loading && run(m)}
-                onMouseEnter={e => { if (!loading) { e.currentTarget.style.borderColor = m.color + "50"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${m.color}18`; } }}
-                onMouseLeave={e => { if (!loading) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; } }}>
-                {/* Head: icon box + title + fav star */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 9,
-                    background: m.color + "1A", color: m.color,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0,
-                  }}>{m.icon || "📊"}</div>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 13.5, fontWeight: 700, color: isLoading ? m.color : "var(--text)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{cleanTitle}</div>
-                  <button onClick={(e) => { e.stopPropagation(); toggleFav(m.l); }}
-                    title={isFav ? "Sevimlidan chiqarish" : "Sevimli qilish"}
-                    style={{
-                      background: "none", border: "none", cursor: "pointer", fontSize: 16,
-                      color: isFav ? "var(--gold)" : "var(--muted2)", padding: 2,
-                      transition: "transform .15s",
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.15)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
-                    {isFav ? "★" : "☆"}
-                  </button>
-                </div>
-                {/* Desc */}
-                <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55, minHeight: 32 }}>
-                  {m.p.substring(0, 95)}...
-                </div>
-                {/* Footer: tag + CTA */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-                  <span style={{ fontFamily: "var(--fm)", fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase" }}>
-                    {MOD_CAT_LABELS[m.cat] || m.cat}
-                  </span>
-                  {isLoading ? (
-                    <div className="typing-ind" style={{ display: "flex", gap: 3 }}>
-                      <span style={{ background: m.color }} /><span style={{ background: m.color }} /><span style={{ background: m.color }} />
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 11.5, color: m.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                      Boshlash <span style={{ fontSize: 13 }}>→</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 14, marginBottom: 18 }}>
+            {sortedMods.map((m, i) => {
+              const isFav = favMods.includes(m.l);
+              const isLoading = loading && activeLabel === m.l;
+              const cleanTitle = m.l.replace(/^[^\s]+\s/, "");
+              return (
+                <div key={i}
+                  style={{
+                    background: "var(--s1)",
+                    border: `1px solid ${isLoading ? m.color + "60" : "var(--border)"}`,
+                    borderRadius: 12, padding: "16px 18px",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    transition: "all .2s var(--ease)", position: "relative",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}
+                  onClick={() => !loading && run(m)}
+                  onMouseEnter={e => { if (!loading) { e.currentTarget.style.borderColor = m.color + "50"; e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 8px 24px ${m.color}18`; } }}
+                  onMouseLeave={e => { if (!loading) { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; } }}>
+                  {/* Head: icon box + title + fav star */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 9,
+                      background: m.color + "1A", color: m.color,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0,
+                    }}>{m.icon || "📊"}</div>
+                    <div style={{ fontFamily: "var(--fh)", fontSize: 13.5, fontWeight: 700, color: isLoading ? m.color : "var(--text)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{cleanTitle}</div>
+                    <button onClick={(e) => { e.stopPropagation(); toggleFav(m.l); }}
+                      title={isFav ? "Sevimlidan chiqarish" : "Sevimli qilish"}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer", fontSize: 16,
+                        color: isFav ? "var(--gold)" : "var(--muted2)", padding: 2,
+                        transition: "transform .15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.15)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}>
+                      {isFav ? "★" : "☆"}
+                    </button>
+                  </div>
+                  {/* Desc */}
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.55, minHeight: 32 }}>
+                    {m.p.substring(0, 95)}...
+                  </div>
+                  {/* Footer: tag + CTA */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                    <span style={{ fontFamily: "var(--fm)", fontSize: 10, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase" }}>
+                      {MOD_CAT_LABELS[m.cat] || m.cat}
                     </span>
-                  )}
+                    {isLoading ? (
+                      <div className="typing-ind" style={{ display: "flex", gap: 3 }}>
+                        <span style={{ background: m.color }} /><span style={{ background: m.color }} /><span style={{ background: m.color }} />
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 11.5, color: m.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                        Boshlash <span style={{ fontSize: 13 }}>→</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
         )}
 
         {/* ── Loading holati ── */}
@@ -8218,22 +6895,54 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
                     a.click(); URL.revokeObjectURL(url);
                   }}> TXT</button>
                   <button className="chat-export-btn" title="PDF chop etish" onClick={() => {
-                    // Tahlil uchun PDF — ReportsPage dagi pdf funksiyani qayta ishlatish
-                    const mdToH = (text) => String(text).split("\n").map(line => {
-                      const t = line.trim();
-                      if (!t) return '<div style="height:8px"></div>';
-                      if (t === "---" || t === "***") return '<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">';
-                      if (t.startsWith("### ")) return `<h3 style="font-size:13px;font-weight:700;color:#4A5568;margin:14px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`;
-                      if (t.startsWith("## ")) return `<h2 style="font-size:15px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`;
-                      if (t.startsWith("# ")) return `<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1">${t.slice(2)}</h1>`;
-                      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:10px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 8px 8px 0;color:#2D3748">${t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
-                      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0"><span style="color:#0D9488;font-weight:bold;margin-right:6px">●</span>${t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
-                      const nm = t.match(/^(\d+)\.\s(.+)/);
-                      if (nm) return `<div style="padding-left:22px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800">${nm[1]}.</span>${nm[2].replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</div>`;
-                      if (t.startsWith("|") && t.endsWith("|")) { if (t.replace(/[|\-\s:]/g, "").length === 0) return ""; const cells = t.split("|").filter(c => c.trim()).map(c => c.trim()); return `<tr>${cells.map(c => `<td style="padding:8px 14px;border-bottom:1px solid #EDF2F7;font-size:12px">${c.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</td>`).join("")}</tr>`; }
-                      return `<div style="margin:3px 0;line-height:1.75">${t.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>')}</div>`;
-                    }).join("\n");
-                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px;border:1px solid #E2E8F0;border-radius:8px}table tr:first-child td{font-weight:700;color:#0D9488;border-bottom:2px solid #0D9488;background:#F0FDFA;text-transform:uppercase;font-size:10px;letter-spacing:1px}table tr:nth-child(even){background:#F7FAFC}@media print{body{padding:24px 32px}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid;border-image:linear-gradient(90deg,#0D9488,#B8860B,transparent) 1"><div><div style="font-size:24px;font-weight:800;color:#1A202C">ANA<span style="color:#B8860B">LIX</span></div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">Analix · analix.uz</div></body></html>`;
+                    // Tahlil uchun PDF — jadvallarni <table> ga to'g'ri o'raydi
+                    const fmtBold = (s) => s.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>');
+                    const mdToH = (text) => {
+                      const lines = String(text).split("\n");
+                      const out = [];
+                      const isTbl = (l) => l.trim().startsWith("|") && l.trim().endsWith("|");
+                      const isSep = (l) => l.trim().replace(/[|\-\s:]/g, "").length === 0;
+                      let i = 0;
+                      while (i < lines.length) {
+                        const t = lines[i].trim();
+                        // Jadval bloki
+                        if (isTbl(lines[i]) && !isSep(lines[i])) {
+                          const tblLines = [];
+                          while (i < lines.length && isTbl(lines[i])) {
+                            if (!isSep(lines[i])) tblLines.push(lines[i].trim());
+                            i++;
+                          }
+                          if (tblLines.length > 0) {
+                            const rows = tblLines.map(l => l.split("|").filter(c => c.trim()).map(c => c.trim()));
+                            const head = rows[0];
+                            const body = rows.slice(1);
+                            const headHtml = `<thead><tr>${head.map(c => `<th style="padding:11px 14px;font-weight:700;color:#FFFFFF;background:linear-gradient(135deg,#0D9488 0%,#0F766E 100%);text-transform:uppercase;font-size:10px;letter-spacing:0.8px;text-align:left;border:none">${fmtBold(c)}</th>`).join("")}</tr></thead>`;
+                            const bodyHtml = body.length ? `<tbody>${body.map((r, ri) => {
+                              const bg = ri % 2 === 0 ? "#FFFFFF" : "#F7FAFC";
+                              return `<tr style="background:${bg}">${r.map(c => `<td style="padding:9px 14px;border-bottom:1px solid #E2E8F0;font-size:12px;color:#2D3748">${fmtBold(c)}</td>`).join("")}</tr>`;
+                            }).join("")}</tbody>` : "";
+                            out.push(`<table style="width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;font-size:12px;border-radius:10px;overflow:hidden;border:1px solid #CBD5E0;box-shadow:0 1px 3px rgba(0,0,0,0.04)">${headHtml}${bodyHtml}</table>`);
+                            continue;
+                          }
+                        }
+                        // Boshqa elementlar
+                        if (!t) out.push('<div style="height:8px"></div>');
+                        else if (t === "---" || t === "***") out.push('<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">');
+                        else if (t.startsWith("### ")) out.push(`<h3 style="font-size:13px;font-weight:700;color:#4A5568;margin:14px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`);
+                        else if (t.startsWith("## ")) out.push(`<h2 style="font-size:15px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`);
+                        else if (t.startsWith("# ")) out.push(`<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid #0D9488">${t.slice(2)}</h1>`);
+                        else if (t.startsWith("> ")) out.push(`<div style="border-left:3px solid #0D9488;padding:10px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 8px 8px 0;color:#2D3748">${fmtBold(t.slice(2))}</div>`);
+                        else if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) out.push(`<div style="padding-left:16px;margin:3px 0"><span style="color:#0D9488;font-weight:bold;margin-right:6px">●</span>${fmtBold(t.slice(2))}</div>`);
+                        else {
+                          const nm = t.match(/^(\d+)\.\s(.+)/);
+                          if (nm) out.push(`<div style="padding-left:22px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800">${nm[1]}.</span>${fmtBold(nm[2])}</div>`);
+                          else out.push(`<div style="margin:3px 0;line-height:1.75">${fmtBold(t)}</div>`);
+                        }
+                        i++;
+                      }
+                      return out.join("\n");
+                    };
+                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,sans-serif;font-size:13px;line-height:1.75;color:#2D3748;padding:48px 56px;max-width:820px;margin:0 auto}@media print{body{padding:24px 32px} table{page-break-inside:avoid} thead{display:table-header-group}}</style></head><body><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #0D9488"><div><div style="font-size:24px;font-weight:800;color:#1A202C">ANA<span style="color:#B8860B">LIX</span></div><div style="font-size:9px;color:#A0AEC0;text-transform:uppercase;letter-spacing:3px">AI Tahlil</div></div><div style="text-align:right"><div style="font-size:17px;font-weight:700;color:#2D3748">${activeLabel}</div><div style="font-size:10px;color:#718096">${new Date().toLocaleDateString("uz-UZ")} · ${prov.name}</div></div></div><div>${mdToH(result)}</div><div style="margin-top:36px;padding-top:16px;border-top:2px solid #EDF2F7;font-size:9px;color:#A0AEC0;text-align:center">Analix · analix.uz</div></body></html>`;
                     const iframe = document.createElement("iframe");
                     iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:820px;height:1100px";
                     document.body.appendChild(iframe);
@@ -8318,6 +7027,17 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | 1.5M/2.3B s
 function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connectedSources = sources.filter(s => s.connected && s.active && s.data?.length > 0);
+  const [activeSrcIds, setActiveSrcIds] = useState(() => connectedSources.map(s => s.id));
+  useEffect(() => {
+    setActiveSrcIds(prev => {
+      const validIds = new Set(connectedSources.map(s => s.id));
+      const kept = prev.filter(id => validIds.has(id));
+      const newOnes = connectedSources.filter(s => !prev.includes(s.id)).map(s => s.id);
+      return [...kept, ...newOnes];
+    });
+  }, [connectedSources.length]);
+  const toggleSrc = (id) => setActiveSrcIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+  const activeSources = connectedSources.filter(s => activeSrcIds.includes(s.id));
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(false);
   const [label, setLabel] = useState("");
@@ -8353,16 +7073,48 @@ function ReportsPage({ aiConfig, sources, user, onAiUsed }) {
     }
     setLoading(true); setReport(""); setLabel(mod.l); setActiveMod(mod);
     const today = new Date().toLocaleDateString("uz-UZ");
-    // SMART CONTEXT — Backend dan aqlli qidiruv
-    let ctx = "";
-    if (Token.get() && connectedSources.length > 0) {
+
+    // YANGI: AI Brain orchestrator (tools + caching + thinking + streaming)
+    const useBrain = LS.get("brain_reports", 1) !== 0 && Token.get();
+    if (useBrain) {
       try {
-        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), mod.l);
-        if (smartResult?.context) ctx = smartResult.context;
-      } catch (e) { console.warn("[HISOBOT-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
+        let full = "";
+        await AiBrainAPI.stream('reports.generate', {
+          reportLabel: mod.l,
+          reportPrompt: mod.fn(today),
+          activeSourceIds: activeSources.map(s => s.id),
+          scopeName: orgContext?.organization?.name || "Biznes",
+        }, (evt) => {
+          if (evt.type === 'delta' && typeof evt.data?.text === 'string') {
+            full += evt.data.text;
+            setReport(full);
+          }
+        }, { language: 'uz' });
+
+        if (!isPersonal && onAiUsed) onAiUsed();
+        const entry = { id: Date.now(), text: full, date: today, label: mod.l, icon: mod.icon, cat: mod.cat, createdAt: new Date().toISOString() };
+        const prev = LS.get(repKey, []);
+        const updated = [entry, ...prev].slice(0, 20);
+        LS.set(repKey, updated);
+        LS.set("u_" + (user?.id || "anon") + "_last_report", { text: full, date: today, label: mod.l });
+        setLoading(false);
+        return;
+      } catch (be) {
+        console.warn("[brain] reports.generate fail, falling back:", be.message);
+        // davom — fallback callAI
+      }
     }
-    if (!ctx) ctx = buildMergedContext(connectedSources);
-    const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
+
+    // FALLBACK: eski callAI
+    let ctx = "";
+    if (Token.get() && activeSources.length > 0) {
+      try {
+        const smartResult = await SourcesAPI.getSmartContext(activeSources.map(s => s.id), mod.l);
+        if (smartResult?.context) ctx = smartResult.context;
+      } catch (e) { console.warn("[HISOBOT-CTX] fallback:", e.message); ctx = buildMergedContext(activeSources); }
+    }
+    if (!ctx) ctx = buildMergedContext(activeSources);
+    const srcInfo = activeSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} ta yozuv)`).join(", ");
     const prompt = mod.fn(today) + `\n\nUlangan manbalar: ${srcInfo || "hech qanday manba ulanmagan"}` + (ctx ? `\n\nMA'LUMOTLAR:\n${ctx}` : "") + `
 
 HISOBOT FORMATI (QATIY AMAL QILINSIN):
@@ -8440,27 +7192,61 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | Raqam forma
     XLSX.writeFile(wb, `Analix_${l.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Markdown ni HTML ga aylantirish (PDF uchun)
+  // Markdown ni HTML ga aylantirish (PDF uchun) — jadvallarni guruhlab <table> ga o'raydi
   const mdToHtml = (text) => {
-    return String(text).split("\n").map(line => {
+    const lines = String(text).split("\n");
+    const out = [];
+    let i = 0;
+    const isTableLine = (l) => l.trim().startsWith("|") && l.trim().endsWith("|");
+    const isSeparator = (l) => l.trim().replace(/[|\-\s:]/g, "").length === 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
       const t = line.trim();
-      if (!t) return '<div style="height:8px"></div>';
-      if (t === "---" || t === "***") return '<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">';
-      if (t.startsWith("### ")) return `<h3 style="font-size:14px;font-weight:700;color:#2D3748;margin:16px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`;
-      if (t.startsWith("## ")) return `<h2 style="font-size:16px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`;
-      if (t.startsWith("# ")) return `<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid #0D9488">${t.slice(2)}</h1>`;
-      if (t.startsWith("> ")) return `<div style="border-left:3px solid #0D9488;padding:8px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 6px 6px 0;color:#2D3748;font-style:italic">${fmtPdf(t.slice(2))}</div>`;
-      if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) return `<div style="padding-left:16px;margin:3px 0;position:relative"><span style="position:absolute;left:4px;color:#0D9488;font-weight:bold">●</span>${fmtPdf(t.slice(2))}</div>`;
-      const numM = t.match(/^(\d+)\.\s(.+)/);
-      if (numM) return `<div style="padding-left:20px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800;font-size:12px">${numM[1]}.</span>${fmtPdf(numM[2])}</div>`;
-      // Table
-      if (t.startsWith("|") && t.endsWith("|")) {
-        if (t.replace(/[|\-\s:]/g, "").length === 0) return "";
-        const cells = t.split("|").filter(c => c.trim()).map(c => c.trim());
-        return `<tr>${cells.map(c => `<td style="padding:6px 12px;border-bottom:1px solid #E2E8F0;font-size:12px">${fmtPdf(c)}</td>`).join("")}</tr>`;
+
+      // ── Jadval bloki ─────────────────────────────────
+      if (isTableLine(line) && !isSeparator(line)) {
+        const tblLines = [];
+        while (i < lines.length && isTableLine(lines[i])) {
+          if (!isSeparator(lines[i])) tblLines.push(lines[i].trim());
+          i++;
+        }
+        if (tblLines.length > 0) {
+          const rows = tblLines.map(l => l.split("|").filter(c => c.trim()).map(c => c.trim()));
+          const headerCells = rows[0];
+          const bodyRows = rows.slice(1);
+          const headerHtml = `<thead><tr>${headerCells.map(c =>
+            `<th style="padding:11px 14px;font-weight:700;color:#FFFFFF;background:linear-gradient(135deg,#0D9488 0%,#0F766E 100%);text-transform:uppercase;font-size:10px;letter-spacing:0.8px;text-align:left;border:none">${fmtPdf(c)}</th>`
+          ).join("")}</tr></thead>`;
+          const bodyHtml = bodyRows.length > 0
+            ? `<tbody>${bodyRows.map((row, ri) => {
+              const bg = ri % 2 === 0 ? "#FFFFFF" : "#F7FAFC";
+              return `<tr style="background:${bg}">${row.map(c =>
+                `<td style="padding:9px 14px;border-bottom:1px solid #E2E8F0;font-size:12px;color:#2D3748">${fmtPdf(c)}</td>`
+              ).join("")}</tr>`;
+            }).join("")}</tbody>`
+            : "";
+          out.push(`<table class="report-tbl" style="width:100%;border-collapse:separate;border-spacing:0;margin:14px 0;font-size:12px;border-radius:10px;overflow:hidden;border:1px solid #CBD5E0;box-shadow:0 1px 3px rgba(0,0,0,0.04)">${headerHtml}${bodyHtml}</table>`);
+          continue;
+        }
       }
-      return `<div style="margin:3px 0;line-height:1.7">${fmtPdf(t)}</div>`;
-    }).join("\n");
+
+      // ── Boshqa elementlar ─────────────────────────────
+      if (!t) out.push('<div style="height:8px"></div>');
+      else if (t === "---" || t === "***") out.push('<hr style="border:none;border-top:2px solid #E0E0E0;margin:16px 0">');
+      else if (t.startsWith("### ")) out.push(`<h3 style="font-size:14px;font-weight:700;color:#2D3748;margin:16px 0 6px;border-left:3px solid #805AD5;padding-left:10px">${t.slice(4)}</h3>`);
+      else if (t.startsWith("## ")) out.push(`<h2 style="font-size:16px;font-weight:800;color:#0D9488;margin:18px 0 8px;border-left:4px solid #0D9488;padding-left:10px">${t.slice(3)}</h2>`);
+      else if (t.startsWith("# ")) out.push(`<h1 style="font-size:18px;font-weight:800;color:#1A202C;margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid #0D9488">${t.slice(2)}</h1>`);
+      else if (t.startsWith("> ")) out.push(`<div style="border-left:3px solid #0D9488;padding:8px 14px;margin:8px 0;background:#F0FDFA;border-radius:0 6px 6px 0;color:#2D3748;font-style:italic">${fmtPdf(t.slice(2))}</div>`);
+      else if (t.startsWith("- ") || t.startsWith("• ") || t.startsWith("* ")) out.push(`<div style="padding-left:16px;margin:3px 0;position:relative"><span style="position:absolute;left:4px;color:#0D9488;font-weight:bold">●</span>${fmtPdf(t.slice(2))}</div>`);
+      else {
+        const numM = t.match(/^(\d+)\.\s(.+)/);
+        if (numM) out.push(`<div style="padding-left:20px;margin:3px 0;position:relative"><span style="position:absolute;left:0;color:#B8860B;font-weight:800;font-size:12px">${numM[1]}.</span>${fmtPdf(numM[2])}</div>`);
+        else out.push(`<div style="margin:3px 0;line-height:1.7">${fmtPdf(t)}</div>`);
+      }
+      i++;
+    }
+    return out.join("\n");
   };
   const fmtPdf = (s) => {
     let r = s.replace(/\*\*(.+?)\*\*/g, '<b style="color:#1A202C">$1</b>');
@@ -8684,19 +7470,25 @@ QOIDALAR: O'zbek tilida | Faqat haqiqiy raqamlar (O'YLAB CHIQARMA) | Raqam forma
           <span style={{ fontSize: 18 }}></span><div><b>AI Sozlamalar</b> sahifasida API kalitni kiriting</div>
         </div>}
 
-        {/* Ulangan manbalar info */}
+        {/* Ulangan manbalar — dropdown selektor (chat kabi) */}
         {connectedSources.length > 0 && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-            {connectedSources.map(s => {
-              const st = SOURCE_TYPES[s.type];
-              return (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "var(--s2)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 11 }}>
-                  <span>{st.icon}</span>
-                  <span style={{ fontWeight: 600 }}>{s.name}</span>
-                  <span className="badge b-ok" style={{ fontSize: 8 }}>{s.data?.length}</span>
-                </div>
-              );
-            })}
+          <div className="ana-source-bar">
+            <div className="ana-source-bar-info">
+              <span className="ana-source-bar-eyebrow">Hisobot manbalari</span>
+              <span className="ana-source-bar-sub">
+                {activeSources.length === connectedSources.length
+                  ? `Hammasi tanlangan — ${fmtNum(activeSources.reduce((a, s) => a + (s.data?.length || 0), 0))} qator`
+                  : `${activeSources.length} / ${connectedSources.length} manba — ${fmtNum(activeSources.reduce((a, s) => a + (s.data?.length || 0), 0))} qator`
+                }
+              </span>
+            </div>
+            <SourceSelectDropdown
+              sources={connectedSources}
+              activeIds={activeSrcIds}
+              onToggle={toggleSrc}
+              onSelectAll={() => setActiveSrcIds(connectedSources.map(s => s.id))}
+              onClearAll={() => setActiveSrcIds([])}
+            />
           </div>
         )}
 
@@ -8952,47 +7744,60 @@ function AlertsPage({ aiConfig, sources, alerts, addAlert, markAllRead, deleteAl
       }
     }
     setLoading(true); setCheckResult(""); setCheckType(checkMod || null);
-    // SMART CONTEXT — Backend dan aqlli qidiruv
-    let ctx = "";
-    if (Token.get() && connectedSources.length > 0) {
-      try {
-        const baseQ = checkMod ? checkMod.prompt : "biznes anomaliya muammo ogohlantirish";
-        const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), baseQ);
-        if (smartResult?.context) ctx = smartResult.context;
-      } catch (e) { console.warn("[ALERT-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
-    }
-    if (!ctx) ctx = buildMergedContext(connectedSources);
-    const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} yozuv)`).join(", ");
 
-    // Agar maxsus tekshirish turi bo'lsa, uning promptini ishlatish
-    const basePrompt = checkMod ? checkMod.prompt : `Quyidagi biznes ma'lumotlarini tahlil qilib, proaktiv ogohlantirishlar ber.`;
-    const prompt = `${basePrompt}
-
-Ulangan manbalar: ${srcInfo}
-MA'LUMOTLAR:\n${ctx}
-
-Quyidagi formatda JSON qaytarish SHART (boshqa hech narsa yozma):
-{
-  "alerts": [
-    {
-      "type": "danger|warning|info|success",
-      "title": "Qisqa sarlavha (max 60 belgi)",
-      "message": "Batafsil tavsif va tavsiya (max 200 belgi)",
-      "metric": "Qaysi ko'rsatkich (masalan: Savdo -23%)"
-    }
-  ],
-  "summary": "Umumiy 2-3 gaplik xulosa"
-}
-
-Muhim: Faqat ma'lumotlarda ko'rinadigan haqiqiy muammolar va imkoniyatlarni ko'rsat. ${checkMod ? checkMod.count : "3-6"} ta ogohlantirish ber.`;
-
+    // YANGI: AI Brain orchestrator (alerts.label intent)
+    const useBrain = LS.get("brain_alerts", 1) !== 0 && Token.get();
+    let parsed = null;
     let full = "";
+
+    if (useBrain) {
+      try {
+        const result = await AiBrainAPI.run('alerts.label', {
+          activeSourceIds: connectedSources.map(s => s.id),
+          scopeName: "Biznes",
+        }, {
+          message: checkMod ? checkMod.prompt : `Biznes ma'lumotlarini tahlil qilib, ${checkMod?.count || '3-6'} ta proaktiv ogohlantirish topib ber.`,
+          language: 'uz',
+        });
+        if (result?.parsed && Array.isArray(result.parsed.alerts)) {
+          parsed = result.parsed;
+          full = result.reply || "";
+        } else if (result?.parseError) {
+          console.warn("[brain] alerts.label parse fail:", result.parseError);
+        }
+      } catch (be) {
+        console.warn("[brain] alerts.label fail, falling back:", be.message);
+      }
+    }
+
+    // FALLBACK: eski callAI (brain o'chirilgan yoki fail bo'lsa)
+    if (!parsed) {
+      let ctx = "";
+      if (Token.get() && connectedSources.length > 0) {
+        try {
+          const baseQ = checkMod ? checkMod.prompt : "biznes anomaliya muammo ogohlantirish";
+          const smartResult = await SourcesAPI.getSmartContext(connectedSources.map(s => s.id), baseQ);
+          if (smartResult?.context) ctx = smartResult.context;
+        } catch (e) { console.warn("[ALERT-CTX] fallback:", e.message); ctx = buildMergedContext(connectedSources); }
+      }
+      if (!ctx) ctx = buildMergedContext(connectedSources);
+      const srcInfo = connectedSources.map(s => `${s.name} (${SOURCE_TYPES[s.type]?.label || s.type}, ${s.data?.length || 0} yozuv)`).join(", ");
+
+      const basePrompt = checkMod ? checkMod.prompt : `Quyidagi biznes ma'lumotlarini tahlil qilib, proaktiv ogohlantirishlar ber.`;
+      const prompt = `${basePrompt}\n\nUlangan manbalar: ${srcInfo}\nMA'LUMOTLAR:\n${ctx}\n\nJSON: {"alerts":[{"type":"danger|warning|info|success","title":"...","message":"...","metric":"..."}],"summary":"..."} ${checkMod ? checkMod.count : "3-6"} ta ogohlantirish.`;
+
+      try {
+        await callAI([{ role: "user", content: prompt }], aiConfig, (c) => { full = c; });
+        const jsonMatch = full.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.warn("[alerts] callAI fail:", e.message);
+      }
+    }
+
     try {
-      await callAI([{ role: "user", content: prompt }], aiConfig, (c) => { full = c; });
       if (!isPersonal && onAiUsed) onAiUsed();
-      const jsonMatch = full.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("JSON topilmadi");
-      const parsed = JSON.parse(jsonMatch[0]);
+      if (!parsed) throw new Error("AI javobi olinmadi");
       const newAlerts = parsed.alerts || [];
       if (parsed.summary) setCheckResult(parsed.summary);
       if (!newAlerts.length) { push("Hozircha muhim ogohlantirish yo'q ✓", "ok"); setLoading(false); return; }
@@ -10156,6 +8961,19 @@ function AiBehaviorPanel({ push }) {
 
 function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey, hasGlobalAI, user }) {
   const uk = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
+  // Tab navigation — initial tab url'dagi ?tab= dan yoki localStorage'dan
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const url = new URL(window.location.href);
+      const t = url.searchParams.get("tab");
+      if (t === "memory" || t === "costs" || t === "config") return t;
+    } catch { }
+    return LS.get(uk("settings_tab"), "config");
+  });
+  const switchTab = (t) => {
+    setActiveTab(t);
+    LS.set(uk("settings_tab"), t);
+  };
   const [keyInput, setKeyInput] = useState(aiConfig.apiKey);
   const [saved, setSaved] = useState(false);
   const [autoOn, setAutoOn] = useState(() => LS.get(uk("auto_report"), false));
@@ -10180,7 +8998,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
       setAllKeys(newAllKeys); LS.set(uk("all_keys"), newAllKeys);
       setAiConfig(c => ({ ...c, apiKey: "" })); LS.set(uk("apiKey"), "");
       // Backend DB'da ham yangilash (agent ishlatishi uchun)
-      AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: "", allKeys: newAllKeys }).catch(() => {});
+      AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: "", allKeys: newAllKeys }).catch(() => { });
       push("Shaxsiy kalit o'chirildi — global AI ishlatiladi", "ok");
       return;
     }
@@ -10188,7 +9006,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
     setAllKeys(newAllKeys); LS.set(uk("all_keys"), newAllKeys);
     setAiConfig(c => ({ ...c, apiKey: k })); LS.set(uk("apiKey"), k);
     // Backend DB'da ham — agent va bot shu yerdan o'qiydi
-    AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: k, allKeys: newAllKeys }).catch(() => {});
+    AiAPI.saveConfig({ provider: aiConfig.provider, model: aiConfig.model, apiKey: k, allKeys: newAllKeys }).catch(() => { });
     setSaved(true); setTimeout(() => setSaved(false), 2500);
     push(`✓ Shaxsiy ${AI_PROVIDERS[aiConfig.provider].name} API kalit saqlandi — cheksiz foydalanish!`, "ok");
   };
@@ -10201,8 +9019,50 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
     push("Shaxsiy kalit o'chirildi — global AI ga qaytildi", "ok");
   };
 
+  // ── Tabs ──
+  const tabs = [
+    { id: "config", label: "AI Sozlamalari", icon: "⚙️" },
+    { id: "memory", label: "AI Xotira",      icon: "🧠" },
+    { id: "costs",  label: "AI Xarajatlar",  icon: "💰" },
+  ];
+
   return (
     <div>
+      {/* ── TAB NAVIGATION ── */}
+      <div style={{
+        display: "flex", gap: 4, marginBottom: 18,
+        background: "var(--s2)", border: "1px solid var(--border)",
+        borderRadius: 12, padding: 4,
+      }}>
+        {tabs.map(t => {
+          const active = activeTab === t.id;
+          return (
+            <button key={t.id} onClick={() => switchTab(t.id)}
+              style={{
+                flex: 1, padding: "10px 14px", borderRadius: 9, border: "none",
+                background: active ? "var(--gold)" : "transparent",
+                color: active ? "#1a1a1a" : "var(--text2)",
+                fontFamily: "var(--fh)", fontSize: 12.5,
+                fontWeight: active ? 700 : 500,
+                cursor: "pointer", transition: "all .18s var(--ease)",
+                display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+              }}>
+              <span style={{ fontSize: 14 }}>{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── MEMORY TAB ── */}
+      {activeTab === "memory" && <MemoryPage push={push} />}
+
+      {/* ── COSTS TAB ── */}
+      {activeTab === "costs" && <CostDashboard user={user} push={push} />}
+
+      {/* ── CONFIG TAB ── */}
+      {activeTab === "config" && (
+        <>
       {/* ── AI HOLATI BANNER ── */}
       <div style={{
         display: "flex", alignItems: "center", gap: 14, padding: "16px 20px",
@@ -10344,7 +9204,7 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
                 style={curLang === lang.id ? { borderColor: "var(--teal)", color: "var(--teal)", background: "rgba(0,201,190,0.08)" } : {}}
                 onClick={() => {
                   LS.set(uk("lang"), lang.id);
-                  UserSettingsAPI.save({ language: lang.id }).catch(() => {});
+                  UserSettingsAPI.save({ language: lang.id }).catch(() => { });
                   push(`Til o'zgartirildi: ${lang.label}`, "ok");
                 }}>
                 {lang.flag} {lang.label}
@@ -10385,6 +9245,8 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
           ))}
         </div>
       </details>
+        </>
+      )}
     </div>
   );
 }
@@ -11219,10 +10081,10 @@ function AiProgressBar({ loading }) {
 // THEME TOGGLE (Light / Dark)
 // ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: "obsidian",  name: "Obsidian",  desc: "Premium qorong'u oltin",  icon: "◆", group: "dark"  },
-  { id: "midnight",  name: "Midnight",  desc: "Texnologik cyan",          icon: "◇", group: "dark"  },
-  { id: "sandstone", name: "Sandstone", desc: "Iliq editorial krem",     icon: "✦", group: "light" },
-  { id: "porcelain", name: "Porcelain", desc: "Sovuq minimalist navy",    icon: "✧", group: "light" },
+  { id: "obsidian", name: "Obsidian", desc: "Premium champagne onyx", icon: "◆", group: "dark" },
+  { id: "midnight", name: "Midnight", desc: "Tech cyan dark", icon: "◇", group: "dark" },
+  { id: "sandstone", name: "Sandstone", desc: "Editorial paper warm", icon: "✦", group: "light" },
+  { id: "porcelain", name: "Porcelain", desc: "Cool minimal navy", icon: "✧", group: "light" },
 ];
 
 function useTheme() {
@@ -11252,10 +10114,10 @@ function useTheme() {
 }
 
 const THEME_PREVIEWS = {
-  obsidian:  { grad: "linear-gradient(135deg,#d4a952,#2fbf71)", accent: "#d4a952" },
-  midnight:  { grad: "linear-gradient(135deg,#38BDF8,#34D399)", accent: "#38BDF8" },
-  sandstone: { grad: "linear-gradient(135deg,#c4a55a,#16a764)", accent: "#c4a55a" },
-  porcelain: { grad: "linear-gradient(135deg,#1e3a5f,#6b9080)", accent: "#1e3a5f" },
+  obsidian: { grad: "linear-gradient(135deg,#C9A063 0%,#10B981 100%)", accent: "#C9A063" },
+  midnight: { grad: "linear-gradient(135deg,#22D3EE 0%,#34D399 100%)", accent: "#22D3EE" },
+  sandstone: { grad: "linear-gradient(135deg,#8B6F3D 0%,#0F8260 100%)", accent: "#8B6F3D" },
+  porcelain: { grad: "linear-gradient(135deg,#1E40AF 0%,#0F766E 100%)", accent: "#1E40AF" },
 };
 
 function ThemeToggle({ theme, toggle, setTheme, size = "md" }) {
@@ -11338,37 +10200,45 @@ function CommandPalette({ open, onClose, onNavigate, onNewChat, onNewSource, sou
   }, [open]);
 
   const commands = [
-    { group: "Tezkor buyruqlar", items: [
-      { id: "new-chat",   title: "Yangi AI suhbat boshlash", desc: "Darhol AI bilan gaplashish", icon: "💬", kbd: "⌘N", run: () => { onNewChat?.(); onClose(); } },
-      { id: "new-source", title: "Yangi manba ulash",         desc: "Excel, Sheets, Instagram",   icon: "📁", kbd: "⌘U", run: () => { onNewSource?.(); onClose(); } },
-    ]},
-    { group: "Sahifalar", items: [
-      { id: "dashboard", title: "Bosh sahifa",   desc: "Umumiy holat",      icon: "🏠", kbd: "G D", run: () => { onNavigate("dashboard"); onClose(); } },
-      { id: "datahub",   title: "Manbalar",      desc: "Ma'lumot manbalari", icon: "📁", kbd: "G M", run: () => { onNavigate("datahub"); onClose(); } },
-      { id: "chat",      title: "AI Maslahatchi", desc: "Suhbat",            icon: "💬", kbd: "G C", run: () => { onNavigate("chat"); onClose(); } },
-      { id: "analytics", title: "Tahlil",        desc: "AI modullar",       icon: "📊", kbd: "G A", run: () => { onNavigate("analytics"); onClose(); } },
-      { id: "charts",    title: "Grafiklar",     desc: "Vizualizatsiya",    icon: "📈", kbd: "G G", run: () => { onNavigate("charts"); onClose(); } },
-      { id: "reports",   title: "Hisobotlar",    desc: "Avtomatik",         icon: "📋", kbd: "G R", run: () => { onNavigate("reports"); onClose(); } },
-      { id: "alerts",    title: "Ogohlantirishlar", desc: "AI xabarlar",    icon: "🔔", kbd: "G O", run: () => { onNavigate("alerts"); onClose(); } },
-      { id: "settings",  title: "Sozlamalar",    desc: "AI + tizim",         icon: "⚙️", kbd: "G S", run: () => { onNavigate("settings"); onClose(); } },
-    ]},
-    ...(departments.length > 0 ? [{ group: "Bo'limga o'tish", items: [
-      { id: "dept-all", title: "Umumiy (barchasi)", desc: "Hamma bo'limlar", icon: "🏢", run: () => { setActiveDepartmentId?.(null); onClose(); } },
-      ...departments.filter(d => d.name !== "Umumiy").map(d => ({
-        id: "dept-" + d.id,
-        title: d.name,
-        desc: "Bo'limga filterlash",
-        icon: d.icon || "📁",
-        run: () => { setActiveDepartmentId?.(d.id); onClose(); },
-      })),
-    ]}] : []),
-    ...(sources.length > 0 ? [{ group: "Manbalar", items: sources.slice(0, 8).map(s => ({
-      id: "src-" + s.id,
-      title: s.name || "Manba",
-      desc: `${s.data?.length || 0} qator · ${s.type || "data"}`,
-      icon: "📊",
-      run: () => { onNavigate("datahub"); onClose(); },
-    }))}] : []),
+    {
+      group: "Tezkor buyruqlar", items: [
+        { id: "new-chat", title: "Yangi AI suhbat boshlash", desc: "Darhol AI bilan gaplashish", icon: "💬", kbd: "⌘N", run: () => { onNewChat?.(); onClose(); } },
+        { id: "new-source", title: "Yangi manba ulash", desc: "Excel, Sheets, Instagram", icon: "📁", kbd: "⌘U", run: () => { onNewSource?.(); onClose(); } },
+      ]
+    },
+    {
+      group: "Sahifalar", items: [
+        { id: "dashboard", title: "Bosh sahifa", desc: "Umumiy holat", icon: "🏠", kbd: "G D", run: () => { onNavigate("dashboard"); onClose(); } },
+        { id: "datahub", title: "Manbalar", desc: "Ma'lumot manbalari", icon: "📁", kbd: "G M", run: () => { onNavigate("datahub"); onClose(); } },
+        { id: "chat", title: "AI Maslahatchi", desc: "Suhbat", icon: "💬", kbd: "G C", run: () => { onNavigate("chat"); onClose(); } },
+        { id: "analytics", title: "Tahlil", desc: "AI modullar", icon: "📊", kbd: "G A", run: () => { onNavigate("analytics"); onClose(); } },
+        { id: "charts", title: "Grafiklar", desc: "Vizualizatsiya", icon: "📈", kbd: "G G", run: () => { onNavigate("charts"); onClose(); } },
+        { id: "reports", title: "Hisobotlar", desc: "Avtomatik", icon: "📋", kbd: "G R", run: () => { onNavigate("reports"); onClose(); } },
+        { id: "alerts", title: "Ogohlantirishlar", desc: "AI xabarlar", icon: "🔔", kbd: "G O", run: () => { onNavigate("alerts"); onClose(); } },
+        { id: "settings", title: "Sozlamalar", desc: "AI + tizim", icon: "⚙️", kbd: "G S", run: () => { onNavigate("settings"); onClose(); } },
+      ]
+    },
+    ...(departments.length > 0 ? [{
+      group: "Bo'limga o'tish", items: [
+        { id: "dept-all", title: "Umumiy (barchasi)", desc: "Hamma bo'limlar", icon: "🏢", run: () => { setActiveDepartmentId?.(null); onClose(); } },
+        ...departments.filter(d => d.name !== "Umumiy").map(d => ({
+          id: "dept-" + d.id,
+          title: d.name,
+          desc: "Bo'limga filterlash",
+          icon: d.icon || "📁",
+          run: () => { setActiveDepartmentId?.(d.id); onClose(); },
+        })),
+      ]
+    }] : []),
+    ...(sources.length > 0 ? [{
+      group: "Manbalar", items: sources.slice(0, 8).map(s => ({
+        id: "src-" + s.id,
+        title: s.name || "Manba",
+        desc: `${s.data?.length || 0} qator · ${s.type || "data"}`,
+        icon: "📊",
+        run: () => { onNavigate("datahub"); onClose(); },
+      }))
+    }] : []),
   ];
 
   // Filter bo'yicha
@@ -11385,8 +10255,8 @@ function CommandPalette({ open, onClose, onNavigate, onNewChat, onNewSource, sou
     const handler = (e) => {
       if (e.key === "Escape") { onClose(); return; }
       if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, flatItems.length - 1)); }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
-      if (e.key === "Enter")     { e.preventDefault(); flatItems[activeIdx]?.run(); }
+      if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+      if (e.key === "Enter") { e.preventDefault(); flatItems[activeIdx]?.run(); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -11401,7 +10271,7 @@ function CommandPalette({ open, onClose, onNavigate, onNewChat, onNewSource, sou
       <div onClick={e => e.stopPropagation()}
         style={{ width: "min(640px, 90vw)", background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 14, boxShadow: "var(--shadow-lg)", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setActiveIdx(0); }}
             placeholder="Sahifa, manba, buyruq yoki so'rov..."
             style={{ flex: 1, background: "transparent", border: "none", outline: "none", fontSize: 15, fontFamily: "var(--fh)", color: "var(--text)" }} />
@@ -12012,16 +10882,16 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
               ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
               : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></svg>
           )}
-          {iconBtn("PNG yuklab olish", downloadPng, <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>)}
-          {!isFullscreen && iconBtn("Kattalashtirish", () => setFullscreen(true), <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>)}
-          {isFullscreen && iconBtn("Yopish", () => setFullscreen(false), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>)}
-          {!isFullscreen && onRemove && iconBtn("Yashirish", () => onRemove(card.id), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>)}
+          {iconBtn("PNG yuklab olish", downloadPng, <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>)}
+          {!isFullscreen && iconBtn("Kattalashtirish", () => setFullscreen(true), <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>)}
+          {isFullscreen && iconBtn("Yopish", () => setFullscreen(false), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>)}
+          {!isFullscreen && onRemove && iconBtn("Yashirish", () => onRemove(card.id), <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>)}
           {!isFullscreen && onDelete && (
             <button onClick={() => onDelete(card.id)} title="O'chirish"
               style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(248,113,113,0.2)", background: "rgba(248,113,113,0.06)", color: "#F87171", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .2s" }}
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(248,113,113,0.12)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "rgba(248,113,113,0.06)"; }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
             </button>
           )}
         </div>
@@ -12095,9 +10965,211 @@ function DashCard({ card, chartOverrides, setChartOverride, onRemove, onDelete }
 }
 
 // ─────────────────────────────────────────────────────────────
+// COMPARE PERIODS PANEL — joriy davr vs oldingi davr taqqoslash
+// ─────────────────────────────────────────────────────────────
+function detectDateAndValueColumns(rows) {
+  if (!rows || rows.length === 0) return { dateCol: null, valueCol: null };
+  const firstRow = rows.find(r => r && typeof r === "object") || {};
+  const cols = Object.keys(firstRow);
+  let dateCol = null, valueCol = null;
+  // 1) Sana ustun: nomi yoki qiymatidan
+  for (const c of cols) {
+    if (/sana|date|kun|vaqt/i.test(c)) { dateCol = c; break; }
+  }
+  if (!dateCol) {
+    for (const c of cols) {
+      const sample = rows.slice(0, 30).map(r => r[c]).filter(Boolean);
+      const dateLike = sample.filter(v => /\d{4}-\d{2}/.test(String(v))).length;
+      if (dateLike > sample.length * 0.5) { dateCol = c; break; }
+    }
+  }
+  // 2) Qiymat ustun: 'Summa', 'Daromad', 'Narx', yoki birinchi raqamli
+  const numericPriority = ['summa', 'daromad', 'umumiy', 'jami', 'savdo', 'kirim', 'amount', 'total', 'sum', 'revenue'];
+  for (const c of cols) {
+    if (c === dateCol) continue;
+    const lc = c.toLowerCase();
+    if (numericPriority.some(p => lc.includes(p))) {
+      const sample = rows.slice(0, 30).map(r => parseFloat(r[c])).filter(n => !isNaN(n));
+      if (sample.length > 5) { valueCol = c; break; }
+    }
+  }
+  if (!valueCol) {
+    for (const c of cols) {
+      if (c === dateCol) continue;
+      if (/^id$|_id$|narx|price/i.test(c)) continue; // narx/id ni qiymat sifatida olmaymiz
+      const sample = rows.slice(0, 30).map(r => parseFloat(r[c])).filter(n => !isNaN(n) && n > 0);
+      if (sample.length > 10) { valueCol = c; break; }
+    }
+  }
+  return { dateCol, valueCol };
+}
+
+function fmtCompactUZ(v) {
+  if (v === null || v === undefined || isNaN(v)) return "—";
+  const n = Number(v);
+  if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + " mlrd";
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + " mln";
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + " ming";
+  return Math.round(n).toLocaleString();
+}
+
+function ComparePeriodsPanel({ sources }) {
+  const eligible = useMemo(() => {
+    return (sources || [])
+      .filter(s => s.connected && s.active && s.data?.length > 0)
+      .map(s => {
+        const { dateCol, valueCol } = detectDateAndValueColumns(s.data);
+        return { ...s, _dateCol: dateCol, _valueCol: valueCol };
+      })
+      .filter(s => s._dateCol && s._valueCol)
+      .slice(0, 6);
+  }, [sources]);
+
+  const [period, setPeriod] = useState("month");
+  const [mode, setMode] = useState("previous");
+  const [results, setResults] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const fetchAll = useCallback(async () => {
+    if (eligible.length === 0) return;
+    if (!Token.get()) return; // sessiya yo'q bo'lsa hech narsa qilmaymiz
+    setLoading(true);
+    const next = {};
+    await Promise.all(eligible.map(async (s) => {
+      try {
+        const r = await AiAPI.comparePeriods({
+          sourceId: s.id,
+          dateColumn: s._dateCol,
+          valueColumn: s._valueCol,
+          func: "sum",
+          period, mode,
+          includeBreakdown: false,
+        });
+        next[s.id] = r;
+      } catch (e) {
+        next[s.id] = { error: e.message };
+      }
+    }));
+    setResults(next);
+    setLoading(false);
+  }, [eligible, period, mode]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  if (eligible.length === 0) return null;
+
+  const periodOptions = [
+    { v: "week", label: "Hafta" },
+    { v: "month", label: "Oy" },
+    { v: "quarter", label: "Chorak" },
+    { v: "year", label: "Yil" },
+  ];
+  const modeOptions = [
+    { v: "previous", label: "Oldingi davr" },
+    { v: "year_ago", label: "Bir yil oldin" },
+  ];
+
+  return (
+    <section className="dashboard-panel biz-panel" style={{ marginTop: 16 }}>
+      <div className="dashboard-panel-head" style={{ flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="dashboard-panel-eyebrow">Davriy taqqoslash</div>
+          <h2 className="dashboard-panel-title">Joriy davr vs oldingi davr</h2>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+            {periodOptions.map(o => (
+              <button
+                key={o.v}
+                onClick={() => setPeriod(o.v)}
+                style={{
+                  padding: "7px 13px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: period === o.v ? "var(--gold)" : "transparent",
+                  color: period === o.v ? "#1a1a1a" : "var(--text2)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--fm)",
+                }}
+              >{o.label}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+            {modeOptions.map(o => (
+              <button
+                key={o.v}
+                onClick={() => setMode(o.v)}
+                style={{
+                  padding: "7px 13px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: mode === o.v ? "var(--gold)" : "transparent",
+                  color: mode === o.v ? "#1a1a1a" : "var(--text2)",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--fm)",
+                }}
+              >{o.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 12, marginTop: 16 }}>
+        {eligible.map(s => {
+          const r = results[s.id];
+          const hasErr = r?.error;
+          const dir = r?.delta?.direction || "flat";
+          const pct = r?.delta?.pct;
+          const dirColor = dir === "up" ? "var(--green)" : dir === "down" ? "var(--red)" : "var(--muted)";
+          const dirArrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "→";
+          return (
+            <div key={s.id} className="dashboard-kpi-card biz-kpi" style={{ "--accent": dirColor }}>
+              <div className="biz-kpi-label" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color || "var(--gold)" }} />
+                {s.name}
+              </div>
+              {loading && !r ? (
+                <div style={{ marginTop: 8 }}><span className="biz-skeleton biz-skel-value" /></div>
+              ) : hasErr ? (
+                <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>
+                  {r.error}
+                </div>
+              ) : r ? (
+                <>
+                  <div className="biz-kpi-value" style={{ marginTop: 6 }}>
+                    {fmtCompactUZ(r.current?.value)}
+                    <span className="biz-kpi-unit">so'm</span>
+                  </div>
+                  <div className="biz-kpi-foot">
+                    <span className="biz-kpi-trend" style={{ color: dirColor }}>
+                      {dirArrow} {pct > 0 ? `+${pct}` : pct}%
+                    </span>
+                    <span className="biz-kpi-context">
+                      Oldin: <strong style={{ color: "var(--text2)" }}>{fmtCompactUZ(r.previous?.value)}</strong>
+                      {" · "}
+                      <span style={{ fontFamily: "var(--fm)", fontSize: 10.5, color: "var(--muted)" }}>
+                        {r.label}
+                      </span>
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>Yuklanmoqda…</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // DASHBOARD PAGE
 // ─────────────────────────────────────────────────────────────
-function DashboardPage({ sources, aiConfig, setPage, user, orgContext, activeDepartmentId, setActiveDepartmentId, setOpenDept }) {
+function DashboardPage({ sources, aiConfig, setPage, user, orgContext, activeDepartmentId, setActiveDepartmentId, setOpenDept, alerts = [] }) {
   // YANGI: Onboarding modal (yangi foydalanuvchi uchun)
   const onboardingKey = "u_" + (user?.id || "anon") + "_onboarding_done";
   const [onboardingOpen, setOnboardingOpen] = useState(() => {
@@ -12136,6 +11208,112 @@ function DashboardPage({ sources, aiConfig, setPage, user, orgContext, activeDep
   const prov = AI_PROVIDERS[aiConfig.provider];
   const connected = sources.filter(s => s.connected && s.active);
   const total = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
+
+  // ── AI Biznes paneli (raqamlar + xulosa + maslahat) ──
+  const aiBoardKey = "u_" + (user?.id || "anon") + "_ai_board_v1";
+  const [aiBoard, setAiBoard] = useState(() => {
+    try {
+      const cached = LS.get(aiBoardKey, null);
+      if (cached?.data && (Date.now() - (cached.timestamp || 0) < 60 * 60 * 1000)) return cached.data;
+    } catch { }
+    return null;
+  });
+  const [aiBoardLoading, setAiBoardLoading] = useState(false);
+  const [aiBoardError, setAiBoardError] = useState(null);
+  const aiBoardFetchedRef = useRef(false);
+
+  const fetchAiBoard = useCallback(async (force = false) => {
+    if (connected.length === 0) return;
+    if (!force) {
+      try {
+        const cached = LS.get(aiBoardKey, null);
+        if (cached?.data && (Date.now() - (cached.timestamp || 0) < 60 * 60 * 1000)) {
+          setAiBoard(cached.data); return;
+        }
+      } catch { }
+    }
+    setAiBoardLoading(true);
+    setAiBoardError(null);
+
+    const scope = activeDepartmentId
+      ? (orgContext?.departments?.find(d => d.id === activeDepartmentId)?.name || "Bo'lim")
+      : (orgContext?.organization?.name || "Biznes");
+
+    // Feature flag: AI Brain orchestrator. localStorage'da `brain_dashboard=0` qo'yib o'chirsa, eski callAI ishlaydi.
+    const useBrain = LS.get("brain_dashboard", 1) !== 0 && Token.get();
+
+    try {
+      let parsed = null;
+
+      if (useBrain) {
+        // YANGI: AI Brain orchestrator orqali (tools + caching + thinking)
+        try {
+          const result = await AiBrainAPI.run('dashboard.summary', {
+            scopeName: scope,
+            sourceCount: connected.length,
+            totalRows: total,
+          }, {
+            language: 'uz',
+          });
+          if (result?.parsed && Array.isArray(result.parsed.kpis)) {
+            parsed = result.parsed;
+          } else if (result?.parseError) {
+            console.warn("[brain] parse failed, falling back:", result.parseError);
+          }
+        } catch (be) {
+          console.warn("[brain] dashboard.summary fail, falling back:", be.message);
+        }
+      }
+
+      // FALLBACK: eski callAI (brain o'chirilgan yoki fail bo'lsa)
+      if (!parsed) {
+        const ctx = buildMergedContext(connected).slice(0, 9000);
+        const prompt = `Sen tajribali biznes konsultantsan. Foydalanuvchi rahbar (CEO/menejer).
+
+BIZNES NOMI: ${scope}
+ULANGAN MANBALAR: ${connected.length} ta (jami ${total} qator ma'lumot)
+MA'LUMOT KONTEKSTI:
+${ctx}
+
+VAZIFA — FAQAT JSON qaytar, izoh yozma:
+{
+  "status": "good" | "warn" | "critical",
+  "statusLabel": "qisqa holat (3-5 so'z)",
+  "healthScore": <0 dan 100 gacha bo'lgan butun son>,
+  "summary": "3-4 jumla — TANQIDIY VA REAL biznes xulosasi.",
+  "kpis": [{"label":"...","value":"12.4M","unit":"so'm","context":"...","trend":"+12%","trendKind":"up|down|flat"}],
+  "insights": ["1-xulosa","2-xulosa","3-xulosa"],
+  "recommendations": [{"priority":"high|medium|low","title":"...","detail":"..."}]
+}
+
+QOIDALAR:
+- KPI lar ANIQ 4 ta. Faqat MAVJUD ma'lumotlardan.
+- O'zbek tilida.`;
+
+        let result = "";
+        await callAI([{ role: "user", content: prompt }], aiConfig, (chunk) => { result = chunk; });
+        const match = result.match(/\{[\s\S]*\}/);
+        if (!match) throw new Error("AI javobi noto'g'ri formatda");
+        parsed = JSON.parse(match[0]);
+        if (!parsed.kpis || !Array.isArray(parsed.kpis)) throw new Error("KPI ma'lumotlar yo'q");
+      }
+
+      setAiBoard(parsed);
+      LS.set(aiBoardKey, { timestamp: Date.now(), data: parsed });
+    } catch (e) {
+      console.error("AI board error:", e);
+      setAiBoardError(e?.message || "Tahlil olinmadi. AI sozlamalarini tekshiring.");
+    } finally {
+      setAiBoardLoading(false);
+    }
+  }, [connected, total, aiConfig, aiBoardKey, activeDepartmentId, orgContext]);
+
+  useEffect(() => {
+    if (connected.length > 0 && !aiBoardFetchedRef.current && !aiBoard && !aiBoardLoading) {
+      aiBoardFetchedRef.current = true;
+      fetchAiBoard();
+    }
+  }, [connected.length, aiBoard, aiBoardLoading, fetchAiBoard]);
 
   // Custom widgets — AI avtomatik raqam hisoblaydi
   const widgetsKey = "u_" + (user?.id || "anon") + "_widgets";
@@ -12186,20 +11364,15 @@ FAQAT JSON, boshqa narsa yozma.`;
     setNewWidget({ label: "", sourceId: "", color: "#00C9BE" });
   };
   const removeWidget = (id) => { const u = widgets.filter(w => w.id !== id); setWidgets(u); LS.set(widgetsKey, u); };
-  // Widget yangilash
   const refreshWidget = async (w) => {
     const src = sources.find(s => s.id === w.sourceId);
     if (!src?.data?.length) return;
     setWidgetLoading(w.id);
     try {
-      let ctx = "";
-      if (Token.get()) {
-        try { const r = await SourcesAPI.getAiContext(src.id, w.label); if (r?.context) ctx = r.context; } catch { }
-      }
-      if (!ctx) ctx = buildMergedContext([src]);
-      const prompt = `"${w.label}" ko'rsatkichini hisobla. Manba: "${src.name}" (${src.data.length} qator). DATA:\n${ctx}
-FAQAT JSON: {"value":"123","sub":"izoh"}`;
       let result = "";
+      const prompt = `Ushbu ma'lumotlar asosida "${w.label}" qiymatini yangilang. 
+      Faqat JSON qaytaring: {"value": "...", "sub": "..."}
+      Ma'lumot: ${JSON.stringify(src.data.slice(0, 30))}`;
       await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
       const match = result.match(/\{[\s\S]*\}/);
       if (match) {
@@ -12209,549 +11382,468 @@ FAQAT JSON: {"value":"123","sub":"izoh"}`;
           LS.set(widgetsKey, u); return u;
         });
       }
-    } catch { }
+    } catch (e) { console.error("Widget refresh error:", e); }
     setWidgetLoading(null);
   };
-  const [activeSrc, setActiveSrc] = useState(null);
-  const [chartOverrides, setChartOverrides] = useState({});
 
-  const setChartOverride = (cardId, type) => setChartOverrides(prev => ({ ...prev, [cardId]: type }));
-
-  // Tanlangan manba yoki birinchi connected
-  const workingSrc = activeSrc ? sources.find(s => s.id === activeSrc) : connected[0];
-
-  // Foydalanuvchi o'zi qo'shgan dashboard kartalar (avto-generatsiya EMAS)
-  const dashCacheKey = "u_" + (user?.id || "anon") + "_dash_cards";
-  const [dashCards, setDashCards] = useState(() => LS.get(dashCacheKey, []));
-  const [dashQuery, setDashQuery] = useState("");
-  const [dashLoading, setDashLoading] = useState(false);
-
-  const addDashChart = async (queryText) => {
-    const q = queryText || dashQuery;
-    if (!q.trim() || !workingSrc?.data?.length || !aiConfig?.apiKey) return;
-    setDashLoading(true);
-    try {
-      let ctx = "";
-      if (Token.get()) {
-        try { const r = await SourcesAPI.getAiContext(workingSrc.id, q); if (r?.context) ctx = r.context; } catch { }
-      }
-      if (!ctx) ctx = buildMergedContext([workingSrc]);
-      const prompt = `Biznes tahlilchi. So'rov: "${q}"
-MANBA: "${workingSrc.name}" (${workingSrc.data.length} qator)
-DATA:\n${ctx}
-
-SO'ROVGA QARAB KARTA TURINI TANLA:
-- "statistika/raqam/nechta/jami" → stats karta
-- "trend/grafik/chart/dinamika" → chart karta (chartType: "line" yoki "area")
-- "top/reyting/eng yaxshi" → chart karta (chartType: "bar")
-- "taqsimot/ulush/pie" → chart karta (chartType: "pie")
-- "umumiy" → 1 stats + 1 chart
-
-1-2 ta karta qaytar. MANFIY raqam TAQIQLANGAN. Label O'ZBEK tilida, max 10 belgi.
-
-MUHIM — LABEL VA NOM QOIDALARI:
-- "qiymat" so'zini HECH QACHON ishlatma! O'rniga ANIQ nom yoz: "like soni", "o'quvchilar", "daromad (so'm)", "guruhlar"
-- Chart title ANIQ bo'lsin: "Postlar bo'yicha like soni" (EMAS: "Postlar dinamikasi")
-- keys da ANIQ nom: ["like_soni"] yoki ["oqvchilar"] (EMAS: ["qiymat"])
-- Tooltip da foydalanuvchi nima ko'rayotganini TUSHUNISHI kerak
-
-JSON FORMAT:
-- stats: {"type":"stats","title":"Asosiy ko'rsatkichlar","icon":"📊","stats":[{"l":"Jami o'quvchilar","v":"836","c":"#00C9BE"}]}
-- bar: {"type":"chart","title":"Top 5 guruh (o'quvchi soni)","icon":"📊","chartType":"bar","data":[{"name":"Guruh A","oqvchilar":25}],"keys":["oqvchilar"],"xKey":"name","colors":["#00C9BE"]}
-- line: {"type":"chart","title":"Oylik like dinamikasi","icon":"📈","chartType":"line","data":[{"name":"Yan","like_soni":100}],"keys":["like_soni"],"xKey":"name","colors":["#4ADE80"]}
-- pie: {"type":"chart","title":"Post turlari taqsimoti","icon":"📊","chartType":"pie","data":[{"name":"Rasm","value":50}],"colors":["#00C9BE","#E8B84B","#A78BFA"]}
-
-\`\`\`json
-{"cards":[...]}
-\`\`\`
-FAQAT JSON.`;
-      let result = "";
-      await callAI([{ role: "user", content: prompt }], aiConfig, (t) => { result = t; });
-      const match = result.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        const newCards = (parsed.cards || []).map((c, i) => ({ ...c, id: `dash_${Date.now()}_${i}` }));
-        if (newCards.length) {
-          const updated = [...newCards, ...dashCards];
-          setDashCards(updated); LS.set(dashCacheKey, updated);
-        }
-      }
-    } catch { }
-    setDashLoading(false); setDashQuery("");
+const firstName = (user?.name || "").split(" ")[0];
+const activeDept = activeDepartmentId
+  ? orgContext?.departments?.find(d => d.id === activeDepartmentId)
+  : null;
+  const scopeName = activeDept?.name || orgContext?.organization?.name || "Biznes";
+  const openAlerts = Array.isArray(alerts) ? alerts.filter(a => a && !a.read) : [];
+  const warningAlerts = openAlerts.filter(a => a.type === "warn" || a.type === "error");
+  const getSourceDate = (src) => {
+    const raw = src?.lastSync || src?.config?.lastSync || src?.updatedAt || src?.createdAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const formatRelativeTime = (date) => {
+    if (!date) return "vaqt noma'lum";
+    const diff = Date.now() - date.getTime();
+    if (diff < 60_000) return "hozirgina";
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 60) return `${mins} daqiqa oldin`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} soat oldin`;
+    const days = Math.floor(hours / 24);
+    return `${days} kun oldin`;
   };
 
-  const removeDashCard = (id) => {
-    const updated = dashCards.filter(c => c.id !== id);
-    setDashCards(updated); LS.set(dashCacheKey, updated);
-  };
-  const clearDashCards = () => { setDashCards([]); LS.del(dashCacheKey); };
+  const connectedWithData = connected.filter(s => (s.data?.length || 0) > 0);
+  const staleSources = connected.filter(s => {
+    const d = getSourceDate(s);
+    return d ? (Date.now() - d.getTime()) > 24 * 60 * 60 * 1000 : false;
+  });
+  const activeSources = connected.filter(s => {
+    const d = getSourceDate(s);
+    if (!d) return (s.data?.length || 0) > 0;
+    return (Date.now() - d.getTime()) <= 24 * 60 * 60 * 1000;
+  });
+  const sourceMix = Object.entries(
+    connected.reduce((acc, src) => {
+      const key = src.type || "manual";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([type, count]) => {
+    const meta = SOURCE_TYPES[type] || { label: type, icon: "•", color: "var(--blue)" };
+    return { type, count, label: meta.label, icon: meta.icon, color: meta.color };
+  }).sort((a, b) => b.count - a.count);
+  const focusSources = [...connected].sort((a, b) => (b.data?.length || 0) - (a.data?.length || 0)).slice(0, 4);
+  const latestSource = [...connected].sort((a, b) => (getSourceDate(b)?.getTime() || 0) - (getSourceDate(a)?.getTime() || 0))[0] || null;
+  const latestSourceDate = getSourceDate(latestSource);
+  const latestSourceLabel = latestSourceDate ? formatRelativeTime(latestSourceDate) : "hali sinxron yo'q";
+  const typeLeader = sourceMix[0] || null;
+  const avgRowsPerSource = connectedWithData.length ? Math.round(total / connectedWithData.length) : 0;
+  const syncCoverage = connected.length ? Math.round((activeSources.length / connected.length) * 100) : 0;
+  const deptIds = new Set();
+  connected.forEach(src => (src.department_ids || []).forEach(id => { if (id != null) deptIds.add(id); }));
+  const allDepartments = Array.isArray(orgContext?.departments)
+    ? orgContext.departments.filter(d => d.name !== "Umumiy")
+    : [];
+  const departmentBase = activeDept ? 1 : Math.max(1, allDepartments.length || deptIds.size || 1);
+  const coveredDepartments = activeDept ? 1 : Math.max(deptIds.size, connected.length ? 1 : 0);
 
-  // Yordamchi: salom bo'sh holat uchun
-  const firstName = (user?.name || "").split(" ")[0];
-  const activeDept = activeDepartmentId
-    ? orgContext?.departments?.find(d => d.id === activeDepartmentId)
-    : null;
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Xayrli tong";
+    if (h < 18) return "Xayrli kun";
+    return "Xayrli kech";
+  })();
+
+  const quickActions = [
+    { label: "AI tahlilni ochish", icon: "✦", kind: "primary", onClick: () => setPage("analytics") },
+    { label: "Manbalarni boshqarish", icon: "◫", kind: "ghost", onClick: () => setPage("datahub") },
+    { label: "Grafik yaratish", icon: "↗", kind: "ghost", onClick: () => setPage("charts") },
+    { label: "Hisobot tayyorlash", icon: "◳", kind: "ghost", onClick: () => setPage("reports") },
+  ];
+
+  const watchItems = staleSources.slice(0, 2).map(src => ({
+    title: src.name,
+    note: `${formatRelativeTime(getSourceDate(src))} yangilangan`,
+    tone: "var(--gold)",
+  })).concat(openAlerts.slice(0, 2).map(item => ({
+    title: item.title || "Ogohlantirish",
+    note: item.message || item.type || "Diqqat talab qiladi",
+    tone: item.type === "warn" || item.type === "error" ? "var(--red)" : "var(--teal)",
+  })));
+
+  // Status tone — AI dan kelgan status asosida
+  const statusKind = aiBoard?.status || "good";
+  const statusToneMap = {
+    good: { color: "var(--green)", icon: "✓", label: "Yaxshi holatda" },
+    warn: { color: "var(--gold)", icon: "!", label: "Diqqat kerak" },
+    critical: { color: "var(--red)", icon: "△", label: "Kritik" },
+  };
+  const statusTone = statusToneMap[statusKind] || statusToneMap.good;
+
+  // Trend belgisi
+  const trendArrow = (kind) => kind === "up" ? "▲" : kind === "down" ? "▼" : "▬";
+  const trendColor = (kind) => kind === "up" ? "var(--green)" : kind === "down" ? "var(--red)" : "var(--muted)";
+  const priorityColor = (p) => p === "high" ? "var(--red)" : p === "medium" ? "var(--gold)" : "var(--teal)";
+  const priorityLabel = (p) => p === "high" ? "Yuqori" : p === "medium" ? "O'rta" : "Past";
+
+  // KPI placeholders (loading paytda)
+  const kpiPlaceholders = [
+    { label: "Daromad", value: "—", context: "AI hisoblamoqda..." },
+    { label: "Sotuvlar", value: "—", context: "AI hisoblamoqda..." },
+    { label: "Mijozlar", value: "—", context: "AI hisoblamoqda..." },
+    { label: "Faollik", value: "—", context: "AI hisoblamoqda..." },
+  ];
+  const kpisToShow = (aiBoard?.kpis && aiBoard.kpis.length > 0) ? aiBoard.kpis.slice(0, 4) : kpiPlaceholders;
+
+  // ── Haqiqiy ma'lumotlar asosida hisoblanadigan biznes sog'ligi balli ──
+  // Bu — manbalardagi real ko'rsatkichlar bo'yicha. AI ulanmagan bo'lsa shu ishlatiladi.
+  // AI ulangan bo'lsa, AI'ning healthScore'i ustunlik qiladi (biznes konteksti chuqurroq).
+  const dataHealthBreakdown = (() => {
+    if (connected.length === 0) {
+      return { score: 0, components: [] };
+    }
+    // 1) Yangilanish — manbalar so'nggi 24 soatda yangilanganmi
+    const freshness = connected.length ? Math.round((activeSources.length / connected.length) * 100) : 0;
+    // 2) Hajm — log shkalada qator soni (1000+ qator = 100 ball)
+    const depth = Math.min(100, Math.round(Math.log10(total + 1) * 28));
+    // 3) Xilma-xillik — manba turlari (har xil tip yaxshi signal)
+    const types = new Set(connected.map(s => s.type)).size;
+    const diversity = Math.min(100, types * 22 + (connected.length >= 3 ? 10 : 0));
+    // 4) Xavf — eskirgan manba va ochiq alert lar uchun jarima
+    const risk = Math.max(15, 100 - staleSources.length * 12 - openAlerts.length * 8 - warningAlerts.length * 5);
+    // 5) Hajm signali — mazmunli tahlil uchun yetarli ma'lumotmi
+    const volume = total >= 5000 ? 100 : total >= 1000 ? 85 : total >= 200 ? 65 : total >= 50 ? 45 : total >= 10 ? 25 : 10;
+
+    const score = Math.round((freshness + depth + diversity + risk + volume) / 5);
+    return {
+      score,
+      freshness, depth, diversity, risk, volume,
+      components: [
+        { label: "Yangilanish", value: freshness, color: "var(--teal)" },
+        { label: "Ma'lumot hajmi", value: depth, color: "var(--blue)" },
+        { label: "Xilma-xillik", value: diversity, color: "var(--purple)" },
+        { label: "Xavf bosimi", value: risk, color: risk < 60 ? "var(--red)" : "var(--gold)" },
+        { label: "Tahlil hajmi", value: volume, color: "var(--orange)" },
+      ],
+    };
+  })();
+
+  // ── Fallback xulosa: AI ulanmaganda real ma'lumotlardan tanqidiy xulosa tuziladi ──
+  const buildFallbackSummary = () => {
+    if (connected.length === 0) return "Hech qanday manba ulanmagan. Tahlil boshlash uchun kamida bitta ma'lumot manbasini yuklang.";
+    const b = dataHealthBreakdown;
+    const parts = [];
+
+    // Yangilanish — eng kritik signal
+    if (b.freshness < 30) {
+      parts.push(`Manbalar yangilanmagan: ${staleSources.length} ta manba 24 soatdan ortiq vaqt sinxronlanmagan. Bu — eng katta xavf, chunki qaror eski ma'lumot asosida olinadi.`);
+    } else if (b.freshness < 70) {
+      parts.push(`Manbalarning ${100 - b.freshness}% qismi sekinlashgan — sync ritmi to'liq emas.`);
+    } else {
+      parts.push(`Manbalar yangi va ritmda yangilanmoqda — operativ qaror uchun yetarli.`);
+    }
+
+    // Hajm
+    if (b.volume < 30) {
+      parts.push(`Ma'lumot hajmi juda kam (${fmtNum(total)} qator) — chuqur tahlil uchun yetarli emas, signal bo'sh chiqadi.`);
+    } else if (b.volume < 60) {
+      parts.push(`Ma'lumot hajmi (${fmtNum(total)} qator) yengil tahlil uchun yetadi, lekin trend va anomaliya uchun ko'proq qatlam kerak.`);
+    } else {
+      parts.push(`Ma'lumot hajmi (${fmtNum(total)} qator) tahlil uchun mustahkam asos beradi.`);
+    }
+
+    // Xilma-xillik
+    const types = new Set(connected.map(s => s.type)).size;
+    if (b.diversity < 40) {
+      parts.push(`Bitta yoki ikkita manba turi bilan cheklangan — kross-tahlil mumkin emas.`);
+    } else if (types >= 3) {
+      parts.push(`${types} xil manba turi ulangan — bu kross-tahlil va to'liq ko'rinish uchun yaxshi.`);
+    }
+
+    // Xavf
+    if (openAlerts.length > 0 || warningAlerts.length > 0) {
+      parts.push(`${openAlerts.length} ta ochiq signal mavjud — bularning ichida ${warningAlerts.length} tasi ogohlantirish darajasida. E'tibor talab qiladi.`);
+    }
+
+    // Yakuniy aralashuv chaqiruvi (score asosida)
+    if (b.score < 40) {
+      parts.push(`Umumiy xulosa: holat tanqidiy. Birinchi navbat — sync ritmini tiklash va eskirgan manbalarni yangilash.`);
+    } else if (b.score < 65) {
+      parts.push(`Umumiy xulosa: o'rtacha. Asos bor, lekin ko'p qismida bo'shliqlar bor — to'liq ishonchli qaror uchun yetarli emas.`);
+    }
+
+    return parts.slice(0, 4).join(" ");
+  };
 
   return (
-    <div>
-      {/* ── Onboarding modal (yangi foydalanuvchi) ── */}
+    <div className="dashboard-container" style={{ position: "relative", padding: 0, minHeight: "100%" }}>
+      <div className="mesh-bg">
+        <div className="mesh-circle" style={{ width: 600, height: 600, top: "-10%", left: "-10%", background: "var(--gold-glow)", opacity: 0.3 }} />
+        <div className="mesh-circle" style={{ width: 500, height: 500, bottom: "-10%", right: "-10%", background: "var(--teal-glow)", animationDelay: "-5s", opacity: 0.2 }} />
+      </div>
+
       <OnboardingModal
         open={onboardingOpen}
         onClose={closeOnboarding}
         onGoSources={() => { setPage && setPage("datahub"); }}
         onGoDemo={() => { setPage && setPage("datahub"); }}
       />
-      {/* ── Bo'sh holat — manba ulanmagan ── */}
-      {connected.length === 0 && (
-        <div className="card" style={{
-          padding: "40px 28px", textAlign: "center",
-          background: "linear-gradient(135deg, rgba(212,168,83,0.04) 0%, rgba(0,212,200,0.02) 100%)",
-          border: "1px dashed rgba(212,168,83,0.25)",
-        }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 20,
-            background: "linear-gradient(135deg, rgba(212,168,83,0.12), rgba(0,212,200,0.08))",
-            border: "1px solid rgba(212,168,83,0.2)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            margin: "0 auto 16px", fontSize: 28,
-          }}>📊</div>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, marginBottom: 8, color: "var(--text)" }}>
-            Boshlaymiz{firstName ? `, ${firstName}` : ""}!
-          </div>
-          <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 20, maxWidth: 440, margin: "0 auto 20px", lineHeight: 1.7 }}>
-            {activeDept
-              ? `"${activeDept.name}" bo'limiga ma'lumot manbasi ulang — Excel, Google Sheets, Instagram yoki boshqa. AI shu bo'lim kontekstida ishlaydi.`
-              : "Ma'lumot manbasi ulang — Excel, Google Sheets, Instagram yoki boshqa. AI sizning ma'lumotlaringiz asosida tahlil, hisobot va maslahat beradi."}
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <button className="btn btn-primary" onClick={() => setPage("datahub")} style={{ padding: "11px 24px", fontSize: 13 }}>
-              + Manba qo'shish
-            </button>
-            <button className="btn btn-ghost" onClick={() => {
-              // Umumiy → CEO uchun "hamma manba" (null filter), xodim uchun o'z Umumiy'i
-              const umumiy = orgContext?.departments?.find(d => d.name === "Umumiy");
-              const isCeo = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
-              if (setActiveDepartmentId) {
-                setActiveDepartmentId(isCeo ? null : (umumiy?.id || null));
-                if (setOpenDept && umumiy) setOpenDept(umumiy.id);
-              }
-              setPage("chat");
-            }} style={{ padding: "11px 24px", fontSize: 13 }}>
-              AI bilan suhbat
-            </button>
-          </div>
-        </div>
-      )}
 
-      {/* ════════════════════════════════════════════
-          YANGI REDESIGN: Health Hero + AI Insights
-          ════════════════════════════════════════════ */}
-      {connected.length > 0 && (() => {
-        // Health score hisoblash — manbalar faolligi + anomaliyalar
-        const totalRows = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
-        const activeSrcs = connected.filter(s => {
-          const last = s.lastSync ? new Date(s.lastSync) : null;
-          return last && (Date.now() - last.getTime()) < 24 * 3600 * 1000;
-        }).length;
-        const anomaliesCount = (typeof alerts !== 'undefined' ? alerts : []).length || 0;
-        const financeScore = Math.round(Math.min(100, (activeSrcs / Math.max(1, connected.length)) * 100));
-        const customerScore = Math.round(Math.min(100, 60 + (totalRows / 1000) * 0.5));
-        const growthScore = Math.round(Math.min(100, 50 + activeSrcs * 8));
-        const opsScore = Math.round(Math.max(30, 100 - anomaliesCount * 10));
-        const overallScore = Math.round((financeScore + customerScore + growthScore + opsScore) / 4);
-        const scoreColor = overallScore >= 75 ? "var(--green)" : overallScore >= 50 ? "var(--gold)" : "var(--red)";
-        const scoreLabel = overallScore >= 75 ? "Yaxshi" : overallScore >= 50 ? "O'rtacha" : "Diqqat talab qiladi";
-        const now = new Date();
-        const days = ["Yakshanba","Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba"];
-        const monthNames = ["Yanvar","Fevral","Mart","Aprel","May","Iyun","Iyul","Avgust","Sentabr","Oktabr","Noyabr","Dekabr"];
-        const dateStr = `${days[now.getDay()]}, ${now.getDate()} ${monthNames[now.getMonth()]}`;
-        // Gauge SVG (stroke-dashoffset bilan arc)
-        const R = 60, C = 2 * Math.PI * R;
-        const offset = C - (overallScore / 100) * C;
-        return (
-          <div style={{
-            display: "grid", gridTemplateColumns: "auto 1fr", gap: 24,
-            padding: "22px 24px", marginBottom: 20,
-            background: "linear-gradient(135deg, var(--s1) 0%, var(--gold-glow) 100%)",
-            border: "1px solid var(--border)", borderRadius: 14,
-            position: "relative", overflow: "hidden",
-          }}>
-            {/* Radial glow */}
-            <div style={{ position: "absolute", top: "-50%", right: "-10%", width: 400, height: 400, background: "radial-gradient(circle, var(--teal-glow) 0%, transparent 60%)", pointerEvents: "none" }} />
-            {/* Gauge */}
-            <div style={{ position: "relative", width: 140, height: 140, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: "rotate(-90deg)" }}>
-                <defs>
-                  <linearGradient id="hero-gauge" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="var(--teal)" />
-                    <stop offset="100%" stopColor="var(--gold)" />
-                  </linearGradient>
-                </defs>
-                <circle cx="70" cy="70" r={R} stroke="var(--s3)" strokeWidth="10" fill="none" />
-                <circle cx="70" cy="70" r={R} stroke="url(#hero-gauge)" strokeWidth="10" fill="none" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 1s ease" }} />
-              </svg>
-              <div style={{ position: "absolute", textAlign: "center" }}>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 38, fontWeight: 800, letterSpacing: -1.5, lineHeight: 1, color: "var(--text)" }}>{overallScore}</div>
-                <div style={{ fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--muted)", marginTop: 4 }}>/ 100</div>
-              </div>
-            </div>
-            {/* Body */}
-            <div style={{ position: "relative", zIndex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "var(--fm)", fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase", color: "var(--gold)", marginBottom: 6, fontWeight: 600 }}>
-                Xayrli kun, {firstName || user?.name || "Boss"} · {dateStr}
-              </div>
-              <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 700, letterSpacing: -0.4, marginBottom: 6, color: "var(--text)" }}>
-                Biznes salomatligi — <span style={{ color: scoreColor }}>{scoreLabel}</span>
-              </div>
-              <div style={{ fontSize: 13, color: "var(--text2)", marginBottom: 14, maxWidth: 580, lineHeight: 1.55 }}>
-                Umumiy ko'rsatkich: <b style={{ color: "var(--text)" }}>{overallScore}/100</b>.
-                {activeSrcs < connected.length && <> {connected.length - activeSrcs} ta manba 24+ soat yangilanmagan.</>}
-                {anomaliesCount > 0 && <> {anomaliesCount} ta anomaliya aniqlangan.</>}
-              </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {[
-                  { lbl: "Moliya",    val: financeScore,  color: financeScore >= 70 ? "var(--green)" : financeScore >= 40 ? "var(--gold)" : "var(--red)" },
-                  { lbl: "Mijozlar",  val: customerScore, color: customerScore >= 70 ? "var(--green)" : customerScore >= 40 ? "var(--gold)" : "var(--red)" },
-                  { lbl: "O'sish",    val: growthScore,   color: growthScore >= 70 ? "var(--green)" : growthScore >= 40 ? "var(--gold)" : "var(--red)" },
-                  { lbl: "Operatsion", val: opsScore,     color: opsScore >= 70 ? "var(--green)" : opsScore >= 40 ? "var(--gold)" : "var(--red)" },
-                ].map(p => (
-                  <div key={p.lbl} style={{ padding: "7px 12px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 11.5, display: "flex", alignItems: "center", gap: 7, fontFamily: "var(--fh)" }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: p.color }} />
-                    <span style={{ color: "var(--text2)" }}>{p.lbl}</span>
-                    <span style={{ fontFamily: "var(--fm)", fontWeight: 600, color: "var(--text)" }}>{p.val}</span>
+      {connected.length > 0 ? (
+        <div className="dashboard-shell">
+          {/* ─── BIZNES SOG'LIGI: ixcham donut + breakdown ─── */}
+          {(() => {
+            const isLoading = aiBoardLoading && !aiBoard;
+            const aiScore = typeof aiBoard?.healthScore === "number"
+              ? Math.max(0, Math.min(100, Math.round(aiBoard.healthScore)))
+              : null;
+            const dataScore = dataHealthBreakdown.score;
+            const score = aiScore !== null ? aiScore : dataScore;
+            const sourceLabel = aiScore !== null ? "AI tahlili" : "Manbalar bahosi";
+            const scoreTone = score >= 80
+              ? { color: "var(--green)", label: "Ishonchli holatda" }
+              : score >= 60
+                ? { color: "var(--teal)", label: "Yaxshi holatda" }
+                : score >= 40
+                  ? { color: "var(--gold)", label: "O'rtacha — diqqat kerak" }
+                  : score >= 20
+                    ? { color: "var(--orange)", label: "Past — choralar kerak" }
+                    : { color: "var(--red)", label: "Tanqidiy holat" };
+            const finalLabel = aiBoard?.statusLabel || scoreTone.label;
+            const finalColor = aiScore !== null ? statusTone.color : scoreTone.color;
+            const R = 56;
+            const C = 2 * Math.PI * R;
+            const offset = C - (score / 100) * C;
+            return (
+              <section className="biz-health-hero">
+                {/* Chap: ixcham donut */}
+                <div className="biz-health-mini-ring">
+                  <svg width="140" height="140" viewBox="0 0 140 140" style={{ transform: "rotate(-90deg)" }}>
+                    <defs>
+                      <linearGradient id="biz-health-grad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={finalColor} />
+                        <stop offset="100%" stopColor="var(--gold)" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="70" cy="70" r={R} stroke="var(--s3)" strokeWidth="9" fill="none" />
+                    <circle
+                      cx="70" cy="70" r={R}
+                      stroke="url(#biz-health-grad)" strokeWidth="9" fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={C}
+                      strokeDashoffset={offset}
+                      style={{ transition: "stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1)", filter: `drop-shadow(0 0 8px ${finalColor}55)` }}
+                    />
+                  </svg>
+                  <div className="biz-health-mini-center">
+                    <div className="biz-health-mini-score">{score}</div>
+                    <div className="biz-health-mini-max">/ 100</div>
                   </div>
+                </div>
+
+                {/* O'ng: head + breakdown */}
+                <div className="biz-health-info">
+                  <div className="biz-health-info-head">
+                    <div>
+                      <div className="biz-health-info-eyebrow">
+                        <span>Biznes Sog'ligi</span>
+                        <span className="biz-health-source" title={aiScore !== null ? "AI biznes konteksti bilan tahlil qildi" : "Yuklangan manbalar metrikasi asosida hisoblandi"}>
+                          {sourceLabel}
+                        </span>
+                      </div>
+                      <div className="biz-health-info-status" style={{ color: finalColor }}>
+                        {isLoading ? "AI hisoblayapti..." : finalLabel}
+                      </div>
+                    </div>
+                    <button
+                      className="biz-refresh-btn biz-refresh-icon"
+                      onClick={() => fetchAiBoard(true)}
+                      disabled={aiBoardLoading}
+                      title="Tahlilni yangilash"
+                    >
+                      <span className={aiBoardLoading ? "biz-spin" : ""}>↻</span>
+                    </button>
+                  </div>
+
+                  {/* AI tanqidiy xulosa — ball'lar o'rniga */}
+                  <div className="biz-health-conclusion">
+                    {isLoading ? (
+                      <div className="biz-conclusion-loading">
+                        <span className="biz-skeleton biz-skel-text" style={{ width: "100%" }} />
+                        <span className="biz-skeleton biz-skel-text" style={{ width: "92%" }} />
+                        <span className="biz-skeleton biz-skel-text" style={{ width: "78%" }} />
+                      </div>
+                    ) : (
+                      <p className="biz-conclusion-text">
+                        {aiBoard?.summary || buildFallbackSummary()}
+                      </p>
+                    )}
+                    {!aiBoard?.summary && !isLoading && (
+                      <span className="biz-conclusion-source">
+                        ◬ Manbalar metrikasi asosida. To'liq biznes xulosasi uchun AI ni ulang.
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
+
+          {/* ─── KPI: Biznes raqamlari (AI computed) ─── */}
+          <section className="dashboard-kpi-grid">
+            {kpisToShow.map((kpi, idx) => {
+              const accent = ["var(--gold)", "var(--teal)", "var(--blue)", "var(--purple)"][idx % 4];
+              const isLoading = aiBoardLoading && !aiBoard;
+              return (
+                <article key={`${kpi.label}-${idx}`} className="dashboard-kpi-card biz-kpi" style={{ "--accent": accent }}>
+                  <div className="biz-kpi-label">{kpi.label}</div>
+                  <div className="biz-kpi-value">
+                    {isLoading ? <span className="biz-skeleton biz-skel-value" /> : kpi.value}
+                    {kpi.unit && !isLoading && <span className="biz-kpi-unit">{kpi.unit}</span>}
+                  </div>
+                  <div className="biz-kpi-foot">
+                    {kpi.trend && !isLoading && (
+                      <span className="biz-kpi-trend" style={{ color: trendColor(kpi.trendKind) }}>
+                        {trendArrow(kpi.trendKind)} {kpi.trend}
+                      </span>
+                    )}
+                    <span className="biz-kpi-context">
+                      {isLoading ? <span className="biz-skeleton biz-skel-line" /> : (kpi.context || "")}
+                    </span>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+
+          {/* ─── Asosiy 2-ustun: Xulosalar + Maslahatlar ─── */}
+          <div className="biz-board-grid">
+            {/* AI Xulosalar */}
+            <section className="dashboard-panel biz-panel">
+              <div className="dashboard-panel-head">
+                <div>
+                  <div className="dashboard-panel-eyebrow">AI Xulosalar</div>
+                  <h2 className="dashboard-panel-title">Hozir biznesingizda nima sodir bo'layapti</h2>
+                </div>
+                <span className="biz-panel-icon">◐</span>
+              </div>
+
+              <div className="biz-insights">
+                {aiBoardLoading && !aiBoard ? (
+                  [0, 1, 2].map(i => (
+                    <div key={i} className="biz-insight-item">
+                      <span className="biz-insight-num">{i + 1}</span>
+                      <span className="biz-skeleton biz-skel-text" />
+                    </div>
+                  ))
+                ) : aiBoard?.insights && aiBoard.insights.length > 0 ? (
+                  aiBoard.insights.map((ins, i) => (
+                    <div key={i} className="biz-insight-item">
+                      <span className="biz-insight-num">{i + 1}</span>
+                      <span className="biz-insight-text">{ins}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="biz-empty-msg">
+                    Xulosalar tayyorlanmoqda. Manbalarda ko'proq ma'lumot bo'lsa, tahlil aniqroq bo'ladi.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* AI Maslahatlar */}
+            <section className="dashboard-panel biz-panel">
+              <div className="dashboard-panel-head">
+                <div>
+                  <div className="dashboard-panel-eyebrow">AI Maslahatlar</div>
+                  <h2 className="dashboard-panel-title">Bugun nima qilish kerak</h2>
+                </div>
+                <span className="biz-panel-icon">✦</span>
+              </div>
+
+              <div className="biz-recos">
+                {aiBoardLoading && !aiBoard ? (
+                  [0, 1, 2].map(i => (
+                    <div key={i} className="biz-reco-item" style={{ "--prio": "var(--muted)" }}>
+                      <div className="biz-reco-head">
+                        <span className="biz-skeleton biz-skel-pill" />
+                        <span className="biz-skeleton biz-skel-title" />
+                      </div>
+                      <span className="biz-skeleton biz-skel-text" />
+                    </div>
+                  ))
+                ) : aiBoard?.recommendations && aiBoard.recommendations.length > 0 ? (
+                  aiBoard.recommendations.map((rec, i) => (
+                    <div key={i} className="biz-reco-item" style={{ "--prio": priorityColor(rec.priority) }}>
+                      <div className="biz-reco-head">
+                        <span className="biz-reco-prio">{priorityLabel(rec.priority)}</span>
+                        <strong className="biz-reco-title">{rec.title}</strong>
+                      </div>
+                      <p className="biz-reco-detail">{rec.detail}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="biz-empty-msg">
+                    Maslahatlar tayyorlanmoqda. AI manbalardan tahlil qilib, amaliy qadamlarni tavsiya qiladi.
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+
+          {/* ─── Davriy taqqoslash ─── */}
+          <ComparePeriodsPanel sources={connected} />
+
+          {/* ─── Tezkor buyruqlar + Kuzatuv ─── */}
+          <div className="biz-bottom-grid">
+            <section className="dashboard-panel biz-actions-panel">
+              <div className="dashboard-panel-eyebrow">Tezkor buyruqlar</div>
+              <h3 className="dashboard-panel-title">Davom etish uchun</h3>
+              <div className="biz-actions-row">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    className={`biz-action-btn ${action.kind === "primary" ? "is-primary" : ""}`}
+                    onClick={action.onClick}
+                  >
+                    <span className="biz-action-icon">{action.icon}</span>
+                    <span>{action.label}</span>
+                  </button>
                 ))}
               </div>
-            </div>
-          </div>
-        );
-      })()}
+            </section>
 
-      {/* ── AI Proactive Insights (agar manba bor bo'lsa) ── */}
-      {connected.length > 0 && (() => {
-        const totalRows = connected.reduce((a, s) => a + (s.data?.length || 0), 0);
-        const insights = [
-          {
-            tag: "DIQQAT", tagColor: "var(--orange)", tagBg: "rgba(242,169,59,0.12)",
-            text: <>Sizda <b style={{ color: "var(--gold)" }}>{connected.length} ta manba</b> ulangan va tahlilga tayyor. Umumiy biznes tahlilini boshlang.</>,
-            action: "AI dan so'rash →", onClick: () => setPage("chat"),
-          },
-          {
-            tag: "IMKONIYAT", tagColor: "var(--green)", tagBg: "rgba(47,191,113,0.12)",
-            text: <><b style={{ color: "var(--gold)" }}>{totalRows.toLocaleString()} qator</b> ma'lumotdan AI avtomatik tahlil yaratadi. Tahlil modullarini sinab ko'ring.</>,
-            action: "Modullar →", onClick: () => setPage("analytics"),
-          },
-          {
-            tag: "TREND", tagColor: "var(--blue)", tagBg: "rgba(96,165,250,0.12)",
-            text: <>Grafiklar bo'limida ma'lumotlaringiz bo'yicha <b style={{ color: "var(--gold)" }}>vizual xaritalar</b> tayyor. Bir bosish bilan chart yarating.</>,
-            action: "Grafiklar →", onClick: () => setPage("charts"),
-          },
-        ];
-        return (
-          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px", marginBottom: 20, boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, var(--purple), var(--gold))", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 15, fontWeight: 700 }}>✦</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", fontFamily: "var(--fh)", letterSpacing: -0.1 }}>AI sizga tavsiya qiladi</div>
-                <div style={{ fontSize: 11, color: "var(--muted)", fontFamily: "var(--fm)" }}>Ma'lumotlaringiz asosida avtomatik yaratildi</div>
+            <section className="dashboard-panel biz-watch-panel">
+              <div className="dashboard-panel-eyebrow">Kuzatuv ro'yxati</div>
+              <h3 className="dashboard-panel-title">
+                {watchItems.length > 0 ? "Diqqat talab qiladi" : "Hammasi nazoratda"}
+              </h3>
+              <div className="dashboard-watch-list">
+                {watchItems.length > 0 ? watchItems.map((item, idx) => (
+                  <div key={`${item.title}-${idx}`} className="dashboard-watch-item" style={{ "--tone": item.tone }}>
+                    <strong>{item.title}</strong>
+                    <span>{item.note}</span>
+                  </div>
+                )) : (
+                  <div className="dashboard-watch-item" style={{ "--tone": "var(--teal)" }}>
+                    <strong>Barcha oqimlar nazoratda</strong>
+                    <span>Yangi signal yo'q. Chuqur analytics yoki grafiklar bilan ishlash mumkin.</span>
+                  </div>
+                )}
               </div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-              {insights.map((ins, i) => (
-                <div key={i} onClick={ins.onClick}
-                  style={{ padding: "14px 16px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, cursor: "pointer", transition: "all .18s var(--ease)" }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "translateY(0)"; }}>
-                  <div style={{ display: "inline-block", padding: "2px 8px", fontFamily: "var(--fm)", fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: 700, color: ins.tagColor, background: ins.tagBg, borderRadius: 4, marginBottom: 10 }}>{ins.tag}</div>
-                  <div style={{ fontSize: 12.5, lineHeight: 1.55, color: "var(--text)", marginBottom: 10 }}>{ins.text}</div>
-                  <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 600 }}>{ins.action}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Manba tanlash ── */}
-      {connected.length > 0 && (
-        <div className="flex gap6 mb16 aic flex-wrap">
-          <span className="text-xs text-muted" style={{ fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2 }}>Manba:</span>
-          {connected.map(s => {
-            const st = SOURCE_TYPES[s.type];
-            return (
-              <button key={s.id} className="btn btn-ghost btn-sm" onClick={() => { setActiveSrc(s.id); setChartOverrides({}); }}
-                style={workingSrc?.id === s.id ? { borderColor: s.color || st.color, color: s.color || st.color, background: `${s.color || st.color}0F` } : {}}>
-                {st.icon} {s.name} <span className="badge b-ok" style={{ fontSize: 8, marginLeft: 4 }}>{s.data?.length}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Custom widgets ── */}
-      <div style={{ marginBottom: 16 }}>
-        <div className="flex aic jb mb8">
-          <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Shaxsiy ko'rsatkichlar</div>
-          <button className="btn btn-ghost btn-xs" onClick={() => setShowAddWidget(p => !p)} style={{ fontSize: 9 }}>+ Qo'shish</button>
-        </div>
-        {widgets.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 10 }}>
-            {widgets.map(w => {
-              const isLoading = widgetLoading === w.id;
-              return (
-                <div key={w.id} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", position: "relative", transition: "all .2s" }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = w.color + "40"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
-                  <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4 }}>
-                    <button onClick={() => refreshWidget(w)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }} title="Yangilash">↻</button>
-                    <button onClick={() => removeWidget(w.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 10 }}>✕</button>
-                  </div>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, color: w.color }}>
-                    {isLoading ? (
-                      <div>
-                        <div style={{ height: 2, background: "var(--s3)", borderRadius: 2, marginBottom: 4, overflow: "hidden" }}>
-                          <div style={{ height: "100%", borderRadius: 2, background: w.color, animation: "dashProg 1.5s ease infinite" }} />
-                        </div>
-                        <span style={{ fontSize: 10, color: "var(--muted)" }}>AI hisoblayapti</span>
-                      </div>
-                    ) : w.value || "—"}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text2)", marginTop: 2, fontWeight: 600 }}>{w.label}</div>
-                  {w.sub && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 2 }}>{w.sub}</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {showAddWidget && (
-          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 12, padding: 14, marginTop: 8 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <input className="field f1" placeholder="Nima bilmoqchisiz? (masalan: Jami o'quvchilar soni)" value={newWidget.label} onChange={e => setNewWidget(p => ({ ...p, label: e.target.value }))} style={{ fontSize: 12 }} />
-            </div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <select className="field f1" value={newWidget.sourceId} onChange={e => setNewWidget(p => ({ ...p, sourceId: e.target.value }))}>
-                <option value="">Manba tanlang...</option>
-                {connected.map(s => <option key={s.id} value={s.id}>{s.name} ({s.data?.length} qator)</option>)}
-              </select>
-              <input type="color" value={newWidget.color} onChange={e => setNewWidget(p => ({ ...p, color: e.target.value }))} style={{ width: 36, height: 36, border: "none", borderRadius: 8, cursor: "pointer" }} />
-            </div>
-            <div className="flex gap8">
-              <button className="btn btn-primary btn-sm" onClick={addWidget} disabled={!newWidget.label || !newWidget.sourceId || widgetLoading}>
-                {widgetLoading ? "AI hisoblayapti..." : "Qo'shish"}
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => setShowAddWidget(false)}>Bekor</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Bo'limlar (tashkilot) ── */}
-      {(() => {
-        const isCeoRole = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
-        const umumiyActive = activeDepartmentId === null;
-        const otherDepts = (orgContext?.departments || []).filter(d => d.name !== "Umumiy");
-        return (
-        <div style={{ marginBottom: 20 }}>
-          <div className="flex aic jb mb10">
-            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Bo'limlar</div>
-            <div style={{ fontSize: 10, color: "var(--muted)" }}>Bosing → o'sha bo'limga kirish</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
-            {/* Umumiy — har doim birinchi */}
-            <div
-              onClick={() => { if (setActiveDepartmentId) setActiveDepartmentId(null); if (setOpenDept) setOpenDept(null); }}
-              style={{
-                background: umumiyActive ? "#00D4C820" : "var(--s1)",
-                border: `1px solid ${umumiyActive ? "#00D4C840" : "var(--border)"}`,
-                borderRadius: 12, padding: "14px 16px",
-                cursor: "pointer", transition: "all .2s",
-                display: "flex", alignItems: "center", gap: 12,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = "#00D4C840"; e.currentTarget.style.background = "#00D4C808"; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = umumiyActive ? "#00D4C840" : "var(--border)"; e.currentTarget.style.background = umumiyActive ? "#00D4C820" : "var(--s1)"; }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: "#00D4C820", border: "1px solid #00D4C840", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🏢</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: umumiyActive ? "#00D4C8" : "var(--text)" }}>Umumiy</div>
-                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>Barchasi · {sources.length} manba</div>
-              </div>
-              {umumiyActive && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00D4C8", flexShrink: 0 }} />}
-            </div>
-            {otherDepts.map(d => {
-              const c = d.color || "#6B7280";
-              const deptSourceCount = sources.filter(s =>
-                Array.isArray(s.department_ids) && s.department_ids.includes(d.id)
-              ).length;
-              const activeForThis = activeDepartmentId === d.id;
-              return (
-                <div key={d.id}
-                  onClick={() => {
-                    if (setActiveDepartmentId) setActiveDepartmentId(d.id);
-                    if (setOpenDept) setOpenDept(d.id);
-                  }}
-                  style={{
-                    background: activeForThis ? c + "10" : "var(--s1)",
-                    border: `1px solid ${activeForThis ? c + "40" : "var(--border)"}`,
-                    borderRadius: 12, padding: "14px 16px",
-                    cursor: "pointer", transition: "all .2s",
-                    display: "flex", alignItems: "center", gap: 12,
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = c + "40"; e.currentTarget.style.background = c + "08"; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = activeForThis ? c + "40" : "var(--border)"; e.currentTarget.style.background = activeForThis ? c + "10" : "var(--s1)"; }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: c + "20", border: `1px solid ${c}40`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 16, flexShrink: 0,
-                  }}>{d.icon || "📁"}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: activeForThis ? c : "var(--text)" }}>
-                      {d.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
-                      {deptSourceCount} manba · {d.employee_count || 0} xodim
-                    </div>
-                  </div>
-                  {activeForThis && (
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: c, flexShrink: 0 }} />
-                  )}
-                </div>
-              );
-            })}
+            </section>
           </div>
         </div>
-        );
-      })()}
-
-      {/* ── Anomaliya Aniqlash (avtomatik, collapse) ── */}
-      {(() => {
-        const allAnomalies = detectAnomalies(connected);
-        const anomalies = allAnomalies.filter(a => !hiddenAnomalies.includes(a.source + "|" + a.field + "|" + a.type));
-        if (anomalies.length === 0 && hiddenAnomalies.length === 0) return null;
-        const dangerCount = anomalies.filter(a => a.severity === 'danger').length;
-        const warnCount = anomalies.filter(a => a.severity === 'warning').length;
-        const infoCount = anomalies.filter(a => a.severity !== 'danger' && a.severity !== 'warning').length;
-        const unreadCount = anomalies.filter(a => !readAnomalies.includes(a.source + "|" + a.field + "|" + a.type)).length;
-        const sevColors = { danger: { bg: "rgba(248,113,113,0.06)", border: "rgba(248,113,113,0.25)", color: "#F87171", label: "Xavfli" }, warning: { bg: "rgba(251,191,36,0.06)", border: "rgba(251,191,36,0.25)", color: "#FBBF24", label: "Ogohlantirish" }, info: { bg: "rgba(96,165,250,0.06)", border: "rgba(96,165,250,0.25)", color: "#60A5FA", label: "Ma'lumot" } };
-        return (
-          <div className="mb20" style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: "20px 24px", position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: dangerCount > 0 ? "linear-gradient(90deg, #F87171, #FBBF24, #60A5FA)" : "linear-gradient(90deg, #FBBF24, #60A5FA)" }} />
-            {/* Sarlavha — bosilganda ochiladi/yopiladi */}
-            <div className="flex aic jb" style={{ cursor: "pointer" }} onClick={() => setAnomalyOpen(p => !p)}>
-              <div className="flex aic gap10">
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16.5" r="0.5" fill="#FBBF24" /></svg>
-                </div>
-                <div>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800 }}>Anomaliyalar {unreadCount > 0 && <span style={{ color: "var(--red)", fontSize: 12 }}>({unreadCount} yangi)</span>}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)" }}>{anomalies.length} ta topilma {hiddenAnomalies.length > 0 && `· ${hiddenAnomalies.length} yashirilgan`}</div>
-                </div>
-              </div>
-              <div className="flex aic gap6">
-                {dangerCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{dangerCount} xavfli</span>}
-                {warnCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{warnCount} ogohlantirish</span>}
-                {infoCount > 0 && <span style={{ padding: "4px 10px", borderRadius: 20, background: "rgba(96,165,250,0.1)", border: "1px solid rgba(96,165,250,0.2)", color: "#60A5FA", fontSize: 10, fontFamily: "var(--fh)", fontWeight: 700 }}>{infoCount} ma'lumot</span>}
-                {hiddenAnomalies.length > 0 && <span onClick={e => { e.stopPropagation(); resetHiddenAnomalies(); }} style={{ padding: "4px 10px", borderRadius: 20, background: "var(--s3)", border: "1px solid var(--border)", color: "var(--muted)", fontSize: 10, fontFamily: "var(--fh)", cursor: "pointer" }}>Barchasini ko'rsatish</span>}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .3s", transform: anomalyOpen ? "rotate(180deg)" : "rotate(0)" }}><polyline points="6 9 12 15 18 9" /></svg>
-              </div>
-            </div>
-            {/* Kartalar — faqat ochiq bo'lganda */}
-            {anomalyOpen && <div style={{ marginTop: 14 }}>
-              {anomalies.map((a, i) => {
-                const sev = sevColors[a.severity] || sevColors.warning;
-                const aKey = a.source + "|" + a.field + "|" + a.type;
-                const isRead = readAnomalies.includes(aKey);
-                const pctDiff = a.mean && a.value && typeof a.value === "number" && typeof a.mean === "number" && a.mean !== 0 ? Math.round((a.value - a.mean) / a.mean * 100) : null;
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, border: `1px solid ${isRead ? "var(--border)" : sev.border}`, background: isRead ? "transparent" : sev.bg, marginBottom: 8, transition: "all .2s", opacity: isRead ? 0.6 : 1 }}>
-                    {/* Indicator */}
-                    <div style={{ width: 6, height: 36, borderRadius: 3, background: sev.color, flexShrink: 0, opacity: isRead ? 0.3 : 1 }} />
-                    {/* Ma'lumot */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
-                        <span style={{ fontFamily: "var(--fh)", fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{a.fieldName || a.field?.replace(/_/g, " ")}</span>
-                        <span style={{ fontSize: 8, color: "var(--muted)", background: "var(--s2)", padding: "1px 6px", borderRadius: 6 }}>{a.source}</span>
-                        {(a.type === "trend_down" || a.type === "trend_up") && (
-                          <span style={{ fontSize: 8, padding: "1px 6px", borderRadius: 6, background: a.type === "trend_down" ? "rgba(248,113,113,0.1)" : "rgba(74,222,128,0.1)", color: a.type === "trend_down" ? "#F87171" : "#4ADE80", fontWeight: 600 }}>
-                            {a.type === "trend_down" ? "↓ pasayish" : "↑ o'sish"}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--text2)", lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                        {a.explanation || a.message || ""}
-                      </div>
-                    </div>
-                    {/* Raqamlar */}
-                    <div style={{ display: "flex", gap: 12, flexShrink: 0, alignItems: "center" }}>
-                      <div style={{ textAlign: "center" }}>
-                        <div style={{ fontFamily: "var(--fh)", fontSize: 18, fontWeight: 800, color: sev.color }}>{typeof a.value === "number" ? a.value.toLocaleString() : a.value}</div>
-                        <div style={{ fontSize: 7, color: "var(--muted)", textTransform: "uppercase" }}>qiymat</div>
-                      </div>
-                      {a.mean != null && (
-                        <div style={{ textAlign: "center" }}>
-                          <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 600, color: "var(--muted)" }}>{typeof a.mean === "number" ? a.mean.toLocaleString() : a.mean}</div>
-                          <div style={{ fontSize: 7, color: "var(--muted)", textTransform: "uppercase" }}>o'rtacha</div>
-                        </div>
-                      )}
-                      {pctDiff != null && (
-                        <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 800, color: pctDiff > 0 ? "#4ADE80" : "#F87171", minWidth: 45, textAlign: "center" }}>
-                          {pctDiff > 0 ? "+" : ""}{pctDiff}%
-                        </div>
-                      )}
-                    </div>
-                    {/* Amallar */}
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                      {!isRead && <button onClick={e => { e.stopPropagation(); markAnomalyRead(aKey); }} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 8px", fontSize: 9, color: "var(--teal)", cursor: "pointer", fontFamily: "var(--fh)" }}>✓</button>}
-                      <button onClick={e => { e.stopPropagation(); hideAnomaly(aKey); }} style={{ background: "none", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 6, padding: "4px 6px", fontSize: 9, color: "var(--red)", cursor: "pointer" }}>✕</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>}
-          </div>
-        );
-      })()}
-
-      {/* ── Dashboard — foydalanuvchi o'zi qo'shadi ── */}
-      {connected.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <div className="flex aic jb mb10">
-            <div style={{ fontSize: 9, fontFamily: "var(--fh)", textTransform: "uppercase", letterSpacing: 2, color: "var(--muted)" }}>Dashboard kartalar</div>
-            {dashCards.length > 0 && (
-              <button className="btn btn-ghost btn-xs" onClick={() => { if (confirm("Barcha kartalarni o'chirish?")) clearDashCards(); }} style={{ fontSize: 9, color: "var(--red)" }}>Tozalash</button>
-            )}
-          </div>
-          {/* So'rov paneli */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input className="field f1" placeholder={`${workingSrc?.name || "Manba"}: qanday grafik yoki raqam kerak?`}
-              value={dashQuery} onChange={e => setDashQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !dashLoading) addDashChart(); }}
-              disabled={dashLoading} style={{ fontSize: 12 }} />
-            <button className="btn btn-primary btn-sm" onClick={() => addDashChart()} disabled={dashLoading || !dashQuery.trim()} style={{ whiteSpace: "nowrap" }}>
-              {dashLoading ? "..." : "+ Qo'shish"}
-            </button>
-          </div>
-          {/* Tayyor so'rovlar */}
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 12 }} className="hide-scroll">
-            {["Umumiy raqamlar", "Top 5 bar grafik", "Trend line grafik", "Taqsimot pie grafik", "Solishtirma tahlil"].map(q => (
-              <button key={q} className="btn btn-ghost btn-xs" onClick={() => addDashChart(q)} disabled={dashLoading}
-                style={{ flexShrink: 0, fontSize: 10 }}>{q}</button>
-            ))}
-          </div>
-          {/* Mini progress bar — AiProgressBar bilan bir xil stil */}
-          <AiProgressBar loading={dashLoading} />
-        </div>
-      )}
-
-      {/* Dashboard kartalar */}
-      {dashCards.length > 0 && (
-        <CardGrid cards={dashCards} chartOverrides={chartOverrides} setChartOverride={setChartOverride} layoutKey={"u_" + (user?.id || "anon") + "_layout_dash"} onDeleteCard={(id) => removeDashCard(id)} />
-      )}
-
-      {/* Dashboard kartalar yo'q holati — manba bor, lekin karta hali yo'q */}
-      {connected.length > 0 && dashCards.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: "28px 24px", border: "1px dashed var(--border)" }}>
-          <div style={{ fontFamily: "var(--fh)", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Dashboard kartalarni sozlang</div>
-          <div className="text-muted text-sm">Yuqorida savol yozing yoki tayyor shablonlardan birini tanlang — AI avtomatik karta yaratadi</div>
+      ) : (
+        /* Empty State */
+        <div className="dashboard-empty-state" style={{ position: "relative", zIndex: 1 }}>
+          <div className="dashboard-empty-icon">◫</div>
+          <h2 className="dashboard-empty-title">Tahlilni boshlang</h2>
+          <p className="dashboard-empty-copy">
+            Hali hech qanday ma'lumot manbasi ulanmagan. AI biznesingizni tahlil qilishi uchun avval ma'lumotlarni yuklang.
+          </p>
+          <button className="btn btn-primary btn-lg" onClick={() => setPage("datahub")} style={{ padding: "16px 48px", borderRadius: 18 }}>
+            + Birinchi manbani ulash
+          </button>
         </div>
       )}
     </div>
@@ -12764,14 +11856,14 @@ FAQAT JSON.`;
 
 // Bo'lim ikonkalar va ranglar (tayyor shablonlar)
 const DEPT_PRESETS = [
-  { icon: "📈", label: "Marketing",       color: "#3B82F6" },
-  { icon: "💰", label: "Sotuv",           color: "#10B981" },
-  { icon: "📊", label: "Moliya",          color: "#F59E0B" },
-  { icon: "👥", label: "HR",              color: "#A78BFA" },
+  { icon: "📈", label: "Marketing", color: "#3B82F6" },
+  { icon: "💰", label: "Sotuv", color: "#10B981" },
+  { icon: "📊", label: "Moliya", color: "#F59E0B" },
+  { icon: "👥", label: "HR", color: "#A78BFA" },
   { icon: "🏭", label: "Ishlab chiqarish", color: "#6B7280" },
-  { icon: "🚚", label: "Logistika",       color: "#EF4444" },
+  { icon: "🚚", label: "Logistika", color: "#EF4444" },
   { icon: "🎧", label: "Qo'llab-quvvatlash", color: "#06B6D4" },
-  { icon: "📁", label: "Umumiy",          color: "#6B7280" },
+  { icon: "📁", label: "Umumiy", color: "#6B7280" },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -12875,7 +11967,7 @@ function DepartmentsPage({ push, onChange }) {
 }
 
 // Emoji va rang shablonlari bo'lim uchun
-const DEPT_ICON_GRID = ["📈","💰","📊","👥","🏭","🚚","🎧","💼","🏢","📁","💻","🎯","🛒","📦","🔧","🎨","📱","⚡","🌟","🚀"];
+const DEPT_ICON_GRID = ["📈", "💰", "📊", "👥", "🏭", "🚚", "🎧", "💼", "🏢", "📁", "💻", "🎯", "🛒", "📦", "🔧", "🎨", "📱", "⚡", "🌟", "🚀"];
 const DEPT_COLOR_SWATCHES = [
   "#3B82F6", "#10B981", "#F59E0B", "#A78BFA",
   "#EF4444", "#06B6D4", "#EC4899", "#8B5CF6",
@@ -12972,8 +12064,10 @@ function DepartmentModal({ mode, dept, onClose, onSaved, push }) {
 
           <div style={{ marginBottom: 16 }}>
             <div className="field-label">Ikonka</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4, padding: 8,
-              background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 4, padding: 8,
+              background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)"
+            }}>
               {DEPT_ICON_GRID.map(e => (
                 <div key={e} onClick={() => setIcon(e)}
                   style={{
@@ -13241,12 +12335,12 @@ function EmployeeModal({ mode, emp, departments, templates, onClose, onSaved, pu
 
   const initials = (name.trim() || "?").split(" ").map(x => x.charAt(0)).slice(0, 2).join("").toUpperCase();
   const PERM_LIST = [
-    { k: "can_add_sources",     l: "Manba qo'shish",        d: "Yangi ma'lumot manbasi ulash", ico: "➕" },
-    { k: "can_delete_sources",  l: "Manba o'chirish",       d: "Mavjud manbani o'chirish",     ico: "🗑" },
-    { k: "can_use_ai",          l: "AI dan foydalanish",    d: "AI chat, analiz, hisobot",     ico: "🤖" },
-    { k: "can_export",          l: "Eksport qilish",        d: "PDF/Excel yuklab olish",       ico: "📤" },
-    { k: "can_create_reports",  l: "Hisobot yaratish",      d: "Saqlangan hisobotlar",          ico: "📄" },
-    { k: "can_invite_employees",l: "Xodim taklif qilish",   d: "Boshqa xodim qo'shish",        ico: "👥" },
+    { k: "can_add_sources", l: "Manba qo'shish", d: "Yangi ma'lumot manbasi ulash", ico: "➕" },
+    { k: "can_delete_sources", l: "Manba o'chirish", d: "Mavjud manbani o'chirish", ico: "🗑" },
+    { k: "can_use_ai", l: "AI dan foydalanish", d: "AI chat, analiz, hisobot", ico: "🤖" },
+    { k: "can_export", l: "Eksport qilish", d: "PDF/Excel yuklab olish", ico: "📤" },
+    { k: "can_create_reports", l: "Hisobot yaratish", d: "Saqlangan hisobotlar", ico: "📄" },
+    { k: "can_invite_employees", l: "Xodim taklif qilish", d: "Boshqa xodim qo'shish", ico: "👥" },
   ];
 
   return (
@@ -13425,8 +12519,10 @@ function EmployeeModal({ mode, emp, departments, templates, onClose, onSaved, pu
                     );
                   })}
                 </div>
-                <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--s3)", border: "1px solid var(--border)",
-                  display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  padding: "10px 12px", borderRadius: 10, background: "var(--s3)", border: "1px solid var(--border)",
+                  display: "flex", alignItems: "center", gap: 10
+                }}>
                   <div style={{ fontSize: 14 }}>🎯</div>
                   <div style={{ flex: 1, fontSize: 12, fontFamily: "var(--fh)", color: "var(--text)" }}>AI oylik limit</div>
                   <input type="number" className="field" style={{ width: 100, padding: "4px 10px", fontSize: 12 }}
@@ -13495,8 +12591,10 @@ function PasswordDisplayModal({ email, password, onClose, push }) {
 
         <div style={{ padding: "20px 28px 24px" }}>
           {/* Login row */}
-          <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)", marginBottom: 10,
-            display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            padding: "12px 14px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)", marginBottom: 10,
+            display: "flex", alignItems: "center", gap: 12
+          }}>
             <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,212,200,0.1)", border: "1px solid rgba(0,212,200,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>📧</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 2 }}>Login (email)</div>
@@ -13505,10 +12603,12 @@ function PasswordDisplayModal({ email, password, onClose, push }) {
           </div>
 
           {/* Password row */}
-          <div style={{ padding: "14px 16px", borderRadius: 12,
+          <div style={{
+            padding: "14px 16px", borderRadius: 12,
             background: "linear-gradient(135deg, rgba(212,168,83,0.08) 0%, rgba(212,168,83,0.03) 100%)",
             border: "1px solid rgba(212,168,83,0.25)", marginBottom: 18,
-            display: "flex", alignItems: "center", gap: 12 }}>
+            display: "flex", alignItems: "center", gap: 12
+          }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(212,168,83,0.15)", border: "1px solid rgba(212,168,83,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🔐</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 3 }}>Parol</div>
@@ -13520,8 +12620,10 @@ function PasswordDisplayModal({ email, password, onClose, push }) {
           </div>
 
           {/* Warning */}
-          <div style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(212,168,83,0.06)", border: "1px solid rgba(212,168,83,0.15)", marginBottom: 18,
-            fontSize: 11, color: "var(--text2)", display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            padding: "10px 12px", borderRadius: 10, background: "rgba(212,168,83,0.06)", border: "1px solid rgba(212,168,83,0.15)", marginBottom: 18,
+            fontSize: 11, color: "var(--text2)", display: "flex", alignItems: "center", gap: 8
+          }}>
             <span style={{ fontSize: 14 }}>⚠️</span>
             <span>Modal yopilgandan keyin parol qayta ko'rinmaydi. Xavfsiz joyga saqlang.</span>
           </div>
@@ -14351,16 +13453,16 @@ function CreateOrganizationModal({ onClose, onSaved, push }) {
 // Sidebar top (doim ko'rinadi, iconkasiz)
 const TOP_ITEMS = [
   { id: "dashboard", lbl: "Bosh sahifa" },
-  { id: "datahub",   lbl: "Manbalar", badge: "sources" },
+  { id: "datahub", lbl: "Manbalar", badge: "sources" },
 ];
 
 // Har dropdown (CEO, bo'limlar) ichidagi sub-sahifalar (iconkasiz)
 const WORKSPACE_ITEMS = [
-  { id: "chat",      lbl: "AI Maslahat" },
-  { id: "charts",    lbl: "Grafiklar" },
+  { id: "chat", lbl: "AI Maslahat" },
+  { id: "charts", lbl: "Grafiklar" },
   { id: "analytics", lbl: "Tahlil" },
-  { id: "reports",   lbl: "Hisobotlar" },
-  { id: "alerts",    lbl: "Ogohlantirishlar", badge: "alerts" },
+  { id: "reports", lbl: "Hisobotlar" },
+  { id: "alerts", lbl: "Ogohlantirishlar", badge: "alerts" },
 ];
 
 // Boshqaruv (pastda) — ceoOnly: faqat CEO/super_admin ko'radi
@@ -14395,7 +13497,15 @@ import { Component } from "react";
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(err, info) { console.error("[ErrorBoundary]", err, info); }
+  componentDidCatch(err, info) {
+    console.error("[ErrorBoundary]", err, info);
+    // Backend'ga yuborish (errorTracker.reportError)
+    try {
+      import('./errorTracker.js').then(m => {
+        m.reportError(err, { source: 'react', componentStack: info?.componentStack });
+      });
+    } catch {}
+  }
   render() {
     if (this.state.hasError) return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#05060C", color: "#E8ECF4", fontFamily: "Inter, sans-serif", padding: 32 }}>
@@ -14422,6 +13532,18 @@ function AppContent() {
   // ── Auth state ──
   const [authPage, setAuthPage] = useState("landing"); // landing|login|register
   const [user, setUser] = useState(() => Auth.getSession());
+
+  // ── Session expired listener — token yaroqsiz bo'lsa avtomatik login screen ──
+  useEffect(() => {
+    const onExpired = () => {
+      try { Auth.logout && Auth.logout(); } catch {}
+      Token.clear();
+      setUser(null);
+      setAuthPage("login");
+    };
+    window.addEventListener('session-expired', onExpired);
+    return () => window.removeEventListener('session-expired', onExpired);
+  }, []);
 
   // ── Per-user localStorage prefix ──
   const uKey = useCallback((k) => "u_" + (user?.id || "anon") + "_" + k, [user?.id]);
@@ -14597,13 +13719,13 @@ function AppContent() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const igConnected = params.get("ig_connected");
-    const igError     = params.get("ig_error");
-    const sourceId    = params.get("sourceId");
+    const igError = params.get("ig_error");
+    const sourceId = params.get("sourceId");
     if (igConnected) {
       push(`Instagram muvaffaqiyatli ulandi! Ma'lumotlar yuklanmoqda...`, "ok");
       history.replaceState(null, "", window.location.pathname);
       // Sources ni qayta yuklash
-      setTimeout(() => { SourcesAPI.list().then(data => { if (data?.sources) setSources(data.sources); }).catch(() => {}); }, 1500);
+      setTimeout(() => { SourcesAPI.list().then(data => { if (data?.sources) setSources(data.sources); }).catch(() => { }); }, 1500);
       setPage("data");
     } else if (igError) {
       push(`Instagram ulanishda xato: ${decodeURIComponent(igError)}`, "error");
@@ -14669,7 +13791,7 @@ function AppContent() {
           LS.del("u_" + uid + "_onboarding_done");
           setPage("dashboard");
           setTimeout(() => window.location.reload(), 50);
-        } catch {}
+        } catch { }
       }
     };
     window.addEventListener("keydown", handler);
@@ -14803,7 +13925,7 @@ function AppContent() {
     if (authPage === "register") return <RegisterPage onAuth={handleAuth} onGoLogin={() => setAuthPage("login")} onGoLanding={() => setAuthPage("landing")} />;
     return (
       <>
-        <style>{CSS}</style>
+
         <NotifBanner notifs={notifs} remove={remove} />
         <LandingPage onLogin={() => setAuthPage("login")} onRegister={() => setAuthPage("register")} />
       </>
@@ -14864,7 +13986,7 @@ function AppContent() {
   if (superAdminMode && (user.role === "super_admin" || user.role === "admin" || orgContext?.permissions?.is_super_admin)) {
     return (
       <>
-        <style>{CSS}</style>
+
         <NotifBanner notifs={notifs} remove={remove} />
         <div className="app">
           <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
@@ -14936,17 +14058,17 @@ function AppContent() {
     settings: "AI Sozlamalar", dashboard: "Bosh Sahifa", datahub: "Data Hub — Konstruktor",
     charts: "Grafiklar", chat: "AI Maslahat", analytics: "Tahlil",
     reports: "Hisobotlar", alerts: "AI Ogohlantirishlar", profile: "Profil & Tarif",
-    team: "Jamoam",
+    team: "Jamoam", memory: "AI Xotira", costs: "AI Xarajatlar",
   };
 
   // CEO yoki super_admin uchun Jamoam sahifasini ochish
   const isCeoOrAbove = user?.role === "ceo" || user?.role === "super_admin" || user?.role === "admin";
-  const refreshOrgContext = () => AuthAPI.context().then(ctx => { if (ctx) setOrgContext(ctx); }).catch(() => {});
+  const refreshOrgContext = () => AuthAPI.context().then(ctx => { if (ctx) setOrgContext(ctx); }).catch(() => { });
 
   // ── Page components ──
   const pages = {
     settings: <SettingsPage aiConfig={aiConfig} setAiConfig={setAiConfig} push={push} effectiveAI={effectiveAI} hasPersonalKey={hasPersonalKey} hasGlobalAI={hasGlobalAI} user={user} />,
-    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} orgContext={orgContext} activeDepartmentId={activeDepartmentId} setActiveDepartmentId={setActiveDepartmentId} setOpenDept={setOpenDept} />,
+    dashboard: <DashboardPage sources={sources} aiConfig={effectiveAI} setPage={setPage} user={user} orgContext={orgContext} activeDepartmentId={activeDepartmentId} setActiveDepartmentId={setActiveDepartmentId} setOpenDept={setOpenDept} alerts={alerts} />,
     datahub: <DataHubPage sources={sources} setSources={setSources} push={push} user={user} orgContext={orgContext} activeDepartmentId={activeDepartmentId} />,
     charts: <ChartsPage sources={sources} aiConfig={effectiveAI} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} runBackgroundAI={runBackgroundAI} />,
     chat: <ChatPage aiConfig={effectiveAI} sources={sources} user={user} hasPersonalKey={hasPersonalKey} onAiUsed={onAiUsed} />,
@@ -14955,6 +14077,8 @@ function AppContent() {
     alerts: <AlertsPage aiConfig={effectiveAI} sources={sources} alerts={alerts} addAlert={addAlert} markAllRead={markAllRead} deleteAlert={deleteAlert} push={push} user={user} onAiUsed={onAiUsed} />,
     profile: <ProfilePage user={user} onPlanChange={handlePlanChange} push={push} sources={sources} />,
     team: <CeoSettingsPage push={push} orgInfo={orgContext?.organization} onChange={refreshOrgContext} />,
+    memory: <MemoryPage push={push} />,
+    costs: <CostDashboard user={user} push={push} />,
   };
 
   const groupedNav = NAV.reduce((acc, item) => {
@@ -14976,7 +14100,7 @@ function AppContent() {
 
   return (
     <>
-      <style>{CSS}</style>
+
       <NotifBanner notifs={notifs} remove={remove} />
       {onboardingModal}
       <CommandPalette
@@ -14993,243 +14117,46 @@ function AppContent() {
         {/* Mobile overlay */}
         {sidebarOpen && <div className="mob-overlay" onClick={() => setSidebarOpen(false)} />}
 
-        {/* SIDEBAR — Flat redesign */}
-        <div className={`sidebar ${sidebarOpen ? "" : "sidebar-closed"}`}>
-          {/* Brand */}
-          <div className="logo-wrap">
-            <div className="logo-main">ANA<span>LIX</span></div>
-            <div className="logo-sub">Strategik Agent</div>
-            <button className="sidebar-close-btn" onClick={() => setSidebarOpen(false)}>✕</button>
-          </div>
-
-          {/* Workspace selector — bo'lim filtri */}
-          {orgContext?.organization && (() => {
-            const activeDept = orgContext.departments?.find(d => d.id === activeDepartmentId);
-            const displayName = activeDept ? activeDept.name : orgContext.organization.name;
-            const displayIcon = activeDept?.icon || orgContext.organization.name?.charAt(0).toUpperCase() || "?";
-            const totalRows = sources.reduce((a, s) => a + (s.data?.length || 0), 0);
-            return (
-              <div
-                onClick={() => setWorkspaceOpen(v => !v)}
-                style={{
-                  margin: "10px 10px 8px", padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "linear-gradient(135deg, var(--gold-glow), var(--s2))",
-                  border: "1px solid var(--border)",
-                  display: "flex", alignItems: "center", gap: 10,
-                  cursor: "pointer", transition: "all .18s var(--ease)",
-                  position: "relative",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: 8,
-                  background: "linear-gradient(135deg, var(--gold), var(--accent2))",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontFamily: "var(--fh)", fontSize: 13, fontWeight: 800,
-                  color: "#fff", flexShrink: 0,
-                  boxShadow: "var(--shadow-sm)",
-                }}>{displayIcon}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: "var(--fh)", fontSize: 12.5, fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: -0.1 }}>
-                    {displayName}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1, fontFamily: "var(--fm)" }}>
-                    {connCount} manba · {totalRows.toLocaleString()} qator
-                  </div>
-                </div>
-                <span style={{ color: "var(--muted)", fontSize: 10 }}>▾</span>
-
-                {workspaceOpen && (
-                  <div onClick={e => e.stopPropagation()}
-                    style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, zIndex: 100, background: "var(--s1)", border: "1px solid var(--border-hi)", borderRadius: 12, padding: 6, boxShadow: "var(--shadow-lg)" }}>
-                    <button onClick={() => { setActiveDepartmentId(null); setWorkspaceOpen(false); }}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: activeDepartmentId === null ? "var(--gold-glow)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: activeDepartmentId === null ? "var(--gold)" : "var(--text)", fontWeight: activeDepartmentId === null ? 700 : 500, fontFamily: "var(--fh)", textAlign: "left", marginBottom: 2 }}>
-                      <span>🏢</span>
-                      <span style={{ flex: 1 }}>Umumiy (barchasi)</span>
-                      {activeDepartmentId === null && <span style={{ color: "var(--gold)" }}>✓</span>}
-                    </button>
-                    {(orgContext.departments || []).filter(d => d.name !== "Umumiy").map(d => (
-                      <button key={d.id} onClick={() => { setActiveDepartmentId(d.id); setWorkspaceOpen(false); }}
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "none", background: activeDepartmentId === d.id ? "var(--gold-glow)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: activeDepartmentId === d.id ? "var(--gold)" : "var(--text)", fontWeight: activeDepartmentId === d.id ? 700 : 500, fontFamily: "var(--fh)", textAlign: "left", marginBottom: 2 }}>
-                        <span>{d.icon || "📁"}</span>
-                        <span style={{ flex: 1 }}>{d.name}</span>
-                        {activeDepartmentId === d.id && <span style={{ color: "var(--gold)" }}>✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* Search / Command palette trigger */}
-          <div onClick={() => setCmdOpen(true)}
-            style={{
-              margin: "0 10px 8px", padding: "9px 12px",
-              background: "var(--s2)", border: "1px solid var(--border)",
-              borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
-              cursor: "pointer", color: "var(--muted)", fontSize: 12.5,
-              transition: "all .15s var(--ease)",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border-hi)"; e.currentTarget.style.background = "var(--s3)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--s2)"; }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <span style={{ flex: 1 }}>Qidirish yoki buyruq...</span>
-            <span style={{ fontFamily: "var(--fm)", fontSize: 9.5, padding: "2px 6px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 4, color: "var(--text2)" }}>⌘K</span>
-          </div>
-
-          {/* Flat nav */}
-          <div className="nav">
-            {[
-              { id: "dashboard", lbl: "Bosh sahifa",       icon: "🏠" },
-              { id: "datahub",   lbl: "Manbalar",          icon: "📁", badge: connCount },
-              { id: "chat",      lbl: "AI Maslahatchi",    icon: "💬", hot: true },
-              { id: "analytics", lbl: "Tahlil",            icon: "📊" },
-              { id: "charts",    lbl: "Grafiklar",         icon: "📈" },
-              { id: "reports",   lbl: "Hisobotlar",        icon: "📋" },
-              { id: "alerts",    lbl: "Ogohlantirishlar",  icon: "🔔", badge: unreadAlerts, badgeAlert: true },
-            ].map(item => (
-              <div key={item.id}
-                className={`ni ${page === item.id ? "active" : ""}`}
-                onClick={() => { setPage(item.id); if (window.innerWidth < 768) setSidebarOpen(false); }}
-                style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.lbl}</span>
-                {item.hot && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent2)", boxShadow: "0 0 8px var(--accent2)" }} />}
-                {item.badge != null && item.badge > 0 && (
-                  <span className={`ni-badge ${item.badgeAlert ? "warn" : ""}`}>{item.badge}</span>
-                )}
-              </div>
-            ))}
-
-            {/* Boshqaruv */}
-            {isCeoOrAbove && (
-              <div style={{ marginTop: 14 }}>
-                <div className="nav-group-label">Boshqaruv</div>
-                <div className={`ni ${page === "team" ? "active" : ""}`}
-                  onClick={() => { setPage("team"); if (window.innerWidth < 768) setSidebarOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>👥</span>
-                  <span>Jamoam</span>
-                </div>
-                <div className={`ni ${page === "settings" ? "active" : ""}`}
-                  onClick={() => { setPage("settings"); if (window.innerWidth < 768) setSidebarOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 11 }}>
-                  <span style={{ fontSize: 14, opacity: 0.9, width: 18, display: "inline-flex", justifyContent: "center" }}>⚙️</span>
-                  <span>Sozlamalar</span>
-                </div>
-              </div>
-            )}
-
-            {/* Super-admin */}
-            {(user.role === "super_admin" || user.role === "admin" || orgContext?.permissions?.is_super_admin) && (
-              <div style={{ marginTop: 10 }}>
-                <div className="nav-group-label">Tizim</div>
-                <div className="ni" style={{ color: "var(--gold)", borderColor: "rgba(212,168,83,0.2)", background: "rgba(212,168,83,0.04)", display: "flex", alignItems: "center", gap: 11 }}
-                  onClick={() => setSuperAdminMode(true)}>
-                  <span style={{ fontSize: 14, width: 18, display: "inline-flex", justifyContent: "center" }}>⭐</span>
-                  <span>Super Admin</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* AI Status — pulse */}
-          {isCeoOrAbove && (
-            <div onClick={() => setPage("settings")}
-              style={{
-                margin: "8px 10px", padding: "9px 11px",
-                background: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal-glow)" : "rgba(232,97,77,0.08)",
-                border: `1px solid ${(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)"}30`,
-                borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
-                cursor: "pointer", transition: "all .15s var(--ease)",
-              }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)",
-                boxShadow: `0 0 8px ${(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)"}`,
-                flexShrink: 0, animation: "pulse-voice 2s ease infinite",
-              }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: (aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "var(--teal)" : "var(--red)", fontFamily: "var(--fh)" }}>{prov.name}</div>
-                <div style={{ fontSize: 9.5, color: "var(--muted)", fontFamily: "var(--fm)" }}>
-                  {(aiConfig.apiKey || GlobalAI.get()?.apiKey) ? "✓ Ulangan" : "Kalit kerak"}
-                </div>
-              </div>
-              <span style={{ fontSize: 9, color: "var(--muted)", fontFamily: "var(--fm)" }}>almashtirish</span>
-            </div>
-          )}
-
-          {/* User footer */}
-          <div className="sidebar-footer" style={{ cursor: "pointer" }} onClick={() => setPage("profile")}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: "50%",
-                background: "linear-gradient(135deg, var(--gold), var(--accent2))",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontFamily: "var(--fh)", fontSize: 13, fontWeight: 800,
-                color: "#fff", flexShrink: 0,
-              }}>{user.name.charAt(0).toUpperCase()}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontFamily: "var(--fh)", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
-                <div style={{ fontSize: 9.5, color: "var(--muted)", fontFamily: "var(--fm)", textTransform: "uppercase", letterSpacing: 1 }}>
-                  {user.role === "super_admin" ? "Super-Admin" : user.role === "ceo" ? "CEO" : user.role === "employee" ? "Xodim" : user.role}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* SIDEBAR — Extracted Component */}
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          orgContext={orgContext}
+          activeDepartmentId={activeDepartmentId}
+          setActiveDepartmentId={setActiveDepartmentId}
+          workspaceOpen={workspaceOpen}
+          setWorkspaceOpen={setWorkspaceOpen}
+          connCount={connCount}
+          sources={sources}
+          setCmdOpen={setCmdOpen}
+          page={page}
+          setPage={setPage}
+          unreadAlerts={unreadAlerts}
+          isCeoOrAbove={isCeoOrAbove}
+          user={user}
+          setSuperAdminMode={setSuperAdminMode}
+          aiConfig={aiConfig}
+          prov={prov}
+        />
 
         {/* MAIN */}
         <div className="main">
-          {/* TOPBAR — breadcrumb + title */}
-          <div className="topbar">
-            <div className="flex aic gap10" style={{ flex: 1, minWidth: 0 }}>
-              <button className="hamburger-btn" onClick={() => setSidebarOpen(v => !v)}></button>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontFamily: "var(--fm)", fontSize: 10.5, color: "var(--muted)", letterSpacing: 0.3, marginBottom: 2, display: "flex", alignItems: "center", gap: 6 }} className="hide-mobile">
-                  {(() => {
-                    const activeDept = orgContext?.departments?.find(d => d.id === activeDepartmentId);
-                    const ws = activeDept ? activeDept.name : (orgContext?.organization?.name || "Analix");
-                    return (
-                      <>
-                        <span>{ws}</span>
-                        <span style={{ color: "var(--muted2)" }}>/</span>
-                        <span>{PAGE_TITLES[page] || page}</span>
-                      </>
-                    );
-                  })()}
-                </div>
-                <div className="page-title" style={{ fontSize: 19, fontWeight: 700, letterSpacing: -0.3, color: "var(--text)" }}>{PAGE_TITLES[page] || page}</div>
-              </div>
-            </div>
-
-            <div className="topbar-right">
-              {bgTaskCount > 0 && (
-                <div className="tb-item" onClick={() => { const t = bgTasksRef.current.find(t => t.status === "running"); if (t?.page) setPage(t.page); }}
-                  style={{ borderColor: "var(--teal)30", color: "var(--teal)", fontWeight: 600, animation: "pulse-voice 2s ease infinite" }}>
-                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--teal)", animation: "pulse-voice 1s ease infinite" }} />
-                  AI ({bgTaskCount})
-                </div>
-              )}
-              <div className="tb-item hide-mobile" onClick={() => setCmdOpen(true)} title="Qidiruv (⌘K)" style={{ padding: "0 10px" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </div>
-              <div className="tb-item" onClick={() => setPage("alerts")} title="Bildirishnomalar" style={{ padding: "0 10px", position: "relative" }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                {unreadAlerts > 0 && (
-                  <span style={{ position: "absolute", top: 6, right: 6, width: 7, height: 7, borderRadius: "50%", background: "var(--red)", border: "2px solid var(--bg)" }} />
-                )}
-              </div>
-              <ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />
-              <LiveClock />
-              <div className="tb-item" onClick={handleLogout} title="Chiqish" style={{ borderColor: "var(--red)30", color: "var(--red)", fontWeight: 600 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                <span className="hide-mobile">Chiqish</span>
-              </div>
-            </div>
-          </div>
+          {/* TOPBAR — Extracted Component */}
+          <Topbar
+            setSidebarOpen={setSidebarOpen}
+            orgContext={orgContext}
+            activeDepartmentId={activeDepartmentId}
+            pageTitles={PAGE_TITLES}
+            page={page}
+            bgTaskCount={bgTaskCount}
+            bgTasksRef={bgTasksRef}
+            setPage={setPage}
+            setCmdOpen={setCmdOpen}
+            unreadAlerts={unreadAlerts}
+            handleLogout={handleLogout}
+            themeToggleNode={<ThemeToggle theme={theme} toggle={toggleTheme} setTheme={setTheme} size="sm" />}
+            liveClockNode={<LiveClock />}
+          />
 
           {/* IMPERSONATION BANNER — super-admin tashkilotga kirganda */}
           {impersonation && (
@@ -15268,7 +14195,7 @@ function AppContent() {
           })()}
 
           {/* CONTENT */}
-          <div className="content">{pages[page]}</div>
+          <div className={`content ${page === "chat" ? "chat-content" : ""}`} style={page === "chat" ? { padding: 0 } : undefined}>{pages[page]}</div>
         </div>
       </div>
 
@@ -15278,5 +14205,11 @@ function AppContent() {
 
 // ── App — ErrorBoundary bilan o'ralgan ──
 export default function App() {
-  return <ErrorBoundary><AppContent /></ErrorBoundary>;
+  return (
+    <ErrorBoundary>
+      <AppContent />
+      {/* Cap-hit modal — har joyda mavjud, 'ai-cap-hit' event'iga reaktiv */}
+      <CapHitModal />
+    </ErrorBoundary>
+  );
 }

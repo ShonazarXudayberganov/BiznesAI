@@ -36,6 +36,13 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
       [req.userId, title, message, type || 'info', icon, sourceName]
     );
+    // Real-time push
+    try {
+      const realtime = require('../services/realtime');
+      realtime.broadcast('alert.new', {
+        id: result.rows[0].id, title, message, type, icon, sourceName,
+      }, { userId: req.userId });
+    } catch {}
     res.status(201).json({ id: result.rows[0].id, ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Server xatosi' });

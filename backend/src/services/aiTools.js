@@ -6,6 +6,10 @@
  */
 const dataLayer = require('./dataLayer');
 const userMemory = require('./userMemory');
+const { detectTimeSeriesAnomalies } = require('./timeSeriesAnomaly');
+const { comparePeriods: comparePeriodsService } = require('./comparePeriods');
+const { forecastSeries } = require('./forecast');
+const { getSpecialist } = require('./specialists');
 
 const TOOLS = [
   {
@@ -247,6 +251,260 @@ const TOOLS = [
     },
     async execute({ sourceId }) {
       return await dataLayer.getSourceSchema(sourceId);
+    },
+  },
+
+  {
+    name: 'semantic_search',
+    description:
+      "Manbalarda chuqur semantic qidiruv — savolga MA'NO jihatdan o'xshash qatorlar (RAG). " +
+      "Kichik qator soni (<500) bo'lganda search_rows yetarli, lekin 1000+ qator bo'lsa " +
+      "yoki fuzzy/erkin shaklda ('mart kechikishlari', 'eng katta xaridor') " +
+      "savol bo'lsa — shu vositani ishlat. Vector embedding va keyword qidiruvni birlashtiradi (hybrid). " +
+      "Faqat oldindan indexlangan manbalarda ishlaydi (admin paneldan re-index).",
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: "Qidiruv matni — savol, kalit so'zlar yoki tasnif" },
+        sourceIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: "Faqat shu manba ID'lari ichida qidirish (ixtiyoriy — bo'sh qoldirilsa hammasi)",
+        },
+        topK: { type: 'integer', description: "Max nechta natija (default 8)", minimum: 1, maximum: 30 },
+      },
+      required: ['query'],
+    },
+    async execute({ organizationId, query, sourceIds, topK }) {
+      const { retrieve, chunksToContext } = require('./retrieval/retriever');
+      const result = await retrieve({
+        query,
+        organizationId,
+        sourceIds: Array.isArray(sourceIds) && sourceIds.length > 0 ? sourceIds : undefined,
+        topK: typeof topK === 'number' ? Math.max(1, Math.min(30, topK)) : 8,
+      });
+      return {
+        query,
+        mode: result.mode, // 'hybrid' | 'vector' | 'keyword' | 'no_results'
+        count: result.chunks.length,
+        chunks: result.chunks.map(c => ({
+          sourceId: c.sourceId,
+          sourceName: c.metadata?.sourceName,
+          chunkIndex: c.chunkIndex,
+          score: c.score || c.rrfScore,
+          matchedBy: c.matchedBy || [c.source],
+          content: c.content.slice(0, 1500), // tool natija qisqartirildi
+          rowCount: c.metadata?.rowCount,
+        })),
+        context: chunksToContext(result.chunks, { maxChars: 6000 }),
+      };
+    },
+  },
+
+  {
+    name: 'find_anomaly',
+    description:
+      "Vaqt qatorida anomaliyalarni topish — z-score'dan kuchliroq (mavsumiylik + trend dekompozitsiya). " +
+      "Sotuv, daromad, mijoz oqimi kabi raqamli ko'rsatkichlar uchun ideal. " +
+      "Avval time_series tool bilan ma'lumotni oling, keyin shu tool'ga uzating.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string', description: 'Manba ID' },
+        dateColumn: { type: 'string', description: "Sana ustun nomi (masalan: 'Sana', 'Date')" },
+        valueColumn: { type: 'string', description: "Raqamli ustun nomi (masalan: 'Summa', 'Daromad')" },
+        granularity: { type: 'string', enum: ['day', 'week', 'month'], description: 'Granularity' },
+        threshold: { type: 'number', description: "Modified z-score threshold (default 3.0). Past=ko'p anomaliya, baland=kam." },
+      },
+      required: ['sourceId', 'dateColumn', 'valueColumn'],
+    },
+    async execute({ organizationId, sourceId, dateColumn, valueColumn, granularity, threshold }) {
+      try {
+        const ts = await dataLayer.timeSeries({
+          organizationId,
+          sourceId,
+          dateColumn,
+          aggColumn: valueColumn,
+          func: 'sum',
+          granularity: granularity || 'day',
+          limit: 365,
+        });
+        if (ts.error) return { error: ts.error };
+        const points = ts.series || [];
+        if (points.length === 0) {
+          return { error: 'Vaqt qatori bo\'sh — sana yoki qiymat ustunlarini tekshiring' };
+        }
+        const tsInput = points.map(p => ({ date: p.bucket, value: Number(p.value) || 0 }));
+        const result = detectTimeSeriesAnomalies(tsInput, {
+          granularity: granularity || 'day',
+          threshold: threshold || 3.0,
+        });
+        return {
+          method: result.method,
+          series_length: result.series_length || tsInput.length,
+          anomalies_count: result.anomalies.length,
+          anomalies: result.anomalies.slice(0, 30),
+          trend_breaks: result.trendBreaks || [],
+          summary_stats: result.decomposition ? {
+            median_residual: result.decomposition.median_residual,
+            mad: result.decomposition.mad,
+          } : null,
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+  },
+
+  {
+    name: 'compare_periods',
+    description:
+      "Joriy davr vs oldingi davr taqqoslash. " +
+      "Misol: Bu oy vs o'tgan oy, Bu hafta vs o'tgan hafta, Bu yil vs o'tgan yil shu davri (YoY). " +
+      "Sotuv, daromad, mijoz oqimi kabi metrikalar uchun delta% chiqaradi. " +
+      "Foydalanuvchi 'sotuv qanday o'sgan?', 'oldingi oyga nisbatan qancha?' deb so'rasa shu tool'ni ishlat.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string', description: 'Manba ID' },
+        dateColumn: { type: 'string', description: "Sana ustun nomi" },
+        valueColumn: { type: 'string', description: "Qiymat ustun nomi (yo'q bo'lsa qator soni)" },
+        func: { type: 'string', enum: ['sum', 'avg', 'count', 'min', 'max'], description: 'Agregatsiya' },
+        period: { type: 'string', enum: ['day', 'week', 'month', 'quarter', 'year'], description: 'Davr o\'lchami' },
+        mode: { type: 'string', enum: ['previous', 'year_ago'], description: "previous=oldingi davr, year_ago=bir yil oldin shu davr" },
+      },
+      required: ['sourceId', 'dateColumn'],
+    },
+    async execute({ sourceId, dateColumn, valueColumn, func, period, mode }) {
+      try {
+        const r = await comparePeriodsService({
+          sourceId, dateColumn, valueColumn,
+          func: func || 'sum',
+          period: period || 'month',
+          mode: mode || 'previous',
+          includeBreakdown: false,
+        });
+        return r;
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+  },
+
+  {
+    name: 'forecast',
+    description:
+      "Vaqt qatorini bashorat qilish (Holt-Winters / Holt linear). " +
+      "Sotuv, daromad, mijoz oqimi kabi metrikalar uchun keyingi N kun/oy bashorati. " +
+      "Foydalanuvchi 'kelasi oy qancha sotamiz?', 'keyingi 2 hafta prognozi' so'rasa shu tool. " +
+      "Mavsumiylik (haftalik/oylik) avtomatik aniqlanadi. 95% confidence interval beradi.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceId: { type: 'string', description: 'Manba ID' },
+        dateColumn: { type: 'string', description: "Sana ustun nomi" },
+        valueColumn: { type: 'string', description: "Qiymat ustun (yo'q → count)" },
+        horizon: { type: 'number', description: "Bashorat necha qadam oldinga (default 14, max 90)" },
+        granularity: { type: 'string', enum: ['day', 'week', 'month'], description: 'Davr o\'lchami' },
+        func: { type: 'string', enum: ['sum', 'avg', 'count'], description: 'Agregatsiya' },
+      },
+      required: ['sourceId', 'dateColumn'],
+    },
+    async execute({ organizationId, sourceId, dateColumn, valueColumn, horizon, granularity, func }) {
+      try {
+        const ts = await dataLayer.timeSeries({
+          organizationId,
+          sourceId,
+          dateColumn,
+          aggColumn: valueColumn,
+          func: func || 'sum',
+          granularity: granularity || 'day',
+          limit: 730,
+        });
+        if (ts.error) return { error: ts.error };
+        const points = ts.series || [];
+        if (points.length < 4) {
+          return { error: `Bashorat uchun kamida 4 nuqta kerak (${points.length} bor)` };
+        }
+        const tsInput = points.map(p => ({ date: p.bucket, value: Number(p.value) || 0 }));
+        const r = forecastSeries(tsInput, {
+          horizon: horizon || 14,
+          granularity: granularity || 'day',
+        });
+        return {
+          method: r.method,
+          horizon: r.horizon,
+          granularity: r.granularity,
+          series_length: r.series_length,
+          summary: r.summary,
+          forecast: r.forecast,
+          reason: r.reason,
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+  },
+
+  {
+    name: 'consult_specialist',
+    description:
+      "Maxsus mutaxassis sub-agentni chaqirish. Mutaxassislar: " +
+      "sales_analyst (savdo tahlil), finance_reviewer (moliyaviy nazorat), " +
+      "marketing_strategist (marketing/lid/kanal), operations_advisor (operatsion samaradorlik). " +
+      "Murakkab biznes savol bo'yicha 2+ sohani qamragan tahlil kerak bo'lsa, har sohaga shu tool'ni alohida chaqir. " +
+      "Mutaxassis o'z domenidagi tool'larni ishlatib, qisqa va aniq javob qaytaradi.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        specialist: {
+          type: 'string',
+          enum: ['sales_analyst', 'finance_reviewer', 'marketing_strategist', 'operations_advisor'],
+          description: 'Mutaxassis turi',
+        },
+        question: { type: 'string', description: "Mutaxassisga aniq savol (1-2 jumla)" },
+        context: { type: 'string', description: "Qo'shimcha kontekst (ixtiyoriy)" },
+      },
+      required: ['specialist', 'question'],
+    },
+    async execute({ organizationId, userId, specialist, question, context, _depth }) {
+      try {
+        if (_depth && _depth > 0) {
+          return { error: 'Sub-agent boshqa sub-agentni chaqirolmaydi (recursion oldini olish)' };
+        }
+        const spec = getSpecialist(specialist);
+        if (!spec) return { error: `Noma'lum mutaxassis: ${specialist}` };
+
+        // Lazy require — circular import oldini olish (aiAgent.js → aiTools.js)
+        const { runAgent } = require('./aiAgent');
+        const fullMessage = context
+          ? `Kontekst: ${context}\n\nSavol: ${question}`
+          : question;
+
+        const r = await runAgent({
+          message: fullMessage,
+          organizationId,
+          userId,
+          history: [],
+          systemPromptExtra: spec.instruction,
+          allowedTools: spec.allowedTools,
+          maxIter: spec.maxIter,
+          thinkingBudget: spec.thinkingBudget,
+          cache: true,
+          webSearch: false,
+        });
+
+        return {
+          specialist,
+          role: spec.role,
+          answer: r.reply,
+          tool_calls_count: r.toolCalls?.length || 0,
+          tools_used: (r.toolCalls || []).map(t => t.name),
+          usage: r.usage,
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
     },
   },
 ];

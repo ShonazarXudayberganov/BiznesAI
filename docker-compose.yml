@@ -3,7 +3,8 @@ version: '3.9'
 services:
   # ── PostgreSQL Database ─────────────────────────────────
   postgres:
-    image: postgres:16-alpine
+    # pgvector qo'shilgan rasm (Faza 4 RAG uchun) — PG 16 bilan to'liq mos
+    image: pgvector/pgvector:pg16
     container_name: biznesai_db
     restart: unless-stopped
     environment:
@@ -54,6 +55,7 @@ services:
       INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID:-1637192060986464}
       INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:-}
       INSTAGRAM_REDIRECT_URI: ${INSTAGRAM_REDIRECT_URI:-https://analix.uz/api/instagram/callback}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
     volumes:
       - uploads:/app/uploads
     ports:

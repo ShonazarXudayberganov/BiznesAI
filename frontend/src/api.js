@@ -17,6 +17,7 @@ export const Token = {
 // ── Bazaviy fetch wrapper ──
 async function apiFetch(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...opts.headers };
+  const hadTokenAtRequest = !!_token;
   if (_token) headers['Authorization'] = `Bearer ${_token}`;
 
   let res;
@@ -27,10 +28,29 @@ async function apiFetch(path, opts = {}) {
     throw new Error('Server bilan aloqa yo\'q');
   }
 
-  // 401 bo'lsa token yaroqsiz — reload QILMAYMIZ (cheksiz loop oldini olish)
+  // 401 handling — quyidagi shartlarda har xil:
+  //   1. /auth/login va /auth/register — bu noto'g'ri credentials (sessiya emas), error qaytarish
+  //   2. Token yo'q edi (hadTokenAtRequest=false) — 401 kutilgan, hech narsa qilmaymiz
+  //   3. Token bor edi va 401 — sessiya tugagan, logout va event
   if (res.status === 401) {
-    Token.clear();
-    throw new Error('Sessiya tugadi, qayta kiring');
+    const isAuthEntry = path === '/auth/login' || path === '/auth/register';
+    if (isAuthEntry) {
+      let errData = null;
+      try { errData = await res.json(); } catch {}
+      const err = new Error(errData?.error || 'Email yoki parol noto\'g\'ri');
+      err.status = 401;
+      throw err;
+    }
+    if (hadTokenAtRequest) {
+      // Token bor edi va backend 401 dedi → sessiya yaroqsiz
+      Token.clear();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('session-expired'));
+      }
+      throw new Error('Sessiya tugadi, qayta kiring');
+    }
+    // Token yo'q edi — call qilmaslik kerak edi, lekin 401 noaniq error
+    throw new Error('Avtorizatsiya kerak');
   }
 
   // 304 yoki bo'sh body
@@ -41,6 +61,22 @@ async function apiFetch(path, opts = {}) {
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = null; }
+
+  // 402 — kunlik cost cap'ga yetdi (Faza 5.3)
+  if (res.status === 402 && data?.cap_usd !== undefined) {
+    const err = new Error(data.error || 'Kunlik AI limit tugadi');
+    err.code = 'COST_CAP_HIT';
+    err.cap = data.cap_usd;
+    err.spent = data.spent_usd;
+    err.resetAt = data.reset_at;
+    // Global event — CapHitModal ushlaydi
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai-cap-hit', {
+        detail: { cap: data.cap_usd, spent: data.spent_usd, resetAt: data.reset_at }
+      }));
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     throw new Error(data?.error || `Server xatosi (${res.status})`);
@@ -304,6 +340,12 @@ export const AiAPI = {
   incrementUsage: () =>
     apiFetch('/ai/increment', { method: 'POST' }),
 
+  comparePeriods: (params) =>
+    apiFetch('/ai/compare-periods', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
   getPlanPrices: () => apiFetch('/ai/plan-prices'),
 
   savePlanPrices: (prices) =>
@@ -312,6 +354,62 @@ export const AiAPI = {
       body: JSON.stringify(prices),
     }),
 };
+
+// ── BRANDING (white-label) ──
+export const BrandingAPI = {
+  get: () => apiFetch('/branding'),
+  getByDomain: (domain) =>
+    fetch(`/api/branding/by-domain?domain=${encodeURIComponent(domain)}`)
+      .then(r => r.ok ? r.json() : { app_name: 'BiznesAI' })
+      .catch(() => ({ app_name: 'BiznesAI' })),
+  save: (branding, customDomain) =>
+    apiFetch('/branding', {
+      method: 'PUT',
+      body: JSON.stringify({ branding, custom_domain: customDomain }),
+    }),
+};
+
+// Apply branding to document (CSS variables + title)
+export function applyBranding(b) {
+  if (!b) return;
+  if (b.app_name) document.title = b.app_name;
+  if (b.favicon_url) {
+    let link = document.querySelector("link[rel*='icon']");
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = b.favicon_url;
+  }
+  if (b.primary_color) {
+    document.documentElement.style.setProperty('--gold', b.primary_color);
+    document.documentElement.style.setProperty('--gold2', b.primary_color);
+  }
+  if (b.accent_color) {
+    document.documentElement.style.setProperty('--teal', b.accent_color);
+  }
+}
+
+// ── REALTIME (SSE) ──
+// Foydalanish: const close = subscribeRealtime({ onAlert, onSource, onAny });
+export function subscribeRealtime({ onConnected, onAlert, onSource, onAny } = {}) {
+  const token = Token.get();
+  if (!token) return () => {};
+  // EventSource standartda Authorization header qo'llab-quvvatlamaydi → query param orqali
+  const url = `${API_BASE}/realtime/stream?_t=${encodeURIComponent(token)}`;
+  let es;
+  try {
+    es = new EventSource(url, { withCredentials: true });
+  } catch {
+    return () => {};
+  }
+  const safeParse = (e) => { try { return JSON.parse(e.data); } catch { return null; } };
+  if (onConnected) es.addEventListener('connected', e => onConnected(safeParse(e)));
+  if (onAlert) es.addEventListener('alert.new', e => onAlert(safeParse(e)?.payload));
+  if (onSource) es.addEventListener('source.updated', e => onSource(safeParse(e)?.payload));
+  if (onAny) {
+    es.onmessage = e => onAny(safeParse(e));
+  }
+  es.onerror = () => {/* auto-reconnect */};
+  return () => { try { es.close(); } catch {} };
+}
 
 // ── PAYMENTS API ──
 export const PaymentsAPI = {
@@ -401,22 +499,33 @@ export const UploadAPI = {
 
 // ── AI AGENT (sayt chat — backend tool use) ──
 export const AiAgentAPI = {
-  chat: (message, history) =>
+  chat: (message, history, opts = {}) =>
     apiFetch('/ai/agent', {
       method: 'POST',
-      body: JSON.stringify({ message, history: history || [] }),
+      body: JSON.stringify({
+        message,
+        history: history || [],
+        thinking_budget: opts.thinkingBudget || 0,
+        cache: opts.cache !== false,
+      }),
     }),
 
   // Streaming chat (SSE) — onEvent({ type, data })
-  // type: 'start' | 'tool' | 'done' | 'error'
-  stream: async (message, history, onEvent, { signal } = {}) => {
+  // type: 'start' | 'tool' | 'delta' | 'thinking' | 'done' | 'error'
+  // opts: { signal, thinkingBudget, cache }
+  stream: async (message, history, onEvent, { signal, thinkingBudget, cache } = {}) => {
     const res = await fetch(`${API_BASE}/ai/agent/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
       },
-      body: JSON.stringify({ message, history: history || [] }),
+      body: JSON.stringify({
+        message,
+        history: history || [],
+        thinking_budget: thinkingBudget || 0,
+        cache: cache !== false,
+      }),
       signal,
     });
     if (!res.ok || !res.body) {
@@ -446,6 +555,119 @@ export const AiAgentAPI = {
         onEvent?.({ type: event, data: parsed });
         if (event === 'done') final = parsed;
         if (event === 'error') throw new Error(parsed?.error || 'Stream xatosi');
+      }
+    }
+    return final;
+  },
+};
+
+// ── AI USAGE (cost telemetry — Faza 5.1) ──
+export const AiUsageAPI = {
+  /** Bugungi total cost (joriy user) */
+  today: () => apiFetch('/admin/ai/usage/today'),
+
+  /** Joriy user uchun to'liq statistika (today + 7 days + by_intent + cap) */
+  me: () => apiFetch('/admin/ai/usage/me'),
+
+  /** Admin: butun org uchun (days param) */
+  org: (days = 30) => apiFetch(`/admin/ai/usage?days=${days}`),
+
+  /** Admin: per-user cap o'zgartirish */
+  setCap: (userId, capUsd) => apiFetch(`/admin/ai/cap/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ cap_usd: capUsd }),
+  }),
+
+  /** Admin: per-user cap ko'rish */
+  getCap: (userId) => apiFetch(`/admin/ai/cap/${userId}`),
+};
+
+// ── AI BRAIN (yagona orchestrator — har sahifa shu yerga so'rov yuboradi) ──
+export const AiBrainAPI = {
+  /**
+   * Sinxron brain chaqiruvi (kichik so'rovlar uchun).
+   * @param {string} intent — `dashboard.summary`, `dashboard.widget`, va h.k.
+   * @param {object} payload — intent-spetsifik vars
+   * @param {object} [opts] — { message, history, thinkingBudget, language }
+   */
+  run: (intent, payload = {}, opts = {}) =>
+    apiFetch('/ai/brain', {
+      method: 'POST',
+      body: JSON.stringify({
+        intent,
+        payload,
+        message: opts.message,
+        history: opts.history || [],
+        thinkingBudget: opts.thinkingBudget || 0,
+        language: opts.language,
+      }),
+    }),
+
+  /**
+   * Streaming brain chaqiruvi (SSE).
+   * onEvent({ type, data }) — type: 'start' | 'tool' | 'delta' | 'thinking' | 'done' | 'error'
+   * @returns {Promise<final>} — final = `done` event'ning data'si
+   */
+  stream: async (intent, payload = {}, onEvent, opts = {}) => {
+    const res = await fetch(`${API_BASE}/ai/brain/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(_token ? { Authorization: `Bearer ${_token}` } : {}),
+      },
+      body: JSON.stringify({
+        intent,
+        payload,
+        message: opts.message,
+        history: opts.history || [],
+        thinkingBudget: opts.thinkingBudget || 0,
+        language: opts.language,
+      }),
+      signal: opts.signal,
+    });
+    if (!res.ok || !res.body) {
+      const t = await res.text().catch(() => '');
+      // 402 — kunlik cost cap (Faza 5.3)
+      if (res.status === 402) {
+        let parsed = null;
+        try { parsed = JSON.parse(t); } catch {}
+        const err = new Error(parsed?.error || 'Kunlik AI limit tugadi');
+        err.code = 'COST_CAP_HIT';
+        err.cap = parsed?.cap_usd;
+        err.spent = parsed?.spent_usd;
+        err.resetAt = parsed?.reset_at;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('ai-cap-hit', {
+            detail: { cap: parsed?.cap_usd, spent: parsed?.spent_usd, resetAt: parsed?.reset_at }
+          }));
+        }
+        throw err;
+      }
+      throw new Error(t || `Brain stream xatosi (${res.status})`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let final = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const events = buf.split(/\n\n/);
+      buf = events.pop() || '';
+      for (const evt of events) {
+        const lines = evt.split('\n');
+        let event = 'message';
+        let data = '';
+        for (const line of lines) {
+          if (line.startsWith('event:')) event = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        let parsed = null;
+        try { parsed = data ? JSON.parse(data) : null; } catch { parsed = data; }
+        onEvent?.({ type: event, data: parsed });
+        if (event === 'done') final = parsed;
+        if (event === 'error') throw new Error(parsed?.error || 'Brain stream xatosi');
       }
     }
     return final;

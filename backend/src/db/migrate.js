@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS organizations (
 
 CREATE INDEX IF NOT EXISTS idx_organizations_active ON organizations(active);
 
+-- White-label branding (FAZA H): logo, ranglar, app nomi, custom domen, footer
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS branding JSONB DEFAULT '{}';
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_custom_domain ON organizations(custom_domain) WHERE custom_domain IS NOT NULL;
+
 -- ══════════════════════════════════════════════
 -- DEPARTMENTS (bo'limlar)
 -- ══════════════════════════════════════════════
@@ -479,6 +484,111 @@ CREATE TABLE IF NOT EXISTS agent_tool_calls (
   created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_agent_tool_user ON agent_tool_calls(user_id, created_at DESC);
+
+-- ══════════════════════════════════════════════
+-- SOURCE CHUNKS (RAG: pgvector + keyword qidiruv)
+-- ══════════════════════════════════════════════
+-- pgvector kengaytmasi (Faza 4)
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS source_chunks (
+  id             BIGSERIAL PRIMARY KEY,
+  source_id      VARCHAR(64) NOT NULL,
+  organization_id INT REFERENCES organizations(id) ON DELETE CASCADE,
+  chunk_index    INT NOT NULL,
+  content        TEXT NOT NULL,
+  metadata       JSONB,                    -- { dateFrom, dateTo, category, rowIndices, summary }
+  embedding      vector(1024),              -- Voyage 3-large dim
+  embed_model    VARCHAR(64),               -- 'voyage-3-large' yoki fallback
+  token_count    INT,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Source bo'yicha tezkor o'chirish va re-index uchun
+CREATE INDEX IF NOT EXISTS idx_source_chunks_source ON source_chunks(source_id, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_source_chunks_org ON source_chunks(organization_id);
+
+-- pgvector cosine similarity uchun ivfflat index (faqat embedding bo'lsa)
+-- Eslatma: ivfflat 'lists' parametri ma'lumot soni / sqrt(N) ga teng bo'lishi optimal.
+-- Boshlanishda 100 — keyin scale'ga moslashtirish mumkin
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_source_chunks_embedding') THEN
+    BEGIN
+      CREATE INDEX idx_source_chunks_embedding ON source_chunks
+        USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'ivfflat index yaratilmadi (kichik dataset?): %', SQLERRM;
+    END;
+  END IF;
+END $$;
+
+-- Keyword (BM25 emas, lekin to_tsvector) — embedding bo'lmasa fallback
+CREATE INDEX IF NOT EXISTS idx_source_chunks_lex
+  ON source_chunks USING GIN (to_tsvector('simple', content));
+
+-- ══════════════════════════════════════════════
+-- AI USAGE LOG (Faza 5.1 — har AI chaqiruv: token, cost, telemetry)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS ai_usage_log (
+  id                       BIGSERIAL PRIMARY KEY,
+  user_id                  INT REFERENCES users(id) ON DELETE SET NULL,
+  organization_id          INT REFERENCES organizations(id) ON DELETE SET NULL,
+  request_id               VARCHAR(64),                  -- har request uchun unique (UUID)
+  page                     VARCHAR(32),                  -- 'dashboard' | 'analytics' | 'reports' | 'alerts' | 'charts' | 'chat'
+  intent                   VARCHAR(64),                  -- 'dashboard.summary' | 'chat.freeform' va h.k.
+  provider                 VARCHAR(16),                  -- 'claude' | 'deepseek' | 'chatgpt' | 'gemini'
+  model                    VARCHAR(64),
+  input_tokens             INT DEFAULT 0,
+  output_tokens            INT DEFAULT 0,
+  thinking_tokens          INT DEFAULT 0,
+  cached_read_tokens       INT DEFAULT 0,
+  cached_write_tokens      INT DEFAULT 0,
+  web_search_count         INT DEFAULT 0,
+  tool_calls_count         INT DEFAULT 0,
+  iterations               INT DEFAULT 0,
+  duration_ms              INT,
+  cost_usd                 NUMERIC(12,6) DEFAULT 0,      -- 6 decimal places (mikro-cent gacha)
+  status                   VARCHAR(16) DEFAULT 'ok',     -- 'ok' | 'error' | 'rate_limited' | 'cap_hit'
+  error_message            TEXT,
+  created_at               TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_date ON ai_usage_log(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_org_date ON ai_usage_log(organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_intent ON ai_usage_log(intent, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_provider ON ai_usage_log(provider, created_at DESC);
+
+-- Faza 5.3 — per-user kunlik cost cap (NULL = default global)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_cost_cap_usd NUMERIC(8,4);
+
+-- Faza 5.4 — auto-memory: status maydoni (pending/approved/rejected)
+ALTER TABLE user_memory ADD COLUMN IF NOT EXISTS status VARCHAR(16) DEFAULT 'approved';
+CREATE INDEX IF NOT EXISTS idx_user_memory_status ON user_memory(user_id, status, created_at DESC);
+
+-- ══════════════════════════════════════════════
+-- ERROR LOG (Faza B0 — error tracking, Sentry o'rniga ichki)
+-- ══════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS error_log (
+  id              BIGSERIAL PRIMARY KEY,
+  source          VARCHAR(20) NOT NULL,           -- 'backend' | 'frontend' | 'bot-worker' | 'agent'
+  level           VARCHAR(10) DEFAULT 'error',    -- 'error' | 'warn' | 'fatal'
+  message         TEXT NOT NULL,
+  stack           TEXT,
+  user_id         INT REFERENCES users(id) ON DELETE SET NULL,
+  organization_id INT REFERENCES organizations(id) ON DELETE SET NULL,
+  request_id      VARCHAR(64),
+  url             TEXT,                            -- frontend URL yoki backend route
+  user_agent      TEXT,                            -- frontend uchun
+  context         JSONB,                           -- har qanday qo'shimcha ma'lumot
+  fingerprint     VARCHAR(64),                     -- group qilish uchun (hash)
+  resolved        BOOLEAN DEFAULT FALSE,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_error_log_created ON error_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_log_source ON error_log(source, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_log_user ON error_log(user_id, created_at DESC) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_error_log_fingerprint ON error_log(fingerprint, created_at DESC) WHERE fingerprint IS NOT NULL;
 `;
 
 // ═══════════════════════════════════════════════════════════════

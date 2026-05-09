@@ -10,3 +10,5 @@ uploads
 backend/uploads
 *.bak
 docker-compose.override.yml
+scratch/
+*.bak.js

@@ -73,7 +73,7 @@ function inQuietHours(timeStr, qStart, qEnd) {
   return t >= qStart || t < qEnd;
 }
 
-async function buildDigestText(orgId, orgName) {
+async function buildDigestText(orgId, orgName, userId) {
   const sum = await BackendAPI.orgSummary(orgId);
   const today = new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' });
   const out = [];
@@ -95,6 +95,25 @@ async function buildDigestText(orgId, orgName) {
     out.push(`  <b>${sum.sources.length}</b> manba · <b>${F.fmtNum(totalRows)}</b> qator`);
   }
 
+  // YANGI: Brain AI tahlil — kunlik xulosa
+  if (userId && sum.sources.length > 0) {
+    try {
+      const r = await BackendAPI.aiBrain({
+        organizationId: orgId,
+        userId,
+        intent: 'chat.freeform',
+        message: 'Bugungi tongki tezkor biznes dayjest tayyorla: Eng muhim 3-4 raqam (sotuv, daromad, mijoz, anomaliya), qisqa xulosa va 2 ta amaliy tavsiya. Telegram uchun qisqa va aniq formatda.',
+      });
+      if (r?.reply) {
+        out.push('');
+        out.push(F.section('🤖', 'AI Tahlil'));
+        out.push(F.mdToTgHtml(r.reply).slice(0, 2500));
+      }
+    } catch (e) {
+      console.warn('[DIGEST] AI tahlil xato:', e.message);
+    }
+  }
+
   // Kanallar
   if (sum.channels.length > 0) {
     out.push(F.section('📺', 'Telegram kanallar'));
@@ -111,7 +130,7 @@ async function buildDigestText(orgId, orgName) {
   }
 
   out.push('');
-  out.push(`<i>💡 Chuqur tahlil uchun botda <b>/menu</b> → Tahlil tugmasi</i>`);
+  out.push(`<i>💡 Chuqur tahlil uchun botda <b>/today</b> yoki <b>/menu</b></i>`);
   out.push(F.footer());
   return out.join('\n');
 }
@@ -136,7 +155,7 @@ async function tickDigest() {
       continue;
     }
     try {
-      const text = await buildDigestText(t.organization_id, t.org_name);
+      const text = await buildDigestText(t.organization_id, t.org_name, t.user_id);
       await _botInstance.telegram.sendMessage(String(t.chat_id), text, { parse_mode: 'HTML' });
       console.log(`[DIGEST] ✓ ${t.org_name} → chat=${t.chat_id}`);
     } catch (e) {

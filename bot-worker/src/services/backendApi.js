@@ -40,6 +40,12 @@ async function callBackendBinary(path, body) {
 }
 
 const BackendAPI = {
+  // YANGI — brain orchestrator orqali (cost telemetry, cap, auto-memory)
+  aiBrain: ({ organizationId, userId, intent = 'chat.freeform', payload, message, history, language }) =>
+    callBackend('POST', '/api/internal/ai-brain', {
+      organizationId, userId, intent, payload, message, history, language,
+    }),
+  // ESKI — backwards compat
   aiChat: ({ organizationId, userId, message, history }) =>
     callBackend('POST', '/api/internal/ai-chat', { organizationId, userId, message, history }),
   orgSummary: (orgId) =>

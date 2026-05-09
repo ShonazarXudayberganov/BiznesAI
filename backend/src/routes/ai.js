@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../db/pool');
 const { requireAuth, requireAdmin, checkPermission, checkAiLimit, checkAiRateLimit } = require('../middleware/auth');
+const { checkCostCap } = require('../middleware/costCap');
 const { runAgent } = require('../services/aiAgent');
 const { resolveAiConfig, chatComplete } = require('../services/aiProviders');
 const userMemory = require('../services/userMemory');
@@ -8,9 +9,9 @@ const userMemory = require('../services/userMemory');
 const router = express.Router();
 
 // ── POST /api/ai/agent ── (sayt chat — multi-turn, tools bilan)
-router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
+router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { message, history } = req.body || {};
+    const { message, history, thinking_budget, cache } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -22,6 +23,8 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
       history: Array.isArray(history)
         ? history.slice(-6).map(h => ({ ...h, content: String(h.content || '').slice(0, 4000) }))
         : [],
+      thinkingBudget: typeof thinking_budget === 'number' ? thinking_budget : 0,
+      cache: cache !== false, // default true
     });
 
     // Chat history saqlash + 90 kundan eski yozuvlarni tozalash
@@ -53,6 +56,7 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
       iterations: r.iterations,
       toolCallsCount: r.toolCalls.length,
       tools: r.toolCalls.map(t => ({ name: t.name, input: t.input })),
+      usage: r.usage || null,
     });
   } catch (e) {
     console.error('[ai/agent]', e.message);
@@ -60,10 +64,10 @@ router.post('/agent', requireAuth, checkPermission('can_use_ai'), checkAiRateLim
   }
 });
 
-// ── POST /api/ai/agent/stream ── SSE: tool eventlarini real-time yuboradi
-router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
+// ── POST /api/ai/agent/stream ── SSE: tool/delta/thinking eventlarini real-time yuboradi
+router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   try {
-    const { message, history } = req.body || {};
+    const { message, history, thinking_budget, cache } = req.body || {};
     if (!message) return res.status(400).json({ error: 'message kerak' });
     const orgId = req.user.organization_id;
     if (!orgId) return res.status(400).json({ error: 'Tashkilot topilmadi' });
@@ -82,6 +86,7 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
 
     const onTool = ({ name, input }) => sendEvent('tool', { name, input });
     const onDelta = (text) => sendEvent('delta', { text });
+    const onThinking = (text) => sendEvent('thinking', { text });
 
     try {
       sendEvent('start', { ts: Date.now() });
@@ -94,6 +99,9 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
           : [],
         onTool,
         onDelta,
+        onThinking,
+        thinkingBudget: typeof thinking_budget === 'number' ? thinking_budget : 0,
+        cache: cache !== false, // default true
       });
 
       sendEvent('done', {
@@ -104,6 +112,7 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
         model: r.model,
         iterations: r.iterations,
         toolCallsCount: r.toolCalls.length,
+        usage: r.usage || null,
       });
 
       // Chat history + counter + 90-kun cleanup
@@ -137,8 +146,34 @@ router.post('/agent/stream', requireAuth, checkPermission('can_use_ai'), checkAi
 // ── Memory routes ──
 router.get('/memory', requireAuth, async (req, res) => {
   try {
-    const list = await userMemory.listMemories(req.userId);
+    // ?status=approved (default) | pending | all
+    const status = req.query.status || 'approved';
+    const list = await userMemory.listMemories(req.userId, { status });
     res.json({ memories: list });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Pending memorylar (auto-extracted, review uchun) ──
+router.get('/memory/pending', requireAuth, async (req, res) => {
+  try {
+    const list = await userMemory.listPendingMemories(req.userId);
+    res.json({ memories: list, count: list.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Approve pending memory ──
+router.post('/memory/:id/approve', requireAuth, async (req, res) => {
+  try {
+    await userMemory.approveMemory(req.userId, parseInt(req.params.id, 10));
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Reject pending memory (delete) ──
+router.post('/memory/:id/reject', requireAuth, async (req, res) => {
+  try {
+    await userMemory.rejectMemory(req.userId, parseInt(req.params.id, 10));
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -272,7 +307,7 @@ router.put('/global', requireAuth, requireAdmin, async (req, res) => {
 
 // ── POST /api/ai/complete ── Oddiy AI completion (grafik, chart uchun)
 // Frontend API key yubormasdan, backend o'z AI configini ishlatadi
-router.post('/complete', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, async (req, res) => {
+router.post('/complete', requireAuth, checkPermission('can_use_ai'), checkAiRateLimit, checkAiLimit, checkCostCap, async (req, res) => {
   const { prompt } = req.body || {};
   if (!prompt) return res.status(400).json({ error: 'prompt kerak' });
 
@@ -309,6 +344,33 @@ router.post('/increment', requireAuth, checkPermission('can_use_ai'), checkAiLim
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Server xatosi' });
+  }
+});
+
+// ── POST /api/ai/compare-periods ── (deterministic period comparison, AI'siz)
+// Body: { sourceId, dateColumn, valueColumn?, func?, period?, mode?, includeBreakdown? }
+router.post('/compare-periods', requireAuth, async (req, res) => {
+  try {
+    const { sourceId, dateColumn, valueColumn, func, period, mode, includeBreakdown } = req.body || {};
+    if (!sourceId || !dateColumn) {
+      return res.status(400).json({ error: 'sourceId va dateColumn majburiy' });
+    }
+    // Source organization check
+    const orgId = req.user.organization_id;
+    const own = await pool.query(
+      'SELECT 1 FROM sources WHERE id=$1 AND organization_id=$2',
+      [sourceId, orgId]
+    );
+    if (own.rowCount === 0) {
+      return res.status(403).json({ error: 'Manba sizning tashkilotingizga tegishli emas' });
+    }
+    const { comparePeriods } = require('../services/comparePeriods');
+    const r = await comparePeriods({ sourceId, dateColumn, valueColumn, func, period, mode, includeBreakdown });
+    if (r.error) return res.status(400).json({ error: r.error });
+    res.json(r);
+  } catch (err) {
+    console.error('[compare-periods]', err);
+    res.status(500).json({ error: err.message || 'Server xatosi' });
   }
 });
 

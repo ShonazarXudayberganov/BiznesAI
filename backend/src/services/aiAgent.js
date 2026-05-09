@@ -349,12 +349,45 @@ ${memoryBlock}` : ''}`;
  * @param {number} [opts.userId]
  * @param {Array} [opts.history] — oldingi xabarlar [{role, content}]
  * @param {function} [opts.onTool] — har tool chaqiruvida log/UI
+ * @param {function} [opts.onThinking] — extended thinking matni keladi (Claude)
  * @param {string} [opts.systemPromptExtra] — qo'shimcha kontekst (masalan "hisobot tayyorla")
- * @returns {Promise<{reply, iterations, toolCalls, provider, model}>}
+ * @param {number} [opts.thinkingBudget] — Claude extended thinking budget (1024-16000)
+ * @param {boolean} [opts.cache] — prompt caching yoqish (default: true Claude'da)
+ * @param {string[]} [opts.allowedTools] — ruxsat etilgan tool nomlari (null/undefined = barchasi)
+ * @param {number} [opts.maxIter] — agent loop max iteratsiya (default: MAX_ITER)
+ * @param {string} [opts.modelOverride] — model nomini override qilish (intent-based)
+ * @returns {Promise<{reply, iterations, toolCalls, provider, model, usage}>}
  */
-async function runAgent({ message, organizationId, userId, history = [], onTool, onDelta, systemPromptExtra, language }) {
+async function runAgent({ message, organizationId, userId, history = [], onTool, onDelta, onThinking, systemPromptExtra, language, thinkingBudget, cache, allowedTools, maxIter, modelOverride, webSearch, webSearchMaxUses, codeExecution }) {
   const cfg = await resolveAiConfig(userId);
-  const tools = getToolsForProvider(cfg.provider);
+  // Model override (intent'ga moslab)
+  if (modelOverride) cfg.model = modelOverride;
+
+  let tools = getToolsForProvider(cfg.provider);
+  // Tool filtering — intent'ga ko'ra ruxsat berilganlarni qoldirish
+  if (Array.isArray(allowedTools) && allowedTools.length > 0) {
+    const allowSet = new Set(allowedTools);
+    tools = tools.filter(t => {
+      // Claude: { name }, OpenAI: { function: { name } }, Gemini: { functionDeclarations: [{name}] }
+      const name = t.name || t.function?.name || (Array.isArray(t.functionDeclarations) ? null : null);
+      if (name) return allowSet.has(name);
+      // Gemini single-tool wrapper holati: filter ichidagi declarations
+      if (Array.isArray(t.functionDeclarations)) {
+        const filtered = t.functionDeclarations.filter(fd => allowSet.has(fd.name));
+        return filtered.length > 0;
+      }
+      return true;
+    });
+    // Gemini wrapper'ni chuqurroq filter qilish
+    if (cfg.provider === 'gemini' && tools[0]?.functionDeclarations) {
+      tools = [{
+        functionDeclarations: tools[0].functionDeclarations.filter(fd => allowSet.has(fd.name)),
+      }];
+    }
+  } else if (Array.isArray(allowedTools) && allowedTools.length === 0) {
+    // [] = tool yo'q — bir o'qli (chart.suggest kabi)
+    tools = [];
+  }
 
   // Foydalanuvchi sozlamalari + memory
   let settings = { language: language || 'uz', response_depth: 'adaptive', memory_enabled: true };
@@ -381,14 +414,26 @@ async function runAgent({ message, organizationId, userId, history = [], onTool,
 
   const ctx = { organizationId, userId };
   const toolCalls = [];
+  // Caching default Claude'da on, boshqa provider'lar bu featurenı qo'llab-quvvatlamaydi
+  const cacheEnabled = cache !== false && cfg.provider === 'claude';
+  const effMaxIter = (typeof maxIter === 'number' && maxIter > 0) ? maxIter : MAX_ITER;
 
   let result;
   if (cfg.provider === 'claude') {
-    result = await runClaudeAgent({ cfg, tools, system: fullSystem, message, history, ctx, toolCalls, onTool, onDelta });
+    result = await runClaudeAgent({
+      cfg, tools, system: fullSystem, message, history, ctx, toolCalls,
+      onTool, onDelta, onThinking,
+      cache: cacheEnabled,
+      thinkingBudget: thinkingBudget || 0,
+      maxIter: effMaxIter,
+      webSearch: !!webSearch, // faqat Claude'da
+      webSearchMaxUses: typeof webSearchMaxUses === 'number' ? webSearchMaxUses : 5,
+      codeExecution: !!codeExecution, // Anthropic native Python sandbox
+    });
   } else if (cfg.provider === 'chatgpt' || cfg.provider === 'deepseek') {
-    result = await runOpenAIAgent({ cfg, tools, system: fullSystem, message, history, ctx, toolCalls, onTool, onDelta });
+    result = await runOpenAIAgent({ cfg, tools, system: fullSystem, message, history, ctx, toolCalls, onTool, onDelta, maxIter: effMaxIter });
   } else if (cfg.provider === 'gemini') {
-    result = await runGeminiAgent({ cfg, tools, system: fullSystem, message, history, ctx, toolCalls, onTool, onDelta });
+    result = await runGeminiAgent({ cfg, tools, system: fullSystem, message, history, ctx, toolCalls, onTool, onDelta, maxIter: effMaxIter });
   } else {
     throw new Error(`Provider qo'llab-quvvatlanmaydi: ${cfg.provider}`);
   }
@@ -404,7 +449,52 @@ async function runAgent({ message, organizationId, userId, history = [], onTool,
     model: cfg.model,
     keySource: cfg.source,
     settings,
+    usage: result.usage || null, // { input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens, thinking_tokens }
   };
+}
+
+/**
+ * Claude system prompt'ni 2 ta cached blokka bo'ladi:
+ *  Block 1: Persona + format rules + work pattern (eng katta, eng barqaror — 5m TTL cache)
+ *  Block 2: Til + sana + memory + extra (kichik, dinamik qism)
+ *
+ * Cache breakpoint Block 1 oxirida qo'yiladi — Block 1 har chaqiruvda bir xil bo'lsa
+ * Anthropic uni cache'dan qaytaradi (10x arzon: $0.30/M vs $3.00/M).
+ */
+function buildClaudeSystemBlocks(fullSystem) {
+  // System prompt ichida "BOSS HAQIDA XOTIRA" yoki extra context bo'lsa, oxiridan ajratamiz.
+  // Aks holda butunligicha bitta cached blok.
+  const memoryMarker = '📝 BOSS HAQIDA XOTIRA';
+  const extraMarker = '\n\n=== '; // systemPromptExtra ulashganida shu separator ishlatiladi
+
+  let staticPart = fullSystem;
+  let dynamicPart = '';
+
+  // Memory bloki bormi?
+  const memIdx = fullSystem.indexOf(memoryMarker);
+  if (memIdx > 0) {
+    // memoryMarker oldidan boshlangan separator (━━━…) gacha statik
+    const beforeMem = fullSystem.lastIndexOf('━━━', memIdx);
+    const cutAt = beforeMem > 0 ? beforeMem : memIdx;
+    staticPart = fullSystem.slice(0, cutAt).trimEnd();
+    dynamicPart = fullSystem.slice(cutAt).trimStart();
+  }
+
+  // Extra context (systemPromptExtra) bo'lsa ham dinamik qismga qo'shiladi
+  // (hozir buildSystemPrompt natijasida `\n\n=== ` separator bor bo'lsa)
+  // — bu holatlarni `runClaudeAgent` o'zi tekshirmaydi, zarurat bo'lsa kelajakda qo'shiladi.
+
+  const blocks = [
+    {
+      type: 'text',
+      text: staticPart,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
+  if (dynamicPart && dynamicPart.length > 0) {
+    blocks.push({ type: 'text', text: dynamicPart });
+  }
+  return blocks;
 }
 
 // Reply ichidan <!-- confidence: X --> va <!-- sources_used: ... --> ni ajratadi
@@ -426,9 +516,9 @@ function parseReplyMeta(reply) {
 }
 
 // ────────────────────────────────────────────────
-// CLAUDE (Anthropic) Tool Use — streaming
+// CLAUDE (Anthropic) Tool Use — streaming + prompt caching + extended thinking + web search
 // ────────────────────────────────────────────────
-async function runClaudeAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta }) {
+async function runClaudeAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta, onThinking, cache, thinkingBudget, maxIter, webSearch, webSearchMaxUses, codeExecution }) {
   const messages = [
     ...history.filter(h => h.role !== 'system').map(h => ({ role: h.role, content: h.content })),
     { role: 'user', content: message },
@@ -437,38 +527,118 @@ async function runClaudeAgent({ cfg, tools, system, message, history, ctx, toolC
   let iter = 0;
   let finalText = '';
 
-  while (iter < MAX_ITER) {
+  // Aggregate usage stats across iterations
+  const totalUsage = {
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+    thinking_tokens: 0,
+    web_search_count: 0,
+  };
+
+  // Anthropic native server-side web_search tool (Claude o'zi internet'dan qidiradi)
+  const WEB_SEARCH_TOOL = webSearch ? {
+    type: 'web_search_20250305',
+    name: 'web_search',
+    max_uses: typeof webSearchMaxUses === 'number' ? webSearchMaxUses : 5,
+    user_location: { type: 'approximate', country: 'UZ', timezone: 'Asia/Tashkent' },
+  } : null;
+
+  // Anthropic native code execution tool (Python sandbox)
+  const CODE_EXEC_TOOL = codeExecution ? {
+    type: 'code_execution_20250522',
+    name: 'code_execution',
+  } : null;
+
+  // Custom tools (data layer) + native server tools
+  const nativeTools = [WEB_SEARCH_TOOL, CODE_EXEC_TOOL].filter(Boolean);
+  const allTools = nativeTools.length > 0 ? [...(tools || []), ...nativeTools] : tools;
+
+  // Tools array'ga cache_control qo'shamiz — eng oxirgi tool'da
+  // (Anthropic spec: cache_control oxirgi tool'da bo'lsa, tool definitions blok cached bo'ladi)
+  const cachedTools = (cache && allTools && allTools.length > 0)
+    ? [
+        ...allTools.slice(0, -1),
+        { ...allTools[allTools.length - 1], cache_control: { type: 'ephemeral' } },
+      ]
+    : allTools;
+
+  // System prompt'ni cached bloklarga bo'lish (faqat cache yoqilgan bo'lsa)
+  const cachedSystemBlocks = cache ? buildClaudeSystemBlocks(system) : null;
+
+  // Effektiv max iter (intent override yoki default)
+  const effectiveMaxIter = maxIter || MAX_ITER;
+  const effectiveForceFinalAt = Math.max(2, effectiveMaxIter - 2);
+
+  while (iter < effectiveMaxIter) {
     iter++;
-    const isFinalIter = iter >= FORCE_FINAL_AT;
-    const body = {
-      model: cfg.model,
-      max_tokens: MAX_TOKENS,
-      stream: true,
-      system: isFinalIter
-        ? system + `\n\n=== YAKUNIY JAVOB QADAMI ===
+    const isFinalIter = iter >= effectiveForceFinalAt;
+
+    // Final iter'da extra instruction qo'shamiz — bu cache'ni invalidate qilmasin uchun
+    // dinamik blokka qo'shamiz (yoki cache yoqilmagan bo'lsa stringga)
+    const finalInstruction = `\n\n=== YAKUNIY JAVOB QADAMI ===
 Endi siz vosita chaqira olmaysiz. Hozirgacha to'plagan ma'lumot bilan TO'LIQ FOYDALI JAVOB ber.
 
 Hatto savolga to'liq javob bera olmasangiz ham, KAMIDA quyidagilarni qiling:
 1. Qaysi manbalarda qidirganingizni va NIMA TOPGANINGIZNI ayting
 2. Topilgan har raqamni qaytaring (qisman bo'lsa ham foydali)
 3. Mavjud ma'lumotlardan QO'SHIMCHA nimalarni taklif qilishingiz mumkinligini yozing
-4. "Javob bera olmadim" deb tushinmang — bu mumkin emas`
-        : system,
+4. "Javob bera olmadim" deb tushinmang — bu mumkin emas`;
+
+    let systemForCall;
+    if (cachedSystemBlocks) {
+      // Final iter bo'lsa, dinamik blokka qo'shamiz (cache buzilmaydi)
+      if (isFinalIter) {
+        const blocks = cachedSystemBlocks.map(b => ({ ...b }));
+        if (blocks.length > 1) {
+          blocks[blocks.length - 1].text += finalInstruction;
+        } else {
+          blocks.push({ type: 'text', text: finalInstruction.trimStart() });
+        }
+        systemForCall = blocks;
+      } else {
+        systemForCall = cachedSystemBlocks;
+      }
+    } else {
+      // Cache yo'q — eski xulq
+      systemForCall = isFinalIter ? system + finalInstruction : system;
+    }
+
+    const body = {
+      model: cfg.model,
+      max_tokens: MAX_TOKENS,
+      stream: true,
+      system: systemForCall,
       messages,
     };
-    if (!isFinalIter) body.tools = tools;
+    if (!isFinalIter) body.tools = cache ? cachedTools : allTools;
+
+    // Extended thinking — chuqur tahlil uchun
+    if (thinkingBudget && thinkingBudget >= 1024) {
+      body.thinking = { type: 'enabled', budget_tokens: thinkingBudget };
+      // Thinking yoqilganda max_tokens thinking_budget'dan katta bo'lishi shart
+      if (body.max_tokens <= thinkingBudget) {
+        body.max_tokens = thinkingBudget + 2048;
+      }
+    }
 
     // Stream Claude SSE: content_block_start/delta/stop eventlarini kuzatamiz.
     // Text bloklari onDelta orqali uzatiladi. Tool_use bloklari yig'iladi.
     const contentBlocks = []; // index -> { type, text? | name,id,input_json_partial? }
     const data = await withRetry(async () => {
+      const headers = {
+        'content-type': 'application/json',
+        'x-api-key': cfg.apiKey,
+        'anthropic-version': '2023-06-01',
+      };
+      // Code execution beta header — kerak bo'lganda yoqamiz
+      if (codeExecution) {
+        headers['anthropic-beta'] = 'code-execution-2025-05-22';
+      }
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': cfg.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
+        headers,
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -480,19 +650,41 @@ Hatto savolga to'liq javob bera olmasangiz ham, KAMIDA quyidagilarni qiling:
       contentBlocks.length = 0;
       let streamErr = null;
       let stopReason = null;
+      let iterUsage = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
 
       await readSseStream(res, (payload, event) => {
         const type = payload.type;
-        if (type === 'content_block_start') {
+        if (type === 'message_start') {
+          // Usage stats kelishi mumkin bu event'da
+          const u = payload.message?.usage || {};
+          iterUsage.input_tokens = u.input_tokens || 0;
+          iterUsage.cache_read_input_tokens = u.cache_read_input_tokens || 0;
+          iterUsage.cache_creation_input_tokens = u.cache_creation_input_tokens || 0;
+          iterUsage.output_tokens = u.output_tokens || 0;
+        } else if (type === 'content_block_start') {
           const b = payload.content_block || {};
           contentBlocks[payload.index] = {
             type: b.type,
             text: b.type === 'text' ? '' : undefined,
+            thinking: b.type === 'thinking' ? '' : undefined,
+            signature: b.type === 'thinking' ? '' : undefined,
             name: b.name,
             id: b.id,
-            input: b.type === 'tool_use' ? {} : undefined,
-            _jsonBuf: b.type === 'tool_use' ? '' : undefined,
+            input: (b.type === 'tool_use' || b.type === 'server_tool_use') ? (b.input || {}) : undefined,
+            _jsonBuf: (b.type === 'tool_use' || b.type === 'server_tool_use') ? '' : undefined,
+            // web_search_tool_result blok — Anthropic native search natijalari
+            content: b.type === 'web_search_tool_result' ? b.content : undefined,
+            tool_use_id: b.tool_use_id,
           };
+          // Server tool (web_search) chaqiruvini bildirish
+          if (b.type === 'server_tool_use' && b.name === 'web_search') {
+            totalUsage.web_search_count = (totalUsage.web_search_count || 0) + 1;
+            if (onTool) onTool({ name: 'web_search', input: b.input || {}, server: true });
+          }
+          if (b.type === 'server_tool_use' && b.name === 'code_execution') {
+            totalUsage.code_exec_count = (totalUsage.code_exec_count || 0) + 1;
+            if (onTool) onTool({ name: 'code_execution', input: b.input || {}, server: true });
+          }
         } else if (type === 'content_block_delta') {
           const blk = contentBlocks[payload.index];
           if (!blk) return;
@@ -500,16 +692,29 @@ Hatto savolga to'liq javob bera olmasangiz ham, KAMIDA quyidagilarni qiling:
           if (d.type === 'text_delta' && typeof d.text === 'string') {
             blk.text += d.text;
             if (onDelta) onDelta(d.text);
+          } else if (d.type === 'thinking_delta' && typeof d.thinking === 'string') {
+            // Extended thinking matni — UI'ga "AI fikrlayapti..." sifatida ko'rsatiladi
+            blk.thinking += d.thinking;
+            if (onThinking) onThinking(d.thinking);
+          } else if (d.type === 'signature_delta' && typeof d.signature === 'string') {
+            // Thinking blok signature — keyingi turn'larda content'ga qaytarish uchun saqlash kerak
+            blk.signature = d.signature;
           } else if (d.type === 'input_json_delta' && typeof d.partial_json === 'string') {
             blk._jsonBuf += d.partial_json;
           }
         } else if (type === 'content_block_stop') {
           const blk = contentBlocks[payload.index];
-          if (blk && blk.type === 'tool_use') {
-            try { blk.input = JSON.parse(blk._jsonBuf || '{}'); } catch { blk.input = {}; }
+          if (blk && (blk.type === 'tool_use' || blk.type === 'server_tool_use')) {
+            try {
+              if (blk._jsonBuf) blk.input = JSON.parse(blk._jsonBuf);
+            } catch { /* keep b.input from start event */ }
           }
         } else if (type === 'message_delta') {
           stopReason = payload.delta?.stop_reason || null;
+          // Output tokens yangilash
+          if (payload.usage?.output_tokens) {
+            iterUsage.output_tokens = payload.usage.output_tokens;
+          }
         } else if (type === 'error') {
           streamErr = payload.error?.message || 'Claude stream xato';
         }
@@ -517,11 +722,22 @@ Hatto savolga to'liq javob bera olmasangiz ham, KAMIDA quyidagilarni qiling:
 
       if (streamErr) throw new Error(`Claude: ${streamErr}`);
 
-      // Assistant content format for next round
+      // Aggregate usage
+      totalUsage.input_tokens += iterUsage.input_tokens;
+      totalUsage.output_tokens += iterUsage.output_tokens;
+      totalUsage.cache_read_input_tokens += iterUsage.cache_read_input_tokens;
+      totalUsage.cache_creation_input_tokens += iterUsage.cache_creation_input_tokens;
+
+      // Assistant content format for next round.
+      // Anthropic spec'iga ko'ra, thinking + server_tool_use + web_search_tool_result bloklari
+      // navbatdagi turn'da xabar tarkibida qaytarilishi kerak (aks holda 400 error).
       return {
         content: contentBlocks.filter(Boolean).map(b => {
           if (b.type === 'text') return { type: 'text', text: b.text };
+          if (b.type === 'thinking') return { type: 'thinking', thinking: b.thinking, signature: b.signature };
           if (b.type === 'tool_use') return { type: 'tool_use', id: b.id, name: b.name, input: b.input };
+          if (b.type === 'server_tool_use') return { type: 'server_tool_use', id: b.id, name: b.name, input: b.input };
+          if (b.type === 'web_search_tool_result') return { type: 'web_search_tool_result', tool_use_id: b.tool_use_id, content: b.content };
           return null;
         }).filter(Boolean),
         stopReason,
@@ -580,13 +796,15 @@ Hatto savolga to'liq javob bera olmasangiz ham, KAMIDA quyidagilarni qiling:
       finalText = 'Savolni qayta tahrirlab yuborib ko\'ring — masalan aniqroq ustun yoki manba nomi bilan.';
     }
   }
-  return { reply: finalText, iterations: iter };
+  return { reply: finalText, iterations: iter, usage: totalUsage };
 }
 
 // ────────────────────────────────────────────────
 // OpenAI / DeepSeek (Chat Completions + tools) — streaming
 // ────────────────────────────────────────────────
-async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta }) {
+async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta, maxIter }) {
+  const effectiveMaxIter = maxIter || MAX_ITER;
+  const effectiveForceFinalAt = Math.max(2, effectiveMaxIter - 2);
   const url = (cfg.model || '').startsWith('gpt-')
     ? 'https://api.openai.com/v1/chat/completions'
     : 'https://api.deepseek.com/v1/chat/completions';
@@ -599,13 +817,16 @@ async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolC
 
   let iter = 0;
   let finalText = '';
+  // Aggregate usage across iterations (Claude-like)
+  const totalUsage = { input_tokens: 0, output_tokens: 0 };
 
-  while (iter < MAX_ITER) {
+  while (iter < effectiveMaxIter) {
     iter++;
-    const isFinalIter = iter >= FORCE_FINAL_AT;
+    const isFinalIter = iter >= effectiveForceFinalAt;
     const body = {
       model: cfg.model,
       stream: true,
+      stream_options: { include_usage: true }, // ← oxirgi chunk'da usage qaytaradi (token tracking uchun)
       messages: isFinalIter
         ? [...messages, { role: 'user', content: 'YAKUNIY JAVOB BER: hozirgacha to\'plagan ma\'lumotlar bilan to\'liq foydali javob yoz. Boshqa vosita chaqirish kerak emas.' }]
         : messages,
@@ -637,7 +858,15 @@ async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolC
       let finishReason = null;
       const tcAccum = [];  // index-based accumulator
 
+      let usage = null;
       await readSseStream(res, (chunk) => {
+        // Usage stats (oxirgi chunk'da, stream_options.include_usage=true bo'lsa)
+        if (chunk.usage) {
+          usage = {
+            input_tokens: chunk.usage.prompt_tokens || 0,
+            output_tokens: chunk.usage.completion_tokens || 0,
+          };
+        }
         const choice = chunk.choices?.[0];
         if (!choice) return;
         if (choice.finish_reason) finishReason = choice.finish_reason;
@@ -659,8 +888,14 @@ async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolC
         }
       });
 
-      return { content, finishReason, tool_calls: tcAccum.filter(Boolean) };
+      return { content, finishReason, tool_calls: tcAccum.filter(Boolean), usage };
     }, 'openai');
+
+    // Usage'ni jami'ga qo'shamiz
+    if (msg.usage) {
+      totalUsage.input_tokens += msg.usage.input_tokens || 0;
+      totalUsage.output_tokens += msg.usage.output_tokens || 0;
+    }
 
     // max_tokens ga yetib to'xtagan bo'lsa — davom ettir
     if (msg.finishReason === 'length') {
@@ -719,7 +954,7 @@ async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolC
       finalText = 'Savolni qayta tahrirlab yuborib ko\'ring — masalan aniqroq ustun yoki manba nomi bilan.';
     }
   }
-  return { reply: finalText, iterations: iter };
+  return { reply: finalText, iterations: iter, usage: totalUsage };
 }
 
 // ────────────────────────────────────────────────
@@ -729,7 +964,9 @@ async function runOpenAIAgent({ cfg, tools, system, message, history, ctx, toolC
 // Fallback ketma-ketligi: flash → pro → flash-lite (tool'siz).
 const GEMINI_FALLBACKS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'];
 
-async function runGeminiAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta }) {
+async function runGeminiAgent({ cfg, tools, system, message, history, ctx, toolCalls, onTool, onDelta, maxIter }) {
+  const effectiveMaxIter = maxIter || MAX_ITER;
+  const effectiveForceFinalAt = Math.max(2, effectiveMaxIter - 2);
   // Joriy modelni boshlanish nuqtasi qilamiz, keyin agar overload bo'lsa fallback'ga o'tamiz
   let currentModel = cfg.model;
   let modelIdx = GEMINI_FALLBACKS.indexOf(currentModel);
@@ -746,7 +983,7 @@ async function runGeminiAgent({ cfg, tools, system, message, history, ctx, toolC
   let iter = 0;
   let finalText = '';
 
-  while (iter < MAX_ITER) {
+  while (iter < effectiveMaxIter) {
     iter++;
     let data;
     try {

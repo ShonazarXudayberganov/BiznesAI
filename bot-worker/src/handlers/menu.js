@@ -142,7 +142,7 @@ async function buildKpiMessage(orgId, orgName) {
 async function aiReply(ctx, link, message) {
   const wait = await ctx.reply('🤔 Tahlil qilmoqda...');
   try {
-    const r = await BackendAPI.aiChat({
+    const r = await BackendAPI.aiBrain({
       organizationId: link.organization_id,
       userId: link.user_id,
       message,
@@ -194,6 +194,61 @@ function splitForTelegram(text, max = 3800) {
 }
 
 module.exports = function registerMenuHandlers(bot) {
+  // /today — bugungi tezkor xulosa (brain orchestrator)
+  bot.command('today', async (ctx) => {
+    const link = await withOrg(ctx);
+    if (!link) return;
+    const wait = await ctx.reply('📊 Bugungi tahlil tayyorlanmoqda...');
+    try {
+      const r = await BackendAPI.aiBrain({
+        organizationId: link.organization_id,
+        userId: link.user_id,
+        intent: 'chat.freeform',
+        message: 'Bugungi va kechagi asosiy biznes ko\'rsatkichlarini tahlil qil. Eng muhim 3-5 raqam, qisqa xulosa, 2 ta amaliy tavsiya.',
+      });
+      const body = F.mdToTgHtml(r.reply || '(bo\'sh javob)');
+      const parts = splitForTelegram(body);
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, parts[0], { parse_mode: 'HTML' })
+        .catch(async () => ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, r.reply));
+      for (let i = 1; i < parts.length; i++) await ctx.reply(parts[i], { parse_mode: 'HTML' }).catch(() => ctx.reply(parts[i]));
+    } catch (e) {
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `❌ ${e.message}`).catch(() => {});
+    }
+  });
+
+  // /alerts — anomaliyalarni tezkor tekshirish
+  bot.command('alerts', async (ctx) => {
+    const link = await withOrg(ctx);
+    if (!link) return;
+    const wait = await ctx.reply('⚠️ Anomaliya va xavf signallarini izlamoqda...');
+    try {
+      const r = await BackendAPI.aiBrain({
+        organizationId: link.organization_id,
+        userId: link.user_id,
+        intent: 'alerts.label',
+        payload: { activeSourceIds: [], scopeName: link.org_name },
+        message: 'Mavjud manbalardan eng muhim 5 ta xavf yoki anomaliyani topib JSON formatida ber.',
+      });
+      const alerts = r.parsed?.alerts || [];
+      if (alerts.length === 0) {
+        return ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, '✓ Hozircha kritik xavf yo\'q.');
+      }
+      const lines = ['<b>⚠️ Topilgan xavflar:</b>', ''];
+      for (const a of alerts.slice(0, 5)) {
+        const sev = a.severity === 'high' ? '🔴' : a.severity === 'medium' ? '🟡' : '🟢';
+        lines.push(`${sev} <b>${F.escHtml(a.title || 'Signal')}</b>`);
+        if (a.metric) lines.push(`   📊 ${F.escHtml(a.metric)}${a.value ? ' — ' + F.escHtml(a.value) : ''}`);
+        if (a.message) lines.push(`   ${F.escHtml(a.message)}`);
+        if (a.recommendation) lines.push(`   💡 <i>${F.escHtml(a.recommendation)}</i>`);
+        lines.push('');
+      }
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, lines.join('\n'), { parse_mode: 'HTML' })
+        .catch(() => ctx.reply(lines.join('\n')));
+    } catch (e) {
+      await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `❌ ${e.message}`).catch(() => {});
+    }
+  });
+
   // /menu
   bot.command('menu', async (ctx) => {
     const link = await withOrg(ctx);
@@ -362,7 +417,7 @@ module.exports = function registerMenuHandlers(bot) {
         return;
       }
       await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, `🎙 <i>"${text}"</i>\n\n🤔 Tahlil qilmoqda...`, { parse_mode: 'HTML' });
-      const r = await BackendAPI.aiChat({
+      const r = await BackendAPI.aiBrain({
         organizationId: link.organization_id,
         userId: link.user_id,
         message: text,
@@ -396,7 +451,7 @@ module.exports = function registerMenuHandlers(bot) {
       const caption = ctx.message.caption || 'Ushbu hujjatni qisqa tahlil qil va asosiy xulosalarini yoz.';
       const prompt = `FOYDALANUVCHI HUJJAT YUBORDI ("${name}"):\n\n${text.slice(0, 30000)}\n\nFOYDALANUVCHI SAVOLI: ${caption}`;
       await ctx.telegram.editMessageText(ctx.chat.id, wait.message_id, undefined, '🤔 Hujjat tahlil qilinmoqda...');
-      const r = await BackendAPI.aiChat({
+      const r = await BackendAPI.aiBrain({
         organizationId: link.organization_id,
         userId: link.user_id,
         message: prompt,

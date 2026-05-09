@@ -12,24 +12,48 @@ const pool = require('../db/pool');
 const MAX_MEMORIES = 100;
 const MAX_CONTENT_LEN = 500;
 
-async function listMemories(userId) {
-  const r = await pool.query(
-    `SELECT id, kind, content, source, pinned, created_at, updated_at
-     FROM user_memory
-     WHERE user_id=$1
-     ORDER BY pinned DESC, created_at DESC`,
-    [userId]
-  );
+async function listMemories(userId, { status = 'approved' } = {}) {
+  // status: 'approved' | 'pending' | 'all'
+  let sql, params;
+  if (status === 'all') {
+    sql = `SELECT id, kind, content, source, pinned, status, created_at, updated_at
+           FROM user_memory WHERE user_id=$1
+           ORDER BY pinned DESC, created_at DESC`;
+    params = [userId];
+  } else {
+    sql = `SELECT id, kind, content, source, pinned, status, created_at, updated_at
+           FROM user_memory WHERE user_id=$1 AND COALESCE(status, 'approved') = $2
+           ORDER BY pinned DESC, created_at DESC`;
+    params = [userId, status];
+  }
+  const r = await pool.query(sql, params);
   return r.rows;
 }
 
-async function addMemory(userId, { content, kind = 'fact', source = 'manual', pinned = false }) {
+async function listPendingMemories(userId) {
+  return listMemories(userId, { status: 'pending' });
+}
+
+async function approveMemory(userId, id) {
+  await pool.query(
+    `UPDATE user_memory SET status = 'approved', updated_at = NOW()
+     WHERE id = $1 AND user_id = $2`,
+    [id, userId]
+  );
+}
+
+async function rejectMemory(userId, id) {
+  // Reject = delete (no need to keep rejected)
+  await pool.query(`DELETE FROM user_memory WHERE id = $1 AND user_id = $2`, [id, userId]);
+}
+
+async function addMemory(userId, { content, kind = 'fact', source = 'manual', pinned = false, status = 'approved' }) {
   const text = String(content || '').trim().slice(0, MAX_CONTENT_LEN);
   if (!text) throw new Error('Memory mazmuni bo\'sh');
 
   // Duplikat tekshirish (katta-kichik harf, bo'sh joy farqsiz)
   const dup = await pool.query(
-    `SELECT id FROM user_memory WHERE user_id=$1 AND LOWER(TRIM(content))=LOWER(TRIM($2))`,
+    `SELECT id, status FROM user_memory WHERE user_id=$1 AND LOWER(TRIM(content))=LOWER(TRIM($2))`,
     [userId, text]
   );
   if (dup.rows.length > 0) {
@@ -38,10 +62,10 @@ async function addMemory(userId, { content, kind = 'fact', source = 'manual', pi
   }
 
   const r = await pool.query(
-    `INSERT INTO user_memory (user_id, kind, content, source, pinned)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO user_memory (user_id, kind, content, source, pinned, status)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING id`,
-    [userId, kind, text, source, !!pinned]
+    [userId, kind, text, source, !!pinned, status]
   );
 
   await enforceLimit(userId);
@@ -108,7 +132,7 @@ async function buildMemoryContext(userId) {
   if (!userId) return '';
   const r = await pool.query(
     `SELECT content FROM user_memory
-     WHERE user_id=$1
+     WHERE user_id=$1 AND COALESCE(status, 'approved') = 'approved'
      ORDER BY pinned DESC, updated_at DESC
      LIMIT 30`,
     [userId]
@@ -171,6 +195,9 @@ async function saveUserSettings(userId, settings) {
 
 module.exports = {
   listMemories,
+  listPendingMemories,
+  approveMemory,
+  rejectMemory,
   addMemory,
   updateMemory,
   deleteMemory,
