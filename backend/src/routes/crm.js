@@ -60,23 +60,40 @@ router.post('/bitrix24/test', async (req, res) => {
 
 router.post('/bitrix24/connect', async (req, res) => {
   try {
-    const { webhookUrl, name } = req.body || {};
+    const { webhookUrl, name, sourceId: existingId } = req.body || {};
     if (!webhookUrl) return res.status(400).json({ error: 'webhookUrl majburiy' });
     await bitrix24.testConnection(webhookUrl); // validate
 
-    const sourceId = `bitrix24_${req.userId}_${Date.now()}`;
     const orgId = req.user.organization_id;
     const safeName = name || 'Bitrix24 CRM';
+    let sourceId = existingId;
 
-    await pool.query(
-      `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
-       VALUES ($1, $2, $3, 'bitrix24', $4, '#4f8efb', TRUE, TRUE, $5)`,
-      [sourceId, req.userId, orgId, safeName, JSON.stringify({ webhookUrl })]
-    );
+    if (existingId) {
+      // Mavjud placeholder source'ni yangilash
+      const exists = await pool.query(
+        'SELECT id FROM sources WHERE id=$1 AND organization_id=$2',
+        [existingId, orgId]
+      );
+      if (exists.rowCount > 0) {
+        await pool.query(
+          `UPDATE sources SET type='bitrix24', connected=TRUE, active=TRUE,
+                  config=$1, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify({ webhookUrl }), existingId]
+        );
+      } else {
+        sourceId = null; // yangi yaratamiz
+      }
+    }
+    if (!sourceId) {
+      sourceId = `bitrix24_${req.userId}_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
+         VALUES ($1, $2, $3, 'bitrix24', $4, '#4f8efb', TRUE, TRUE, $5)`,
+        [sourceId, req.userId, orgId, safeName, JSON.stringify({ webhookUrl })]
+      );
+    }
 
-    // Birinchi sync — fon vazifasi sifatida (lekin sync funksiyasi sodda)
     syncBitrix24(sourceId, webhookUrl).catch(e => console.error('[crm] init sync fail:', e.message));
-
     res.json({ ok: true, sourceId, name: safeName });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -96,22 +113,39 @@ router.post('/amocrm/test', async (req, res) => {
 
 router.post('/amocrm/connect', async (req, res) => {
   try {
-    const { subdomain, token, name } = req.body || {};
+    const { subdomain, token, name, sourceId: existingId } = req.body || {};
     if (!subdomain || !token) return res.status(400).json({ error: 'subdomain va token majburiy' });
     await amocrm.testConnection({ subdomain, token });
 
-    const sourceId = `amocrm_${req.userId}_${Date.now()}`;
     const orgId = req.user.organization_id;
     const safeName = name || `AmoCRM (${subdomain})`;
+    let sourceId = existingId;
 
-    await pool.query(
-      `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
-       VALUES ($1, $2, $3, 'amocrm', $4, '#f7a948', TRUE, TRUE, $5)`,
-      [sourceId, req.userId, orgId, safeName, JSON.stringify({ subdomain, token })]
-    );
+    if (existingId) {
+      const exists = await pool.query(
+        'SELECT id FROM sources WHERE id=$1 AND organization_id=$2',
+        [existingId, orgId]
+      );
+      if (exists.rowCount > 0) {
+        await pool.query(
+          `UPDATE sources SET type='amocrm', connected=TRUE, active=TRUE,
+                  config=$1, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify({ subdomain, token }), existingId]
+        );
+      } else {
+        sourceId = null;
+      }
+    }
+    if (!sourceId) {
+      sourceId = `amocrm_${req.userId}_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
+         VALUES ($1, $2, $3, 'amocrm', $4, '#f7a948', TRUE, TRUE, $5)`,
+        [sourceId, req.userId, orgId, safeName, JSON.stringify({ subdomain, token })]
+      );
+    }
 
     syncAmocrm(sourceId, { subdomain, token }).catch(e => console.error('[crm] init sync fail:', e.message));
-
     res.json({ ok: true, sourceId, name: safeName });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -131,23 +165,40 @@ router.post('/facebook_ads/test', async (req, res) => {
 
 router.post('/facebook_ads/connect', async (req, res) => {
   try {
-    const { token, accountId, name } = req.body || {};
+    const { token, accountId, name, sourceId: existingId } = req.body || {};
     if (!token || !accountId) return res.status(400).json({ error: 'token va accountId majburiy' });
     const test = await facebookAds.testConnection({ token, accountId });
     if (!test.ok) return res.status(400).json({ error: test.error || 'Ulanish xatosi' });
 
-    const sourceId = `facebook_ads_${req.userId}_${Date.now()}`;
     const orgId = req.user.organization_id;
     const safeName = name || `Facebook Ads (${test.account?.name || accountId})`;
+    let sourceId = existingId;
 
-    await pool.query(
-      `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
-       VALUES ($1, $2, $3, 'facebook_ads', $4, '#1877F2', TRUE, TRUE, $5)`,
-      [sourceId, req.userId, orgId, safeName, JSON.stringify({ token, accountId, account: test.account })]
-    );
+    if (existingId) {
+      const exists = await pool.query(
+        'SELECT id FROM sources WHERE id=$1 AND organization_id=$2',
+        [existingId, orgId]
+      );
+      if (exists.rowCount > 0) {
+        await pool.query(
+          `UPDATE sources SET type='facebook_ads', connected=TRUE, active=TRUE,
+                  config=$1, updated_at=NOW() WHERE id=$2`,
+          [JSON.stringify({ token, accountId, account: test.account }), existingId]
+        );
+      } else {
+        sourceId = null;
+      }
+    }
+    if (!sourceId) {
+      sourceId = `facebook_ads_${req.userId}_${Date.now()}`;
+      await pool.query(
+        `INSERT INTO sources (id, user_id, organization_id, type, name, color, connected, active, config)
+         VALUES ($1, $2, $3, 'facebook_ads', $4, '#1877F2', TRUE, TRUE, $5)`,
+        [sourceId, req.userId, orgId, safeName, JSON.stringify({ token, accountId, account: test.account })]
+      );
+    }
 
     syncFacebookAds(sourceId, { token, accountId }).catch(e => console.error('[crm] FB init sync fail:', e.message));
-
     res.json({ ok: true, sourceId, name: safeName, account: test.account });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -213,20 +264,198 @@ async function syncBitrix24(sourceId, webhookUrl) {
 }
 
 async function syncAmocrm(sourceId, creds) {
-  const [leads, contacts] = await Promise.all([
-    amocrm.fetchLeads(creds).catch(() => []),
-    amocrm.fetchContacts(creds).catch(() => []),
+  // Barcha entitylarni parallel olib kelish (xato bo'lsa bo'sh array)
+  const [leads, contacts, pipelines, users, tasks, notes] = await Promise.all([
+    amocrm.fetchLeads(creds).catch(e => { console.warn('[amo] leads:', e.message); return []; }),
+    amocrm.fetchContacts(creds).catch(e => { console.warn('[amo] contacts:', e.message); return []; }),
+    amocrm.fetchPipelines(creds).catch(e => { console.warn('[amo] pipelines:', e.message); return []; }),
+    amocrm.fetchUsers(creds).catch(e => { console.warn('[amo] users:', e.message); return []; }),
+    amocrm.fetchTasks(creds).catch(e => { console.warn('[amo] tasks:', e.message); return []; }),
+    amocrm.fetchNotes(creds, 'leads').catch(e => { console.warn('[amo] notes:', e.message); return []; }),
   ]);
-  const flat = leads.map(l => ({
-    type: 'lead',
-    ID: l.id,
-    Title: l.name,
-    Status: l.status_id,
-    Amount: parseFloat(l.price) || 0,
-    Date: l.created_at ? new Date(l.created_at * 1000).toISOString().slice(0, 10) : null,
-    Pipeline: l.pipeline_id,
-    Responsible: l.responsible_user_id,
+
+  // Pipeline + status name'larni topish uchun map
+  const stagesById = {};
+  const pipelinesById = {};
+  for (const p of pipelines) {
+    pipelinesById[p.id] = p;
+    const statuses = p?._embedded?.statuses || [];
+    for (const s of statuses) {
+      stagesById[s.id] = {
+        name: s.name,
+        sort: s.sort,
+        color: s.color,
+        type: s.type, // 0=normal, 1=won (142), 2=lost (143)
+        pipelineId: s.pipeline_id,
+        pipelineName: p.name,
+      };
+    }
+  }
+  // AmoCRM standart yopiq statuslari
+  const WON_STATUS_ID = 142;
+  const LOST_STATUS_ID = 143;
+  const userMap = {};
+  for (const u of users) userMap[u.id] = u.name || u.email;
+
+  // Lead → flat record
+  const flatLeads = leads.map(l => {
+    const stage = stagesById[l.status_id] || {};
+    const isWon = l.status_id === WON_STATUS_ID || stage.type === 1;
+    const isLost = l.status_id === LOST_STATUS_ID || stage.type === 2;
+    const isClosed = isWon || isLost;
+    const cycleHours = (isClosed && l.created_at && l.closed_at)
+      ? Math.max(1, Math.round((l.closed_at - l.created_at) / 3600))
+      : null;
+    const tags = (l._embedded?.tags || []).map(t => t.name).filter(Boolean);
+    const lossReason = l._embedded?.loss_reason?.[0]?.name || null;
+    const customFields = {};
+    for (const cf of (l.custom_fields_values || [])) {
+      const key = cf.field_name || cf.field_code || `cf_${cf.field_id}`;
+      const vals = (cf.values || []).map(v => v.value).filter(v => v !== undefined && v !== null);
+      customFields[key] = vals.length === 1 ? vals[0] : vals;
+    }
+    const contactId = l._embedded?.contacts?.[0]?.id || null;
+    return {
+      type: 'lead',
+      ID: l.id,
+      Title: l.name,
+      Stage: l.status_id,
+      StageName: stage.name || null,
+      StageColor: stage.color || null,
+      StageOrder: stage.sort || 0,
+      Pipeline: l.pipeline_id,
+      PipelineName: stage.pipelineName || pipelinesById[l.pipeline_id]?.name || null,
+      Amount: parseFloat(l.price) || 0,
+      Currency: l.account_currency || null,
+      Date: l.created_at ? new Date(l.created_at * 1000).toISOString().slice(0, 10) : null,
+      CreatedAt: l.created_at ? new Date(l.created_at * 1000).toISOString() : null,
+      UpdatedAt: l.updated_at ? new Date(l.updated_at * 1000).toISOString() : null,
+      ClosedAt: l.closed_at ? new Date(l.closed_at * 1000).toISOString() : null,
+      ClosestTaskAt: l.closest_task_at ? new Date(l.closest_task_at * 1000).toISOString() : null,
+      CycleHours: cycleHours,
+      Closed: isClosed,
+      Won: isWon,
+      Lost: isLost,
+      LossReason: lossReason,
+      Responsible: userMap[l.responsible_user_id] || l.responsible_user_id,
+      ResponsibleID: l.responsible_user_id,
+      ContactID: contactId,
+      Tags: tags,
+      Score: l.score || null,
+      LaborCost: l.labor_cost || 0,
+      CustomFields: customFields,
+    };
+  });
+
+  // Contacts
+  const flatContacts = contacts.map(c => {
+    const cfMap = {};
+    for (const cf of (c.custom_fields_values || [])) {
+      const code = cf.field_code || cf.field_name;
+      const vals = (cf.values || []).map(v => v.value);
+      cfMap[code] = vals.length === 1 ? vals[0] : vals;
+    }
+    const phones = (c.custom_fields_values || []).find(f => f.field_code === 'PHONE')?.values?.map(v => v.value) || [];
+    const emails = (c.custom_fields_values || []).find(f => f.field_code === 'EMAIL')?.values?.map(v => v.value) || [];
+    const linkedLeadIds = (c._embedded?.leads || []).map(l => l.id);
+    const wonLeads = flatLeads.filter(l => linkedLeadIds.includes(l.ID) && l.Won);
+    const totalSpent = wonLeads.reduce((a, l) => a + (l.Amount || 0), 0);
+    return {
+      type: 'contact',
+      ID: c.id,
+      Name: c.name,
+      FirstName: c.first_name,
+      LastName: c.last_name,
+      Phones: phones,
+      Emails: emails,
+      ResponsibleID: c.responsible_user_id,
+      Responsible: userMap[c.responsible_user_id] || c.responsible_user_id,
+      CreatedAt: c.created_at ? new Date(c.created_at * 1000).toISOString() : null,
+      LeadIDs: linkedLeadIds,
+      DealsCount: linkedLeadIds.length,
+      WonCount: wonLeads.length,
+      LTV: totalSpent,
+      CustomFields: cfMap,
+    };
+  });
+
+  // Tasks
+  const flatTasks = tasks.map(t => ({
+    type: 'task',
+    ID: t.id,
+    Text: t.text,
+    EntityType: t.entity_type, // 'leads'|'contacts'|'companies'
+    EntityID: t.entity_id,
+    Type: t.task_type_id,
+    ResponsibleID: t.responsible_user_id,
+    Responsible: userMap[t.responsible_user_id] || t.responsible_user_id,
+    CreatedAt: t.created_at ? new Date(t.created_at * 1000).toISOString() : null,
+    CompletedAt: t.complete_till ? new Date(t.complete_till * 1000).toISOString() : null,
+    IsCompleted: t.is_completed,
+    DueAt: t.complete_till ? new Date(t.complete_till * 1000).toISOString() : null,
+    Result: t.result?.text || null,
   }));
+
+  // Notes
+  const flatNotes = notes.map(n => ({
+    type: 'note',
+    ID: n.id,
+    EntityID: n.entity_id,
+    EntityType: 'lead',
+    NoteType: n.note_type, // 'common', 'call_in', 'call_out', 'sms_in', etc.
+    Text: n.params?.text || n.params?.phone || JSON.stringify(n.params || {}).slice(0, 200),
+    Phone: n.params?.phone || null,
+    Duration: n.params?.duration || null,
+    CreatedAt: n.created_at ? new Date(n.created_at * 1000).toISOString() : null,
+    ResponsibleID: n.responsible_user_id,
+    Responsible: userMap[n.responsible_user_id] || n.responsible_user_id,
+  }));
+
+  // Calls (notes ichidagi call_in/call_out)
+  const flatCalls = flatNotes.filter(n =>
+    ['call_in', 'call_out'].includes(n.NoteType)
+  ).map(n => ({
+    type: 'call',
+    ID: n.ID,
+    LeadID: n.EntityID,
+    Direction: n.NoteType === 'call_in' ? 'in' : 'out',
+    Duration: n.Duration || 0,
+    Phone: n.Phone,
+    Result: n.Text,
+    CreatedAt: n.CreatedAt,
+    Responsible: n.Responsible,
+  }));
+
+  // Pipelines + users — meta sifatida saqlaymiz
+  const pipelinesMeta = pipelines.map(p => ({
+    type: 'pipeline',
+    ID: p.id,
+    Name: p.name,
+    Sort: p.sort,
+    IsMain: p.is_main,
+    Statuses: (p._embedded?.statuses || []).map(s => ({
+      id: s.id, name: s.name, sort: s.sort, color: s.color, type: s.type,
+    })),
+  }));
+  const usersMeta = users.map(u => ({
+    type: 'user',
+    ID: u.id,
+    Name: u.name,
+    Email: u.email,
+    Lang: u.lang,
+    IsAdmin: u.rights?.is_admin || false,
+  }));
+
+  const flat = [
+    ...flatLeads,
+    ...flatContacts,
+    ...flatTasks,
+    ...flatCalls,
+    ...flatNotes.filter(n => !['call_in', 'call_out'].includes(n.NoteType)),
+    ...pipelinesMeta,
+    ...usersMeta,
+  ];
+
   await pool.query(
     `INSERT INTO source_data (source_id, data, row_count, updated_at)
      VALUES ($1, $2, $3, NOW())
@@ -237,7 +466,16 @@ async function syncAmocrm(sourceId, creds) {
     const realtime = require('../services/realtime');
     realtime.broadcast('source.updated', { sourceId, type: 'amocrm', rowCount: flat.length });
   } catch {}
-  return { leads: leads.length, contacts: contacts.length, rows: flat.length };
+  return {
+    leads: flatLeads.length,
+    contacts: flatContacts.length,
+    tasks: flatTasks.length,
+    calls: flatCalls.length,
+    notes: flatNotes.length - flatCalls.length,
+    pipelines: pipelinesMeta.length,
+    users: usersMeta.length,
+    rows: flat.length,
+  };
 }
 
 async function syncFacebookAds(sourceId, creds) {

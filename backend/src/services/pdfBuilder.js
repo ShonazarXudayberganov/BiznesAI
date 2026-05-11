@@ -124,23 +124,93 @@ function renderSection(section) {
 }
 
 /**
- * Tezkor markdown → HTML konvertor (PDF uchun cheklangan grammatika).
- * Qo'llab-quvvatlanadi: # H1, ## H2, ### H3, **bold**, *italic*, - bullet, 1. ordered, paragraph.
+ * To'liq markdown → HTML konvertor (PDF uchun premium darajada).
+ * Qo'llab-quvvatlanadi: # H1, ## H2, ### H3, **bold**, *italic*, `code`,
+ * - bullet, 1. ordered, > callout, jadval (markdown table), --- divider, paragraf.
  */
 function markdownToHtml(md) {
   if (!md) return '';
   const lines = String(md).replace(/\r\n?/g, '\n').split('\n');
   const out = [];
-  let listType = null; // 'ul' | 'ol' | null
+  let listType = null;     // 'ul' | 'ol' | null
+  let tableBuf = null;     // { headers: [], rows: [], aligns: [] } yoki null
+
   const inline = (s) => escape(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*]+)\*([^*]|$)/g, '$1<em>$2</em>$3')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
+
   const closeList = () => { if (listType) { out.push(`</${listType}>`); listType = null; } };
-  for (let raw of lines) {
+
+  const flushTable = () => {
+    if (!tableBuf) return;
+    const { headers, rows, aligns } = tableBuf;
+    // Sonlik ustunlarni aniqlash (% va status emojilarni hisobga olib)
+    const numCols = new Set();
+    headers.forEach((h, i) => {
+      const colVals = rows.map(r => r[i] || '');
+      const nums = colVals.filter(v => /^[\+\-]?[\d.,]+(\s*%)?$/.test(String(v).trim())).length;
+      if (nums > 0 && nums / colVals.length >= 0.5) numCols.add(i);
+    });
+    const ths = headers.map((h, i) => `<th${numCols.has(i) ? ' class="num"' : ''}>${inline(h)}</th>`).join('');
+    const trs = rows.map(r => {
+      const tds = r.map((c, i) => {
+        const cell = String(c).trim();
+        // % yoki +/- bilan qiymat — rangli
+        const pctMatch = cell.match(/^([\+\-]?)([\d.,]+)\s*%$/);
+        if (pctMatch) {
+          const cls = pctMatch[1] === '-' ? 'neg' : (pctMatch[1] === '+' ? 'pos' : '');
+          return `<td class="num"><span class="${cls}">${inline(cell)}</span></td>`;
+        }
+        // 🟢🟡🔴 status emojilari
+        if (/^[🟢🟡🔴🟠⚪]$/u.test(cell)) {
+          return `<td style="text-align:center;font-size:14pt">${cell}</td>`;
+        }
+        return `<td${numCols.has(i) ? ' class="num"' : ''}>${inline(cell)}</td>`;
+      }).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+    out.push(`<div class="tbl-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`);
+    tableBuf = null;
+  };
+
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx];
     const line = raw.trim();
+
+    // Jadval header detection: `| col1 | col2 |` followed by `| --- | --- |`
+    if (line.startsWith('|') && line.endsWith('|') && !tableBuf) {
+      const next = (lines[idx + 1] || '').trim();
+      if (/^\|[\s\-:|]+\|$/.test(next) && next.includes('-')) {
+        closeList();
+        const headers = line.slice(1, -1).split('|').map(s => s.trim());
+        const aligns = next.slice(1, -1).split('|').map(s => {
+          const t = s.trim();
+          if (t.startsWith(':') && t.endsWith(':')) return 'center';
+          if (t.endsWith(':')) return 'right';
+          return 'left';
+        });
+        tableBuf = { headers, rows: [], aligns };
+        idx++; // skip separator line
+        continue;
+      }
+    }
+    // Jadval row
+    if (tableBuf && line.startsWith('|') && line.endsWith('|')) {
+      const row = line.slice(1, -1).split('|').map(s => s.trim());
+      tableBuf.rows.push(row);
+      continue;
+    }
+    // Jadval tugadi
+    if (tableBuf && (!line.startsWith('|') || !line.endsWith('|'))) {
+      flushTable();
+    }
+
     if (!line) { closeList(); continue; }
     let m;
+    // Horizontal rule
+    if (/^---+$/.test(line)) { closeList(); out.push('<hr style="border:none;border-top:1px solid #e2e8f0;margin:18px 0"/>'); continue; }
+    if ((m = line.match(/^####\s+(.+)$/))) { closeList(); out.push(`<h3 style="font-size:11pt;color:#475569">${inline(m[1])}</h3>`); continue; }
     if ((m = line.match(/^###\s+(.+)$/))) { closeList(); out.push(`<h3>${inline(m[1])}</h3>`); continue; }
     if ((m = line.match(/^##\s+(.+)$/)))  { closeList(); out.push(`<h2>${inline(m[1])}</h2>`); continue; }
     if ((m = line.match(/^#\s+(.+)$/)))   { closeList(); out.push(`<h2>${inline(m[1])}</h2>`); continue; }
@@ -156,12 +226,22 @@ function markdownToHtml(md) {
       closeList();
       const kind = m[1].toLowerCase();
       const cls = ({ warning:'warning', tip:'tip', info:'info', success:'success', key:'key' })[kind] || 'info';
-      out.push(`<div class="callout callout-${cls}"><div class="callout-body">${inline(m[2])}</div></div>`);
+      // Sarlavha bo'lsa keyingi satrlardan
+      const titleMatch = m[2].match(/^\*\*([^*]+)\*\*\s*(.*)$/);
+      const title = titleMatch ? titleMatch[1] : null;
+      const body = titleMatch ? titleMatch[2] : m[2];
+      out.push(`<div class="callout callout-${cls}">${title ? `<div class="callout-title">${inline(title)}</div>` : ''}<div class="callout-body">${inline(body)}</div></div>`);
+      continue;
+    }
+    if ((m = line.match(/^>\s+(.*)$/))) {
+      closeList();
+      out.push(`<blockquote style="margin:10px 0;padding:8px 14px;border-left:3px solid #c9a063;background:#fffbf0;color:#1a1f2e">${inline(m[1])}</blockquote>`);
       continue;
     }
     closeList();
     out.push(`<p>${inline(line)}</p>`);
   }
+  flushTable();
   closeList();
   return out.join('\n');
 }

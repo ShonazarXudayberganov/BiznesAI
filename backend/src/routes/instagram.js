@@ -20,8 +20,8 @@ const APP_ID       = process.env.INSTAGRAM_APP_ID;
 const APP_SECRET   = process.env.INSTAGRAM_APP_SECRET;
 const REDIRECT_URI = process.env.INSTAGRAM_REDIRECT_URI || 'https://analix.uz/api/instagram/callback';
 
-// Instagram Business Login endpoints (yangi flow)
-const IG_AUTH_URL  = 'https://api.instagram.com/oauth/authorize';
+// Instagram Business Login endpoints (yangi flow — www.instagram.com)
+const IG_AUTH_URL  = 'https://www.instagram.com/oauth/authorize';
 const IG_TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
 const GRAPH        = 'https://graph.instagram.com';
 
@@ -481,7 +481,7 @@ const igCompetitor = require('../services/instagramCompetitor');
 // GET /api/instagram/competitors?source_id=X — bitta profil uchun ro'yxat
 router.get('/competitors', requireAuth, async (req, res) => {
   try {
-    const sourceId = req.query.source_id ? Number(req.query.source_id) : null;
+    const sourceId = req.query.source_id ? String(req.query.source_id) : null;
     const params = [req.userId];
     let where = 'c.user_id = $1';
     if (sourceId) {
@@ -518,7 +518,7 @@ router.post('/competitors', requireAuth, async (req, res) => {
     if (!/^[a-z0-9._]{1,30}$/i.test(clean)) {
       return res.status(400).json({ error: 'Noto\'g\'ri username format' });
     }
-    const sourceId = source_id ? Number(source_id) : null;
+    const sourceId = source_id ? String(source_id) : null;
     // Per-source dedup tekshiruv (NULL bo'lsa global dedup)
     const existing = await pool.query(
       sourceId
@@ -534,14 +534,18 @@ router.post('/competitors', requireAuth, async (req, res) => {
        RETURNING id, username, source_id, added_at`,
       [req.userId, sourceId, clean]
     );
-    if (ins.rows.length === 0) {
-      return res.status(409).json({ error: 'Bu raqobatchi allaqachon qo\'shilgan' });
-    }
     const competitor = ins.rows[0];
-    // Birinchi snapshot — fon vazifasi sifatida
-    igCompetitor.collectSnapshot(clean, req.userId, req.user.organization_id)
-      .then(r => {
-        if (r.ok) return igCompetitor.saveSnapshot(competitor.id, r.snapshot);
+    // Birinchi snapshot — fon vazifasi
+    igCompetitor.collectSnapshot(clean, req.userId, req.user.organization_id, sourceId)
+      .then(async r => {
+        if (r.ok) {
+          await igCompetitor.saveSnapshot(competitor.id, r.snapshot);
+        } else {
+          await pool.query(
+            'UPDATE instagram_competitors SET notes=$1 WHERE id=$2',
+            [`Xato: ${r.error || 'noma\'lum'}`, competitor.id]
+          ).catch(() => {});
+        }
       })
       .catch(e => console.warn('[IG-COMP] Birinchi snapshot xato:', e.message));
     res.json({ ok: true, competitor });
@@ -567,13 +571,16 @@ router.delete('/competitors/:id', requireAuth, async (req, res) => {
 router.post('/competitors/:id/refresh', requireAuth, async (req, res) => {
   try {
     const r = await pool.query(
-      'SELECT id, username FROM instagram_competitors WHERE id=$1 AND user_id=$2',
+      'SELECT id, username, source_id FROM instagram_competitors WHERE id=$1 AND user_id=$2',
       [req.params.id, req.userId]
     );
     if (r.rowCount === 0) return res.status(404).json({ error: 'Raqobatchi topilmadi' });
     const c = r.rows[0];
-    const result = await igCompetitor.collectSnapshot(c.username, req.userId, req.user.organization_id);
+    const result = await igCompetitor.collectSnapshot(c.username, req.userId, req.user.organization_id, c.source_id);
     if (!result.ok) {
+      // Xato'ni notes'ga yozib qo'yamiz
+      await pool.query('UPDATE instagram_competitors SET notes=$1 WHERE id=$2',
+        [`Xato: ${result.error}`, c.id]).catch(() => {});
       return res.status(502).json({ error: result.error || 'Snapshot xatosi' });
     }
     await igCompetitor.saveSnapshot(c.id, result.snapshot);

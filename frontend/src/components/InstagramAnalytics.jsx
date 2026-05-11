@@ -173,6 +173,7 @@ export default function InstagramAnalytics({ source, push }) {
   const [compLoading, setCompLoading] = useState(false);
   const [refreshingComp, setRefreshingComp] = useState(null);
   const [tab, setTab] = useState('umumiy');
+  const [compInputValue, setCompInputValue] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const downloadPdf = async () => {
@@ -495,44 +496,76 @@ export default function InstagramAnalytics({ source, push }) {
         stories_count: stories.length,
       };
 
-      const result = await AiBrainAPI.run('chat.freeform', {
-        message: `Sen Instagram strategi-mutaxassissan. FAQAT @${profile.username} akkaunti haqida tahlil yoz — boshqa akkauntlarni eslama.
+      const result = await AiBrainAPI.run('instagram.insights', {
+        message: `Instagram tahlil. FAQAT @${profile.username}.
 
-MA'LUMOTLAR (faqat shu akkaunt):
+MA'LUMOTLAR:
 ${JSON.stringify(summary, null, 2)}
 
-VAZIFA: 7 ta KONKRET, raqamlar bilan asoslangan tavsiya ber. Markdown formatida, aniq strukturada.
+JAVOB premium markdown formatida. Jadval va blockquote majburiy.
 
-FORMAT (qattiq amal qil):
+# 📊 @${profile.username} — Strategik Tahlil
 
-# 📊 @${profile.username} — strategik tahlil
+> [!key] **Asosiy:** [1 jumla holat + asosiy harakat]
 
-## 🏆 1. Eng yaxshi post sabablari
-[Top postning sababi: caption uslubi, format, vaqt — 2-3 jumla, raqamlar bilan]
+## 🎯 KPI Skor-Karta
+| Metrika | Hozirgi | Maqsad | 🚦 |
+|---|---|---|---|
+| Engagement | [%] | 3-5% | 🟢/🟡/🔴 |
+| Post/hafta | [N] | 3-5 | 🟢/🟡/🔴 |
+| Reels % | [%] | 30%+ | 🟢/🟡/🔴 |
+| Followers | [+N] | +5%/oy | 🟢/🟡/🔴 |
 
-## 📈 2. Engagement trendi
-[Hozirgi engagement nima sababdan oshgan/pasaygan, taqqoslash uchun raqamlar]
+## 🏆 Top Post
+> [!success] [Format] · [Engagement] · [Reach]
 
-## ⏰ 3. Optimal post vaqti
-[Eng yaxshi kun va soat — heatmap'dan kelib chiqib, aniq tavsiya]
+[Nima ishladi — 2 gap, raqam bilan]
 
-## 🎬 4. Content mix tavsiyasi
-[Hozirgi % vs ideal % — Reel / Photo / Carousel uchun]
+## 📈 Engagement Trendi
+| Davr | Likes | Comments | Saves |
+|---|---|---|---|
+| Bu hafta | [N] | [N] | [N] |
+| O'tgan | [N] | [N] | [N] |
+| Farq | [±%] | [±%] | [±%] |
 
-## #️⃣ 5. Hashtag strategiyasi
-[Ishlatayotgan tag'lar samaradorligi + qaysi yangi tag'lar qo'shish kerak]
+> [!info] [1 jumla xulosa]
 
-## 📹 6. Stories yo'l xaritasi
-[Stories qancha kam/ko'p, qanday ulardan ko'proq foydalanish]
+## ⏰ Optimal Vaqt
+| Kun | Soat | Format | Sabab |
+|---|---|---|---|
+| [kun] | [soat] | [Reel/Foto] | [1 jumla] |
+| [kun] | [soat] | [Reel/Foto] | [1 jumla] |
+| [kun] | [soat] | [Reel/Foto] | [1 jumla] |
 
-## ✍️ 7. Caption va CTA
-[Caption uzunligi, CTA mavjudligi, aniq misol]
+## 🎬 Content Mix
+| Format | Hozir | Ideal | Farq |
+|---|---|---|---|
+| Reels | [%] | 50% | [±%] |
+| Carousel | [%] | 30% | [±%] |
+| Foto | [%] | 20% | [±%] |
 
-QOIDALAR:
-- Har sarlavhada faqat 2-3 jumla yoz
-- Har tavsiyada aniq raqam yoki misol bo'lsin (masalan: "engagement 2.4% — past, 4%+ kerak")
-- Hech qachon "umumiy", "yaxshilash kerak" deb noaniq gapirma — har gapida konkret harakat bo'lsin
-- Faqat @${profile.username} haqida — boshqa akkaunt eslamasdan`,
+> [!tip] [aniq harakat]
+
+## #️⃣ Hashtag
+**Yaxshi:** [3 ta tag · raqam]
+**Yangilash:** [2 ta tag · sabab]
+**Qo'shish:** [2 ta yangi tag]
+
+## ✍️ Caption va CTA
+- Uzunlik: [hozir] → 150-300 belgi
+- CTA: [hozir %] → 80%+
+- Emoji: [hozir] → 3-5
+
+## 🚀 Bu Hafta
+| # | Vazifa | Effekt |
+|---|---|---|
+| 1 | [harakat] | [natija] |
+| 2 | [harakat] | [natija] |
+| 3 | [harakat] | [natija] |
+
+> [!success] **30 kunlik maqsad:** [aniq raqam]
+
+QOIDALAR: har son REAL, faqat @${profile.username} haqida, qisqa.`,
       }, { language: 'uz' });
 
       setAiInsights(result?.reply || result?.text || 'Tahlil olishda xato');
@@ -543,15 +576,8 @@ QOIDALAR:
     }
   };
 
-  if (!profile.username) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.5 }}>📸</div>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Instagram ulanmagan</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)' }}>Avval Manbalar sahifasidan Instagram'ni ulang</div>
-      </div>
-    );
-  }
+  // profile bo'sh bo'lsa ham dashboard ko'rsatiladi (0 raqamlar bilan)
+  const hasNoProfile = !profile.username;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1151,7 +1177,7 @@ QOIDALAR:
             onClick={async () => {
               setHashtagLoading(true);
               try {
-                const r = await AiBrainAPI.run('chat.freeform', {
+                const r = await AiBrainAPI.run('instagram.insights', {
                   message: `Quyidagi Instagram post matnidan 30 ta hashtag taklif qil. Format:
 - 10 ta TRENDING tag (1M+ posts)
 - 10 ta NICHE tag (10K-500K posts) — eng yaxshi reach
@@ -1212,7 +1238,8 @@ JAVOB FORMATI: hashtaglarni bo'shliq bilan ajratib, har biri # bilan boshlanishi
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <input
               placeholder="@raqobatchi_username"
-              id="ig-comp-input"
+              value={compInputValue}
+              onChange={e => setCompInputValue(e.target.value)}
               style={{
                 flex: 1, padding: '8px 12px', background: 'var(--s2)',
                 border: '1px solid var(--border)', borderRadius: 8,
@@ -1220,15 +1247,16 @@ JAVOB FORMATI: hashtaglarni bo'shliq bilan ajratib, har biri # bilan boshlanishi
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
-                  const v = e.target.value.trim().replace(/^@/, '');
-                  if (v) { addCompetitor(v); e.target.value = ''; }
+                  const v = compInputValue.trim().replace(/^@/, '');
+                  if (v) { addCompetitor(v); setCompInputValue(''); }
+                  else push && push('Username kiriting', 'warn');
                 }
               }} />
             <button
               onClick={() => {
-                const inp = document.getElementById('ig-comp-input');
-                const v = inp.value.trim().replace(/^@/, '');
-                if (v) { addCompetitor(v); inp.value = ''; }
+                const v = compInputValue.trim().replace(/^@/, '');
+                if (!v) { push && push('Avval username kiriting (masalan: data_maktab)', 'warn'); return; }
+                addCompetitor(v); setCompInputValue('');
               }}
               disabled={compLoading}
               style={{
@@ -1338,9 +1366,33 @@ JAVOB FORMATI: hashtaglarni bo'shliq bilan ajratib, har biri # bilan boshlanishi
                             </div>
                           )}
                         </>
+                      ) : c.notes && c.notes.startsWith('Xato:') ? (
+                        <div style={{ fontSize: 11, color: 'var(--red)', padding: '8px 10px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', borderRadius: 6 }}>
+                          ⚠️ {c.notes}
+                          <button onClick={() => refreshCompetitor(c.id)}
+                            style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10, background: 'transparent', border: '1px solid var(--red)', borderRadius: 4, color: 'var(--red)', cursor: 'pointer' }}>
+                            ↻ Qayta urin
+                          </button>
+                        </div>
+                      ) : c.last_synced_at ? (
+                        <div style={{ fontSize: 11, color: 'var(--orange)', padding: '8px 10px', background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.2)', borderRadius: 6 }}>
+                          🔍 Profil topilmadi yoki yopiq. AI internetdan @{c.username} ni qidirdi, lekin ma'lumot olmadi.
+                          <br />
+                          <span style={{ color: 'var(--muted)' }}>
+                            Sabab: profil yo'q, yopiq (private), yoki kam mashhur. Username to'g'riligini tekshiring.
+                          </span>
+                          <button onClick={() => refreshCompetitor(c.id)}
+                            style={{ marginTop: 6, padding: '2px 8px', fontSize: 10, background: 'transparent', border: '1px solid var(--orange)', borderRadius: 4, color: 'var(--orange)', cursor: 'pointer' }}>
+                            ↻ Qayta urin
+                          </button>
+                        </div>
                       ) : (
                         <div style={{ fontSize: 11, color: 'var(--muted)', fontStyle: 'italic' }}>
                           ⏳ Birinchi snapshot tayyorlanmoqda... (1-2 daqiqa)
+                          <button onClick={() => refreshCompetitor(c.id)}
+                            style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10, background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--muted)', cursor: 'pointer' }}>
+                            ↻ Yangilash
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1354,35 +1406,53 @@ JAVOB FORMATI: hashtaglarni bo'shliq bilan ajratib, har biri # bilan boshlanishi
                   const compInfo = competitors.filter(c => c.followers).map(c => `@${c.username}: ${c.followers} followers, ${c.posts_count || '?'} posts, bio: "${(c.bio || '').slice(0, 60)}"`);
                   setAiLoading(true);
                   try {
-                    const r = await AiBrainAPI.run('chat.freeform', {
-                      message: `Sen Instagram raqobat strategi-mutaxassissan. Quyidagi ma'lumotlar asosida @${profile.username} uchun strategiya tuz.
+                    const r = await AiBrainAPI.run('instagram.battle', {
+                      message: `Raqobat tahlili: @${profile.username}.
 
-MENING AKKAUNTIM (@${profile.username}):
-- ${profile.followers_count} followers
-- ${posts.length} post
-- Engagement: ${profile.engagement_rate_str}
-- Top format: ${contentTypes[0]?.name}
+MENING (@${profile.username}):
+- ${profile.followers_count} followers, ${posts.length} post
+- ER: ${profile.engagement_rate_str}, top format: ${contentTypes[0]?.name}
 
 RAQOBATCHILAR:
 ${compInfo.join('\n')}
 
-VAZIFA: 5 ta KONKRET strategik tavsiya yoz, qattiq markdown formatida.
-
-FORMAT:
+Premium markdown Battle Card yoz:
 
 # 🥊 Battle Card — @${profile.username}
 
-## 🎯 1. [Sarlavha bir gapda]
-**Maqsad:** [aniq nima yaxshilanadi]
-**Sabab:** [raqobatchi @kim'da nima ko'rdik, raqamlar bilan]
-**Bugun nima qilish:** [konkret 1 ta harakat]
+> [!key] [1 jumla asosiy xulosa]
 
-[Shuni 5 marta takrorlash, har biri yangi mavzuda]
+## 📊 Solishtirma
+| Metrika | Siz | Raqobatchi | Farq |
+|---|---|---|---|
+| Followers | ${profile.followers_count} | [N] | [±%] |
+| Posts | ${posts.length} | [N] | [±] |
+| ER | ${profile.engagement_rate_str} | [%] | [±%] |
 
-QOIDALAR:
-- Har bo'limda 2-3 jumla
-- Raqobatchi nomini aniq aytib o'tib (@username bilan)
-- Faqat @${profile.username} uchun strategiya — boshqa akkaunt nomidan tavsiya berma`,
+## 🎯 5 Tavsiya
+
+### 1. [Sarlavha]
+> **Sabab:** @[kim] [nima qiladi, raqam]
+> **Harakat:** [1 qadam]
+
+### 2-5. [shu format]
+
+## ⚠️ Zaiflik
+| Zaiflik | Raqobatchi yo'li | Sizning qadam |
+|---|---|---|
+| [N1] | [N2] | [N3] |
+
+## 🚀 30-Kun Plan
+| Hafta | Fokus | KPI |
+|---|---|---|
+| 1 | [N] | [N] |
+| 2 | [N] | [N] |
+| 3 | [N] | [N] |
+| 4 | [N] | [N] |
+
+> [!success] **Natija:** [aniq raqam]
+
+QOIDA: @raqobatchi nomi bilan, raqamlar, faqat @${profile.username} uchun.`,
                     }, { language: 'uz' });
                     setAiInsights(r?.reply || r?.text || 'Tahlil olishda xato');
                   } finally {
@@ -1539,7 +1609,7 @@ function DirectTab({ source, profile, push }) {
           unread: c.unread_count,
         })),
       };
-      const r = await AiBrainAPI.run('chat.freeform', {
+      const r = await AiBrainAPI.run('instagram.direct', {
         message: `Sen Instagram Direct bo'limi mutaxassisi. @${profile.username} akkauntining DM bo'limi statistikasi:
 
 ${JSON.stringify(summary, null, 2)}
@@ -1583,7 +1653,7 @@ Har bo'lim 2-3 jumla, raqamlar bilan. Har tavsiya konkret harakat.`,
     if (!chat) return;
     setLoading(true);
     try {
-      const r = await AiBrainAPI.run('chat.freeform', {
+      const r = await AiBrainAPI.run('instagram.direct', {
         message: `Quyidagi Instagram DM suhbatini tahlil qil va 3 qism tayyorla.
 
 Mijoz: @${chat.user_username} (${chat.user_name})

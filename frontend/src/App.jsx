@@ -4241,21 +4241,20 @@ function CrmConnectPanel({ kind, src, onUpdate, push, loading, setLoading }) {
     setLoading(true);
     try {
       let r;
-      if (kind === "amocrm") r = await CrmAPI.amocrmConnect(cfg.subdomain, cfg.token, src.name);
-      else if (kind === "bitrix24") r = await CrmAPI.bitrixConnect(cfg.webhookUrl, src.name);
-      else if (kind === "facebook_ads") r = await CrmAPI.facebookAdsConnect(cfg.token, cfg.accountId, src.name);
+      // src.id'ni uzatamiz — backend mavjud manbani UPDATE qiladi (yangi yaratmaydi)
+      if (kind === "amocrm") r = await CrmAPI.amocrmConnect(cfg.subdomain, cfg.token, src.name, src.id);
+      else if (kind === "bitrix24") r = await CrmAPI.bitrixConnect(cfg.webhookUrl, src.name, src.id);
+      else if (kind === "facebook_ads") r = await CrmAPI.facebookAdsConnect(cfg.token, cfg.accountId, src.name, src.id);
       if (r?.ok) {
-        // Backend yangi sourceId bilan record yaratdi — eski (placeholder) sourceni o'zgartiramiz
+        // ID o'zgarmaydi (placeholder ID saqlanadi)
         onUpdate({
           ...src,
-          id: r.sourceId,
           name: r.name || src.name,
           connected: true,
           active: true,
           config: { ...cfg, accountInfo: r.account || null },
         });
-        push("✓ Ulandi! Birinchi sync 1-2 daqiqada tayyor", "ok");
-        // 5 sekunddan keyin sources qayta yuklash
+        push("✓ Ulandi! Birinchi sync 1-2 daqiqada tayyor — ma'lumot keladi", "ok");
         setTimeout(() => window.dispatchEvent(new CustomEvent('sources-refresh')), 5000);
       } else {
         push("Xato: " + (r?.error || "ulanish amalga oshmadi"), "error");
@@ -4399,6 +4398,17 @@ function CrmConnectPanel({ kind, src, onUpdate, push, loading, setLoading }) {
 // ─────────────────────────────────────────────────────────────
 
 function DataHubPage({ sources, setSources, push, user, orgContext, activeDepartmentId }) {
+  // sources-refresh event tinglanish — CRM/FB Ads ulanganda manbalarni qayta yuklash
+  useEffect(() => {
+    const onRefresh = () => {
+      loadSourcesFromAPI(activeDepartmentId).then(apiSources => {
+        if (Array.isArray(apiSources)) setSources(apiSources);
+      }).catch(() => {});
+    };
+    window.addEventListener('sources-refresh', onRefresh);
+    return () => window.removeEventListener('sources-refresh', onRefresh);
+  }, [activeDepartmentId, setSources]);
+
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState(null);
   const [showMoreTypes, setShowMoreTypes] = useState(false);
@@ -6701,6 +6711,14 @@ MAZMUN QOIDALARI:
                   prev.endedAt = nowMs;
                   prev.ms = nowMs - (prev.startedAt || nowMs);
                 }
+              }
+              // Yangi tool — agar AI ilgari oraliq matn ("Avval shuni qilaman...") yozgan bo'lsa,
+              // uni tashlab yuboramiz. Faqat tool'lardan keyingi OXIRGI matnni saqlaymiz.
+              if (streaming) {
+                pendingText = '';
+                displayedText = '';
+                streaming = false;
+                if (typingTimer) { clearInterval(typingTimer); typingTimer = null; }
               }
               const newTool = { name: evt.data.name, label, input: evt.data.input, status: 'running', startedAt: nowMs };
               seenTools.push(newTool);
@@ -9696,6 +9714,25 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
     push("Shaxsiy kalit o'chirildi — global AI ga qaytildi", "ok");
   };
 
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const testKey = async () => {
+    const k = keyInput.trim();
+    if (!k) { push("Avval kalit kiriting", "warn"); return; }
+    setTesting(true); setTestResult(null);
+    try {
+      const r = await AiAPI.testKey(aiConfig.provider, k, aiConfig.model);
+      setTestResult(r);
+      if (r.ok) push(`✓ ${AI_PROVIDERS[aiConfig.provider].name} kalit ishlayapti`, "ok");
+      else push(`✗ Xato: ${r.error}`, "error");
+    } catch (e) {
+      setTestResult({ ok: false, error: e.message });
+      push("Test xato: " + e.message, "error");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   // ── Tabs ──
   const tabs = [
     { id: "config", label: "AI Sozlamalari", icon: "⚙️" },
@@ -9831,11 +9868,32 @@ function SettingsPage({ aiConfig, setAiConfig, push, effectiveAI, hasPersonalKey
             <div style={{ fontFamily: "var(--fh)", fontSize: 9, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 2, marginBottom: 6 }}>API Kalit</div>
             <input className="field mb6" type="password" placeholder={AI_PROVIDERS[aiConfig.provider].ph} value={keyInput} onChange={e => setKeyInput(e.target.value)} onKeyDown={e => e.key === "Enter" && saveKey()} />
             <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 10 }}> <span style={{ color: "var(--teal)" }}>{AI_PROVIDERS[aiConfig.provider].hint}</span></div>
-            <div className="flex aic gap8">
+            <div className="flex aic gap8" style={{ flexWrap: "wrap" }}>
+              <button className="btn btn-ghost btn-sm" onClick={testKey} disabled={testing || !keyInput.trim()}>
+                {testing ? "⏳ Tekshirilmoqda..." : "🔍 Tekshirish"}
+              </button>
               <button className="btn btn-primary btn-sm" onClick={saveKey}>{saved ? "✓ Saqlandi!" : "Saqlash"}</button>
-              {hasPersonalKey && <button className="btn btn-danger btn-sm" onClick={removePersonalKey}>O'chirish (Global ga qaytish)</button>}
-              <span className={`badge ${aiConfig.apiKey ? "b-ok" : "b-no"}`} style={{ marginLeft: "auto" }}>{aiConfig.apiKey ? "✓ Shaxsiy kalit ulangan" : "Global AI ishlatilmoqda"}</span>
+              {hasPersonalKey && <button className="btn btn-danger btn-sm" onClick={removePersonalKey}>O'chirish</button>}
+              <span className={`badge ${aiConfig.apiKey ? "b-ok" : "b-no"}`} style={{ marginLeft: "auto" }}>{aiConfig.apiKey ? "✓ Shaxsiy kalit ulangan" : "Global AI"}</span>
             </div>
+            {testResult && (
+              <div style={{
+                marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 11.5,
+                background: testResult.ok ? "rgba(74,222,128,0.08)" : "rgba(239,68,68,0.08)",
+                border: `1px solid ${testResult.ok ? "rgba(74,222,128,0.25)" : "rgba(239,68,68,0.25)"}`,
+                color: testResult.ok ? "var(--green)" : "var(--red)",
+              }}>
+                {testResult.ok ? (
+                  <>
+                    <strong>✓ Tekshirilgan</strong>
+                    {testResult.model && <span style={{ marginLeft: 8, color: "var(--text2)" }}>· model: {testResult.model}</span>}
+                    {testResult.usage && <span style={{ marginLeft: 8, color: "var(--muted)" }}>· {JSON.stringify(testResult.usage).slice(0, 80)}</span>}
+                  </>
+                ) : (
+                  <><strong>✗ Xato:</strong> {testResult.error}</>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -11848,7 +11906,7 @@ function ComparePeriodsPanel({ sources }) {
 // ─────────────────────────────────────────────────────────────
 // DEMO MODE BANNER — har sahifada ko'rsatish
 // ─────────────────────────────────────────────────────────────
-function DemoBanner({ onConnect }) {
+function DemoBanner({ onConnect, onHide }) {
   return (
     <div style={{
       padding: "10px 16px", marginBottom: 14,
@@ -11861,7 +11919,41 @@ function DemoBanner({ onConnect }) {
         <strong style={{ color: "var(--gold)" }}>DEMO REJIMI</strong>
         <span style={{ color: "var(--text2)", marginLeft: 8 }}>— bu sun'iy ma'lumot. UI sinab ko'rish uchun. Real ma'lumot uchun manbangizni ulang.</span>
       </div>
+      {onHide && (
+        <button onClick={onHide} className="btn btn-ghost btn-sm" title="Demoni yashirish">✕ Yashirish</button>
+      )}
       <button onClick={onConnect} className="btn btn-primary btn-sm">Real manba ulash →</button>
+    </div>
+  );
+}
+
+// Bo'sh sahifa — demo ixtiyoriy yoqish tugmasi bilan
+function EmptyStateWithDemo({ icon, title, subtitle, brand = "var(--gold)", onConnect, onShowDemo }) {
+  return (
+    <div style={{
+      padding: "60px 24px", textAlign: "center", maxWidth: 540, margin: "40px auto",
+      background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 18,
+    }}>
+      <div style={{ fontSize: 64, marginBottom: 18, opacity: 0.85 }}>{icon}</div>
+      <h2 style={{ fontFamily: "var(--fh)", fontSize: 22, fontWeight: 800, marginBottom: 10, color: "var(--text)", letterSpacing: "-0.4px" }}>
+        {title}
+      </h2>
+      <div style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.6, marginBottom: 24 }}>
+        {subtitle}
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+        <button onClick={onConnect} className="btn btn-primary"
+          style={{ padding: "11px 20px", fontSize: 13, background: brand, borderColor: brand }}>
+          🔗 Real manba ulash
+        </button>
+        <button onClick={onShowDemo} className="btn btn-ghost"
+          style={{ padding: "11px 20px", fontSize: 13 }}>
+          🎨 Demo ko'rsatish
+        </button>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 18, opacity: 0.75 }}>
+        Demo — UI'ni sinab ko'rish uchun, sun'iy ma'lumotlar
+      </div>
     </div>
   );
 }
@@ -11870,8 +11962,11 @@ function DemoBanner({ onConnect }) {
 // INSTAGRAM ANALYTICS PAGE — wrapper bilan multi-account + demo
 // ─────────────────────────────────────────────────────────────
 function InstagramAnalyticsPage({ sources, push }) {
-  const igSources = (sources || []).filter(s => s.type === "instagram" && s.connected && s.data?.length > 0);
-  const useDemo = igSources.length === 0;
+  const igSources = (sources || []).filter(s => s.type === "instagram" && s.connected);
+  const noReal = igSources.length === 0;
+  const [showDemo, setShowDemo] = useState(() => LS.get("demo_pref_instagram", false));
+  useEffect(() => { LS.set("demo_pref_instagram", showDemo); }, [showDemo]);
+  const useDemo = noReal && showDemo;
   const effectiveSources = useDemo ? [generateInstagramDemo()] : igSources;
   const [activeId, setActiveId] = useState(effectiveSources[0]?.id || null);
   useEffect(() => {
@@ -11879,9 +11974,25 @@ function InstagramAnalyticsPage({ sources, push }) {
   }, [effectiveSources, activeId]);
   const activeSrc = effectiveSources.find(s => s.id === activeId) || effectiveSources[0];
 
+  if (noReal && !showDemo) {
+    return (
+      <EmptyStateWithDemo
+        icon="📸"
+        title="Instagram ulanmagan"
+        subtitle="Instagram Business profil orqali post, story va Direct ma'lumotlarni avtomatik tahlil qilish uchun manbani ulang. Yoki sinab ko'rish uchun demo'ni yoqing."
+        brand="#E1306C"
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onShowDemo={() => setShowDemo(true)}
+      />
+    );
+  }
+
   return (
     <div>
-      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      {useDemo && <DemoBanner
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onHide={() => setShowDemo(false)}
+      />}
       {effectiveSources.length > 1 && (
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
           {effectiveSources.map(s => {
@@ -11917,14 +12028,33 @@ function InstagramAnalyticsPage({ sources, push }) {
 function AmoCRMAnalyticsPage({ sources, push }) {
   const amoSources = (sources || []).filter(s =>
     (s.type === "amocrm" || s.type === "crm" || s.type === "bitrix24") &&
-    Array.isArray(s.data) &&
-    s.data.some(d => d.type === 'lead')
+    s.connected
   );
-  const useDemo = amoSources.length === 0;
+  const noReal = amoSources.length === 0;
+  const [showDemo, setShowDemo] = useState(() => LS.get("demo_pref_amocrm", false));
+  useEffect(() => { LS.set("demo_pref_amocrm", showDemo); }, [showDemo]);
+  const useDemo = noReal && showDemo;
   const src = useDemo ? generateAmoCRMDemo() : amoSources[0];
+
+  if (noReal && !showDemo) {
+    return (
+      <EmptyStateWithDemo
+        icon="🟡"
+        title="AmoCRM / Bitrix24 ulanmagan"
+        subtitle="Lid, mijoz va sotuv pipelinengizni AmoCRM yoki Bitrix24'dan avtomatik olib tahlil qilish uchun manbani ulang. Yoki sinab ko'rish uchun demo'ni yoqing."
+        brand="#FFC400"
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onShowDemo={() => setShowDemo(true)}
+      />
+    );
+  }
+
   return (
     <div>
-      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      {useDemo && <DemoBanner
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onHide={() => setShowDemo(false)}
+      />}
       <AmoCRMAnalytics source={src} push={push} />
     </div>
   );
@@ -11934,12 +12064,32 @@ function AmoCRMAnalyticsPage({ sources, push }) {
 // FACEBOOK ADS ANALYTICS PAGE
 // ─────────────────────────────────────────────────────────────
 function FacebookAdsAnalyticsPage({ sources, push }) {
-  const fbSources = (sources || []).filter(s => s.type === "facebook_ads" && s.connected && s.data?.length > 0);
-  const useDemo = fbSources.length === 0;
+  const fbSources = (sources || []).filter(s => s.type === "facebook_ads" && s.connected);
+  const noReal = fbSources.length === 0;
+  const [showDemo, setShowDemo] = useState(() => LS.get("demo_pref_facebook_ads", false));
+  useEffect(() => { LS.set("demo_pref_facebook_ads", showDemo); }, [showDemo]);
+  const useDemo = noReal && showDemo;
   const src = useDemo ? generateFacebookAdsDemo() : fbSources[0];
+
+  if (noReal && !showDemo) {
+    return (
+      <EmptyStateWithDemo
+        icon="📣"
+        title="Facebook Ads ulanmagan"
+        subtitle="Reklama kampaniyalari, ROAS, CTR, konversiya va auditoriya ma'lumotlarini Meta Marketing API orqali avtomatik tahlil qilish uchun manbani ulang. Yoki sinab ko'rish uchun demo'ni yoqing."
+        brand="#1877F2"
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onShowDemo={() => setShowDemo(true)}
+      />
+    );
+  }
+
   return (
     <div>
-      {useDemo && <DemoBanner onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))} />}
+      {useDemo && <DemoBanner
+        onConnect={() => window.dispatchEvent(new CustomEvent('go-page', { detail: 'datahub' }))}
+        onHide={() => setShowDemo(false)}
+      />}
       <FacebookAdsAnalytics source={src} push={push} />
     </div>
   );

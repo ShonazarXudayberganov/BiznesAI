@@ -81,32 +81,52 @@ const PLANS = {
 // ─────────────────────────────────────────────────────────────
 const AI_PROVIDERS = {
   claude: {
-    id: "claude", name: "Claude", icon: "", color: "var(--gold)", company: "Anthropic",
-    models: [{ id: "claude-sonnet-4-20250514", n: "Sonnet 4", label: "Sonnet 4", badge: "200K", ctx: "200K" }, { id: "claude-haiku-4-5-20251001", n: "Haiku 4.5", label: "Haiku 4.5", badge: "200K", ctx: "200K" }, { id: "claude-opus-4-6", n: "Opus 4.6", label: "Opus 4.6", badge: "200K", ctx: "200K" }],
-    pricing: { in: 3, out: 15 }, note: "Eng aqlli agent, Uzbek tushunadi", streaming: true,
+    id: "claude", name: "Claude", icon: "✦", color: "var(--gold)", company: "Anthropic",
+    models: [
+      { id: "claude-opus-4-7", n: "Opus 4.7", label: "Opus 4.7 (1M)", badge: "1M", ctx: "1M", premium: true, default: true },
+      { id: "claude-sonnet-4-6", n: "Sonnet 4.6", label: "Sonnet 4.6", badge: "200K", ctx: "200K", recommended: true },
+      { id: "claude-haiku-4-5-20251001", n: "Haiku 4.5", label: "Haiku 4.5", badge: "200K", ctx: "200K", fast: true },
+    ],
+    pricing: { in: 15, out: 75 }, note: "Eng aqlli agent. 1M context, web search, code execution, kuchli reasoning", streaming: true,
     ph: "sk-ant-api03-...", hint: "console.anthropic.com → API Keys",
-    baseUrl: "https://api.anthropic.com/v1/messages"
+    baseUrl: "https://api.anthropic.com/v1/messages",
+    features: ["web_search", "code_execution", "extended_thinking", "prompt_caching", "tool_use", "vision"],
   },
   deepseek: {
     id: "deepseek", name: "DeepSeek", icon: "◇", color: "#4D9DE0", company: "DeepSeek AI",
-    models: [{ id: "deepseek-chat", n: "V3", label: "DeepSeek V3", badge: "64K", ctx: "64K" }, { id: "deepseek-reasoner", n: "R1", label: "DeepSeek R1", badge: "64K", ctx: "64K" }],
-    pricing: { in: 0.27, out: 1.1 }, note: "Arzon va tez, matematik kuchli", streaming: true,
+    models: [
+      { id: "deepseek-chat", n: "V3.1", label: "DeepSeek V3.1", badge: "128K", ctx: "128K", default: true },
+      { id: "deepseek-reasoner", n: "R1", label: "DeepSeek R1 (reasoning)", badge: "128K", ctx: "128K", reasoning: true },
+    ],
+    pricing: { in: 0.27, out: 1.1 }, note: "10x arzon, matematika + dasturlash kuchli", streaming: true,
     ph: "sk-...", hint: "platform.deepseek.com → API Keys",
-    baseUrl: "https://api.deepseek.com/v1/chat/completions"
+    baseUrl: "https://api.deepseek.com/v1/chat/completions",
+    features: ["tool_use", "json_mode"],
   },
   chatgpt: {
     id: "chatgpt", name: "ChatGPT", icon: "◯", color: "#4ADE80", company: "OpenAI",
-    models: [{ id: "gpt-4o", n: "GPT-4o", label: "GPT-4o", badge: "128K", ctx: "128K" }, { id: "gpt-4o-mini", n: "GPT-4o mini", label: "GPT-4o mini", badge: "128K", ctx: "128K" }, { id: "o1-mini", n: "o1-mini", label: "o1-mini", badge: "128K", ctx: "128K" }],
-    pricing: { in: 2.5, out: 10 }, note: "Universal, keng qo'llaniladi", streaming: true,
+    models: [
+      { id: "gpt-5", n: "GPT-5", label: "GPT-5", badge: "400K", ctx: "400K", premium: true, default: true },
+      { id: "gpt-5-mini", n: "GPT-5 mini", label: "GPT-5 mini", badge: "400K", ctx: "400K", fast: true },
+      { id: "o3", n: "o3", label: "o3 (reasoning)", badge: "200K", ctx: "200K", reasoning: true },
+      { id: "gpt-4o", n: "GPT-4o", label: "GPT-4o (legacy)", badge: "128K", ctx: "128K", legacy: true },
+    ],
+    pricing: { in: 2.5, out: 10 }, note: "GPT-5 va o3 reasoning bilan", streaming: true,
     ph: "sk-proj-...", hint: "platform.openai.com → API Keys",
-    baseUrl: "https://api.openai.com/v1/chat/completions"
+    baseUrl: "https://api.openai.com/v1/chat/completions",
+    features: ["tool_use", "vision", "json_mode", "web_search"],
   },
   gemini: {
-    id: "gemini", name: "Gemini", icon: "", color: "#FB923C", company: "Google",
-    models: [{ id: "gemini-2.0-flash", n: "2.0 Flash", label: "Gemini 2.0 Flash", badge: "1M", ctx: "1M" }, { id: "gemini-1.5-pro", n: "1.5 Pro", label: "Gemini 1.5 Pro", badge: "1M", ctx: "1M" }],
-    pricing: { in: 0.075, out: 0.3 }, note: "Google ekotizimi, tasvir tahlil", streaming: true,
+    id: "gemini", name: "Gemini", icon: "✧", color: "#FB923C", company: "Google",
+    models: [
+      { id: "gemini-2.5-pro", n: "2.5 Pro", label: "Gemini 2.5 Pro", badge: "2M", ctx: "2M", premium: true, default: true },
+      { id: "gemini-2.5-flash", n: "2.5 Flash", label: "Gemini 2.5 Flash", badge: "1M", ctx: "1M", recommended: true },
+      { id: "gemini-2.5-flash-lite", n: "Flash Lite", label: "Gemini 2.5 Flash Lite", badge: "1M", ctx: "1M", fast: true },
+    ],
+    pricing: { in: 1.25, out: 5 }, note: "2M context, multimodal (rasm + audio + video)", streaming: true,
     ph: "AIza...", hint: "aistudio.google.com → API Keys",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models"
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models",
+    features: ["tool_use", "vision", "audio", "video", "json_mode"],
   },
 };
 

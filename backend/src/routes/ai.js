@@ -410,4 +410,125 @@ router.put('/plan-prices', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// ── POST /api/ai/test-key ── AI provider kalitini tekshirish
+// Body: { provider, apiKey, model? }
+router.post('/test-key', requireAuth, async (req, res) => {
+  const { provider, apiKey, model } = req.body || {};
+  if (!provider || !apiKey) return res.status(400).json({ error: 'provider va apiKey kerak' });
+
+  try {
+    let response, info;
+    if (provider === 'claude') {
+      const m = model || 'claude-haiku-4-5-20251001';
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: m,
+          max_tokens: 10,
+          messages: [{ role: 'user', content: 'Hi' }],
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      response = await r.json();
+      if (!r.ok) {
+        return res.json({ ok: false, error: response?.error?.message || `HTTP ${r.status}` });
+      }
+      info = { model: response.model, usage: response.usage };
+    } else if (provider === 'chatgpt') {
+      const m = model || 'gpt-5-mini';
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: m,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 10,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      response = await r.json();
+      if (!r.ok) {
+        return res.json({ ok: false, error: response?.error?.message || `HTTP ${r.status}` });
+      }
+      info = { model: response.model, usage: response.usage };
+    } else if (provider === 'deepseek') {
+      const m = model || 'deepseek-chat';
+      const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: m,
+          messages: [{ role: 'user', content: 'Hi' }],
+          max_tokens: 10,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      response = await r.json();
+      if (!r.ok) {
+        return res.json({ ok: false, error: response?.error?.message || `HTTP ${r.status}` });
+      }
+      info = { model: response.model, usage: response.usage };
+    } else if (provider === 'gemini') {
+      const m = model || 'gemini-2.5-flash';
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Hi' }] }],
+          generationConfig: { maxOutputTokens: 10 },
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      response = await r.json();
+      if (!r.ok) {
+        return res.json({ ok: false, error: response?.error?.message || `HTTP ${r.status}` });
+      }
+      info = { model: m, usage: response.usageMetadata };
+    } else {
+      return res.status(400).json({ error: `Provider qo'llab-quvvatlanmaydi: ${provider}` });
+    }
+
+    res.json({ ok: true, provider, ...info });
+  } catch (e) {
+    const reason = e?.cause?.code || e?.code || e?.message;
+    res.json({ ok: false, error: `Ulanish xatosi: ${reason}` });
+  }
+});
+
+// ── GET /api/ai/models ── Yangi modellar ro'yxati (frontend uchun)
+router.get('/models', requireAuth, (req, res) => {
+  res.json({
+    claude: [
+      { id: 'claude-opus-4-7', name: 'Opus 4.7 (1M)', context: 1000000, premium: true },
+      { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', context: 200000, recommended: true },
+      { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', context: 200000, fast: true },
+    ],
+    chatgpt: [
+      { id: 'gpt-5', name: 'GPT-5', context: 400000, premium: true },
+      { id: 'gpt-5-mini', name: 'GPT-5 mini', context: 400000, fast: true },
+      { id: 'o3', name: 'o3 (reasoning)', context: 200000, reasoning: true },
+    ],
+    deepseek: [
+      { id: 'deepseek-chat', name: 'V3.1', context: 128000 },
+      { id: 'deepseek-reasoner', name: 'R1 (reasoning)', context: 128000, reasoning: true },
+    ],
+    gemini: [
+      { id: 'gemini-2.5-pro', name: '2.5 Pro', context: 2000000, premium: true },
+      { id: 'gemini-2.5-flash', name: '2.5 Flash', context: 1000000, recommended: true },
+      { id: 'gemini-2.5-flash-lite', name: '2.5 Flash Lite', context: 1000000, fast: true },
+    ],
+  });
+});
+
 module.exports = router;

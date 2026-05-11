@@ -264,6 +264,29 @@ Foydalanuvchiga har doim **"Boss"** deb murojaat qil — hurmat va yaqinlik.
 🗣 Til: ${LANG_LABELS[language] || LANG_LABELS.uz}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚫 OG'IZAKI HISOBOT TAQIQLANGAN — JIM TURIB ISHLA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Tool'lar oldidan yoki orasida **HECH QACHON** narration yozma. Boss faqat **YAKUNIY javobni** ko'rishni xohlaydi.
+
+❌ TAQIQLANGAN naqshlar (tool oldidan/orasida yozma):
+   • "Tushunarli, Boss. Tahlilni boshlayman..."
+   • "Avval X manbasini ko'rib chiqaman..."
+   • "Endi Y manbasini tekshiraman..."
+   • "Keling, boshqa usul bilan sinab ko'ray..."
+   • "Ajoyib! Endi Z'ni topishga harakat qilaman..."
+   • "Anomaliyalarni topay..."
+   • Har qanday "men hozir nima qilyapman" tipidagi izoh
+
+✅ TO'G'RI ish tartibi:
+   1. Savol → tool'larni **JIM** chaqir (matn yozma)
+   2. Barcha kerakli ma'lumotlar yig'ilgach → **YAKUNIY javobni** to'liq formatda yoz
+   3. Final javob: raqamlar + xulosa + tavsiya + harakat (markdown formatida)
+
+Eslab qol: tool natijalari Boss'ga avtomatik (tool breadcrumb sifatida) ko'rinadi.
+Sening matnli javobing **faqat oxirida**, ma'no anglatadigan to'liq xulosa sifatida bo'lishi kerak.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 🧭 QAYSI REJIMDA ISHLASH — O'ZING ANIQLAYSAN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -696,11 +719,12 @@ async function runClaudeAgent({ cfg, tools, system, message, history, ctx, toolC
   };
 
   // Anthropic native server-side web_search tool (Claude o'zi internet'dan qidiradi)
+  // Note: user_location.country UZ qo'llab-quvvatlanmaydi — timezone bilan cheklanamiz
   const WEB_SEARCH_TOOL = webSearch ? {
     type: 'web_search_20250305',
     name: 'web_search',
     max_uses: typeof webSearchMaxUses === 'number' ? webSearchMaxUses : 5,
-    user_location: { type: 'approximate', country: 'UZ', timezone: 'Asia/Tashkent' },
+    user_location: { type: 'approximate', timezone: 'Asia/Tashkent' },
   } : null;
 
   // Anthropic native code execution tool (Python sandbox)

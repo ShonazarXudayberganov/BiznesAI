@@ -84,28 +84,40 @@ export default function Sidebar({
 
       {/* Flat nav */}
       <div className="nav">
-        {[
-          { id: "dashboard", lbl: "Bosh sahifa",       icon: "🏠" },
-          { id: "datahub",   lbl: "Manbalar",          icon: "📁", badge: connCount },
-          { id: "chat",      lbl: "AI Maslahatchi",    icon: "💬", hot: true },
-          { id: "analytics", lbl: "Tahlil",            icon: "📊" },
-          { id: "charts",    lbl: "Grafiklar",         icon: "📈" },
-          { id: "reports",   lbl: "Hisobotlar",        icon: "📋" },
-          { id: "alerts",    lbl: "Ogohlantirishlar",  icon: "🔔", badge: unreadAlerts, badgeAlert: true },
-          { id: "instagram", lbl: "Instagram",         icon: "📸" },
-          { id: "amocrm",    lbl: "AmoCRM",            icon: "🟡" },
-          { id: "facebook_ads", lbl: "Facebook Ads",   icon: "📣" },
-        ].concat(
-          (sources || [])
-            .filter(s => s.show_in_sidebar && !["instagram","amocrm","facebook_ads","crm","bitrix24"].includes(s.type))
-            .map(s => ({
+        {(() => {
+          // Pin qilingan haqiqiy manbalar uchun mappa
+          const pinnedSources = (sources || []).filter(s => s.show_in_sidebar);
+          // Built-in tahlil sahifalari — faqat shu turdagi pinned source bo'lsa ko'rsatish
+          const hasPinnedIg = pinnedSources.some(s => s.type === "instagram");
+          const hasPinnedAmo = pinnedSources.some(s => ["amocrm", "crm", "bitrix24"].includes(s.type));
+          const hasPinnedFb = pinnedSources.some(s => s.type === "facebook_ads");
+          // Custom manbalar (sheets, excel, telegram va h.k.) — alohida nav
+          const customPinned = pinnedSources.filter(s => !["instagram", "amocrm", "facebook_ads", "crm", "bitrix24"].includes(s.type));
+
+          const baseNav = [
+            { id: "dashboard", lbl: "Bosh sahifa",       icon: "🏠" },
+            { id: "datahub",   lbl: "Manbalar",          icon: "📁", badge: connCount },
+            { id: "chat",      lbl: "AI Maslahatchi",    icon: "💬", hot: true },
+            { id: "analytics", lbl: "Tahlil",            icon: "📊" },
+            { id: "charts",    lbl: "Grafiklar",         icon: "📈" },
+            { id: "reports",   lbl: "Hisobotlar",        icon: "📋" },
+            { id: "alerts",    lbl: "Ogohlantirishlar",  icon: "🔔", badge: unreadAlerts, badgeAlert: true },
+          ];
+          if (hasPinnedIg) baseNav.push({ id: "instagram", lbl: "Instagram", icon: "📸" });
+          if (hasPinnedAmo) baseNav.push({ id: "amocrm", lbl: "AmoCRM", icon: "🟡" });
+          if (hasPinnedFb) baseNav.push({ id: "facebook_ads", lbl: "Facebook Ads", icon: "📣" });
+
+          for (const s of customPinned) {
+            baseNav.push({
               id: `source:${s.id}`,
               lbl: s.name,
-              icon: s.type === "google_sheets" ? "📊" : s.type === "excel" ? "📗" : s.type === "json" ? "📄" : s.type === "telegram" ? "✈️" : "📁",
+              icon: s.type === "sheets" ? "📊" : s.type === "excel" ? "📗" : s.type === "json" || s.type === "manual" ? "📄" : s.type === "telegram" ? "✈️" : s.type === "website" ? "🌐" : s.type === "restapi" ? "🔗" : "📁",
               isSource: true,
               srcId: s.id,
-            }))
-        ).map(item => (
+            });
+          }
+          return baseNav;
+        })().map(item => (
           <div key={item.id}
             className={`ni ${page === item.id ? "active" : ""}`}
             onClick={() => {

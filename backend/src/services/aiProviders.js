@@ -12,7 +12,7 @@ const pool = require('../db/pool');
 // Provider config: standart model + endpoint
 const PROVIDERS = {
   claude: {
-    defaultModel: 'claude-sonnet-4-5-20250929',
+    defaultModel: 'claude-sonnet-4-6',
     url: 'https://api.anthropic.com/v1/messages',
     call: callClaude,
   },
@@ -22,7 +22,7 @@ const PROVIDERS = {
     call: callOpenAI,
   },
   chatgpt: {
-    defaultModel: 'gpt-4o-mini',
+    defaultModel: 'gpt-5-mini',
     url: 'https://api.openai.com/v1/chat/completions',
     call: callOpenAI,
   },
@@ -36,14 +36,32 @@ const PROVIDERS = {
 // ────────────────────────────────────────────────
 // Kalit yechish
 // ────────────────────────────────────────────────
-// Eskirgan modellarni avtomatik almashtirish
+// Eskirgan modellarni avtomatik yangi versiyalarga almashtirish
 const MODEL_REPLACEMENTS = {
+  // Gemini
+  'gemini-1.0-pro': 'gemini-2.5-pro',
+  'gemini-pro': 'gemini-2.5-pro',
+  'gemini-1.5-flash': 'gemini-2.5-flash',
+  'gemini-1.5-pro': 'gemini-2.5-pro',
   'gemini-2.0-flash': 'gemini-2.5-flash',
   'gemini-2.0-flash-lite': 'gemini-2.5-flash-lite',
-  'gemini-pro': 'gemini-2.5-pro',
-  'claude-3-opus-20240229': 'claude-sonnet-4-5-20250929',
-  'claude-3-sonnet-20240229': 'claude-sonnet-4-5-20250929',
+  // Claude (eski 3.x va 4.x dastlabki)
+  'claude-3-opus-20240229': 'claude-opus-4-7',
+  'claude-3-sonnet-20240229': 'claude-sonnet-4-6',
   'claude-3-haiku-20240307': 'claude-haiku-4-5-20251001',
+  'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6',
+  'claude-3-5-haiku-20241022': 'claude-haiku-4-5-20251001',
+  'claude-sonnet-4-20250514': 'claude-sonnet-4-6',
+  'claude-sonnet-4-5-20250929': 'claude-sonnet-4-6',
+  'claude-opus-4-6': 'claude-opus-4-7',
+  // OpenAI
+  'gpt-4': 'gpt-5-mini',
+  'gpt-4-turbo': 'gpt-5-mini',
+  'gpt-4o-mini': 'gpt-5-mini',
+  'gpt-4o': 'gpt-5',
+  'o1': 'o3',
+  'o1-mini': 'gpt-5-mini',
+  // DeepSeek (versiya nomi o'zgarmaydi — endpoint avto-yangilanadi)
 };
 
 function modernizeModel(model, provider) {

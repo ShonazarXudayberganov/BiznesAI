@@ -57,17 +57,32 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_org_custom_domain ON organizations(custom_domain) WHERE custom_domain IS NOT NULL;
 
 -- Instagram raqobatchilar (Variant A) — har Instagram profil uchun alohida
+-- NOTE: sources.id VARCHAR(64) ekanligi sababli source_id ham VARCHAR
 CREATE TABLE IF NOT EXISTS instagram_competitors (
   id            SERIAL PRIMARY KEY,
   user_id       INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  source_id     INT REFERENCES sources(id) ON DELETE CASCADE,
+  source_id     VARCHAR(64) REFERENCES sources(id) ON DELETE CASCADE,
   username      VARCHAR(100) NOT NULL,
   added_at      TIMESTAMPTZ DEFAULT NOW(),
   last_synced_at TIMESTAMPTZ,
   notes         TEXT,
   UNIQUE(user_id, username)
 );
-ALTER TABLE instagram_competitors ADD COLUMN IF NOT EXISTS source_id INT REFERENCES sources(id) ON DELETE CASCADE;
+-- Eski o'rnatishlardan keladigan INT source_id'ni avtomatik VARCHAR'ga konvertatsiya
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name='instagram_competitors' AND column_name='source_id' AND data_type='integer'
+  ) THEN
+    ALTER TABLE instagram_competitors DROP CONSTRAINT IF EXISTS instagram_competitors_source_id_fkey;
+    ALTER TABLE instagram_competitors ALTER COLUMN source_id TYPE VARCHAR(64) USING source_id::VARCHAR;
+    ALTER TABLE instagram_competitors
+      ADD CONSTRAINT instagram_competitors_source_id_fkey
+      FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+ALTER TABLE instagram_competitors ADD COLUMN IF NOT EXISTS source_id VARCHAR(64) REFERENCES sources(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_ig_comp_user ON instagram_competitors(user_id);
 CREATE INDEX IF NOT EXISTS idx_ig_comp_source ON instagram_competitors(source_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_ig_comp_source_user ON instagram_competitors(user_id, source_id, username) WHERE source_id IS NOT NULL;

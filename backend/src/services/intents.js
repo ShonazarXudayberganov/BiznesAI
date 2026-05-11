@@ -115,6 +115,40 @@ const INTENTS = {
     outputSchema: 'json',
     webSearch: false,
   },
+
+  // ── INSTAGRAM tahlil — toolsiz, Haiku (tez)
+  'instagram.insights': {
+    promptKey: 'chat.freeform',
+    allowedTools: [],
+    model: 'claude-haiku-4-5-20251001', // Haiku — 5-10x tezroq Sonnet'dan
+    maxIter: 1,
+    thinkingBudget: 0,
+    cache: false, // qisqa prompt, cache kerak emas
+    outputSchema: 'markdown',
+    webSearch: false,
+  },
+
+  'instagram.battle': {
+    promptKey: 'chat.freeform',
+    allowedTools: [],
+    model: 'claude-haiku-4-5-20251001',
+    maxIter: 1,
+    thinkingBudget: 0,
+    cache: false,
+    outputSchema: 'markdown',
+    webSearch: false,
+  },
+
+  'instagram.direct': {
+    promptKey: 'chat.freeform',
+    allowedTools: [],
+    model: 'claude-haiku-4-5-20251001',
+    maxIter: 1,
+    thinkingBudget: 0,
+    cache: false,
+    outputSchema: 'markdown',
+    webSearch: false,
+  },
 };
 
 function getIntentConfig(intent) {

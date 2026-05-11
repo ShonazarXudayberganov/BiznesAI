@@ -83,8 +83,10 @@ async function runBrain(opts) {
   const page = (intent.split('.')[0] || 'unknown'); // 'dashboard'|'analytics'|...
 
   // Prompt registry'dan systemExtra + user'ni olish
+  // Intent config'da promptKey bo'lsa shuni ishlatamiz, bo'lmasa intent nomini
   const promptVars = { ...payload, language };
-  const { systemExtra, user: promptUser } = getPrompt(intent, promptVars);
+  const promptKey = cfg.promptKey || intent;
+  const { systemExtra, user: promptUser } = getPrompt(promptKey, promptVars);
 
   // User xabarini hal qilish: prompt registry beradimi yoki tashqaridan?
   const userMessage = (typeof promptUser === 'string' && promptUser.length > 0)

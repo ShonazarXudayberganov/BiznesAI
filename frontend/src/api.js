@@ -329,6 +329,16 @@ export const AiAPI = {
       body: JSON.stringify(config),
     }),
 
+  // Kalitni tekshirish (saqlamasdan)
+  testKey: (provider, apiKey, model) =>
+    apiFetch('/ai/test-key', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey, model }),
+    }),
+
+  // Yangi modellar ro'yxati
+  getModels: () => apiFetch('/ai/models'),
+
   getGlobal: () => apiFetch('/ai/global'),
 
   saveGlobal: (config) =>
@@ -356,27 +366,28 @@ export const AiAPI = {
 };
 
 // ── CRM / Marketing platforma ulash (AmoCRM, Bitrix24, Facebook Ads) ──
+// connect funksiyalari sourceId qabul qiladi — mavjud placeholder source'ni in-place update qilish uchun
 export const CrmAPI = {
   // AmoCRM
   amocrmTest: (subdomain, token) => apiFetch('/crm/amocrm/test', {
     method: 'POST', body: JSON.stringify({ subdomain, token }),
   }),
-  amocrmConnect: (subdomain, token, name) => apiFetch('/crm/amocrm/connect', {
-    method: 'POST', body: JSON.stringify({ subdomain, token, name }),
+  amocrmConnect: (subdomain, token, name, sourceId) => apiFetch('/crm/amocrm/connect', {
+    method: 'POST', body: JSON.stringify({ subdomain, token, name, sourceId }),
   }),
   // Bitrix24
   bitrixTest: (webhookUrl) => apiFetch('/crm/bitrix24/test', {
     method: 'POST', body: JSON.stringify({ webhookUrl }),
   }),
-  bitrixConnect: (webhookUrl, name) => apiFetch('/crm/bitrix24/connect', {
-    method: 'POST', body: JSON.stringify({ webhookUrl, name }),
+  bitrixConnect: (webhookUrl, name, sourceId) => apiFetch('/crm/bitrix24/connect', {
+    method: 'POST', body: JSON.stringify({ webhookUrl, name, sourceId }),
   }),
   // Facebook Ads
   facebookAdsTest: (token, accountId) => apiFetch('/crm/facebook_ads/test', {
     method: 'POST', body: JSON.stringify({ token, accountId }),
   }),
-  facebookAdsConnect: (token, accountId, name) => apiFetch('/crm/facebook_ads/connect', {
-    method: 'POST', body: JSON.stringify({ token, accountId, name }),
+  facebookAdsConnect: (token, accountId, name, sourceId) => apiFetch('/crm/facebook_ads/connect', {
+    method: 'POST', body: JSON.stringify({ token, accountId, name, sourceId }),
   }),
   // Sync (manual refresh)
   sync: (sourceId) => apiFetch(`/crm/sync/${sourceId}`, { method: 'POST' }),

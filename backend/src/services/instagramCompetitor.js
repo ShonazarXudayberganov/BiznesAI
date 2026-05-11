@@ -1,108 +1,208 @@
 /**
- * Instagram raqobatchi snapshot collector.
+ * Instagram raqobatchi snapshot collector — Meta Business Discovery API.
  *
- * Web search (Anthropic native) yordamida public IG profil ma'lumotini topib,
- * structured snapshot ga aylantiradi.
+ * Sizning IG Business token bilan har qanday Business/Creator profilni
+ * RASMIY API orqali tahlil qiladi. Web search emas — Meta'ning o'zi.
  *
- * Hech qanday ToS buzilishi yo'q — faqat public ma'lumot va search engine.
+ * API: https://graph.facebook.com/v21.0/{ig-user-id}?fields=business_discovery.username({competitor}){...}
+ *
+ * Cheklovlar (Meta):
+ *   - Maqsadli profil Business yoki Creator akkaunt bo'lishi shart (Personal emas)
+ *   - Sizning IG ham Business bo'lishi shart
+ *   - Hisoblovchi cheklovi: 200 chaqiruv/soat/IG akkaunt
  */
 
-const { runAgent } = require('./aiAgent');
 const pool = require('../db/pool');
 
+const GRAPH = 'https://graph.instagram.com';
+const FB_GRAPH = 'https://graph.facebook.com/v21.0';
+
 /**
- * AI orqali raqobatchi profilini chuqur tahlil qilish.
- * web_search yoqilgan, AI Google/Instagram public sahifalardan ma'lumot oladi.
+ * Foydalanuvchining birinchi Instagram source'ini topadi (token + igBusinessId).
  */
-async function collectSnapshot(username, userId, organizationId) {
-  const cleanUsername = String(username).trim().replace(/^@/, '');
-  const message = `Instagram'dagi public profil "@${cleanUsername}" haqida ma'lumot top.
-
-web_search ishlat: "instagram.com/${cleanUsername}" yoki "@${cleanUsername} instagram followers".
-
-Quyidagi STRUCTURED JSON formatda javob ber (boshqa hech narsa qo'shma):
-
-\`\`\`json
-{
-  "username": "${cleanUsername}",
-  "followers": <number yoki null>,
-  "following": <number yoki null>,
-  "posts_count": <number yoki null>,
-  "bio": "<qisqa biografiya>",
-  "is_verified": <true|false>,
-  "business_category": "<sanoat masalan: 'Fashion', 'Food'>",
-  "recent_posts": [
-    {"caption": "qisqa tavsif (max 80 belgi)", "type": "Photo|Reel|Carousel", "date_approx": "2026-04-15"}
-  ],
-  "hashtags_used": ["#tag1", "#tag2"],
-  "post_frequency": "<masalan: 3/hafta yoki 1/kun>",
-  "content_style": "<masalan: motivatsion, mahsulot, brand storytelling>",
-  "language": "<uz|ru|en>",
-  "audience_clue": "<post komentlardan taxminiy auditoriya>",
-  "_source_urls": ["topilgan URL'lar"]
+async function getInstagramCredentials(userId, sourceId = null) {
+  let query, params;
+  if (sourceId) {
+    query = `SELECT config FROM sources WHERE id=$1 AND user_id=$2 AND type='instagram' LIMIT 1`;
+    params = [sourceId, userId];
+  } else {
+    query = `SELECT config FROM sources WHERE user_id=$1 AND type='instagram' AND connected=TRUE ORDER BY created_at DESC LIMIT 1`;
+    params = [userId];
+  }
+  const r = await pool.query(query, params);
+  if (r.rowCount === 0) return null;
+  const cfg = typeof r.rows[0].config === 'string' ? JSON.parse(r.rows[0].config) : r.rows[0].config;
+  if (!cfg?.token || !cfg?.igBusinessId) return null;
+  return { token: cfg.token, igBusinessId: cfg.igBusinessId };
 }
-\`\`\`
 
-Agar topa olmasang — "followers": null, "_note": "topilmadi" qaytar.
-JSON dan tashqari hech narsa yozma.`;
-
+/**
+ * Business Discovery API — raqobatchi profil ma'lumotini olish.
+ * Maqsadli profil Business yoki Creator bo'lishi shart.
+ */
+async function fetchViaBusinessDiscovery({ token, igBusinessId }, username) {
+  const cleanUsername = String(username).trim().replace(/^@/, '');
+  const fields = [
+    'id',
+    'username',
+    'name',
+    'biography',
+    'website',
+    'followers_count',
+    'follows_count',
+    'media_count',
+    'profile_picture_url',
+    'media.limit(12){id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count}',
+  ].join(',');
+  // Endpoint: graph.instagram.com (IG Business API)
+  const url = `${GRAPH}/${igBusinessId}?fields=business_discovery.username(${cleanUsername}){${fields}}&access_token=${token}`;
+  let res;
   try {
-    const result = await runAgent({
-      message,
-      organizationId,
-      userId,
-      history: [],
-      cache: false,
-      thinkingBudget: 0,
-      maxIter: 4,
-      webSearch: true,
-      webSearchMaxUses: 3,
-      // Web search faqat Claude'da ishlaydi — server-side ANTHROPIC_API_KEY orqali majbur qil
-      forceProvider: process.env.ANTHROPIC_API_KEY ? 'claude' : undefined,
-    });
-
-    if (result?.error) {
-      return { error: result.error };
-    }
-    if (!result?.reply || result.reply.trim().length < 10) {
-      // ANTHROPIC_API_KEY yo'q yoki provider Claude emas — web_search ishlamadi
-      const cfgErr = !process.env.ANTHROPIC_API_KEY
-        ? 'Server-side ANTHROPIC_API_KEY topilmadi — raqobatchi tahlili web_search ishlatadi (faqat Claude). Backend env\'ga kalit qo\'shing.'
-        : 'AI bo\'sh javob qaytardi';
-      return { error: cfgErr };
-    }
-
-    const text = result?.reply || '';
-    // JSON ekstraksiyasi
-    let parsed = null;
-    const fenced = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (fenced) {
-      try { parsed = JSON.parse(fenced[1]); } catch {}
-    }
-    if (!parsed) {
-      const m = text.match(/\{[\s\S]*\}/);
-      if (m) {
-        try { parsed = JSON.parse(m[0]); } catch {}
-      }
-    }
-    if (!parsed) {
-      return { error: 'AI strukturali javob qaytarmadi', raw: text.slice(0, 300) };
-    }
-    return { ok: true, snapshot: parsed };
+    res = await fetch(url, { signal: AbortSignal.timeout(20000) });
   } catch (e) {
+    const reason = e?.cause?.code || e?.message;
+    throw new Error(`Network: ${reason}`);
+  }
+  const data = await res.json();
+  if (data.error) {
+    const code = data.error.code;
+    const sub = data.error.error_subcode;
+    if (code === 110 || sub === 33) {
+      throw new Error(`Profil topilmadi yoki Business/Creator emas: @${cleanUsername}. Faqat Business yoki Creator akkauntlar tahlil qilinadi (Personal emas).`);
+    }
+    if (code === 190) {
+      throw new Error('Instagram token muddati tugagan — Manbalar sahifasida Instagram\'ni qayta ulang.');
+    }
+    if (code === 100 && data.error.message?.includes('Unsupported get request')) {
+      throw new Error(`Profil mavjud emas: @${cleanUsername}. To'g'ri username yozing.`);
+    }
+    throw new Error(`Meta API: ${data.error.message || 'noma\'lum xato'}`);
+  }
+  return data?.business_discovery || null;
+}
+
+/**
+ * Hashtag'larni keladigan postlar caption'idan ekstraksiya qilish.
+ */
+function extractHashtags(media) {
+  const tags = {};
+  for (const m of (media || [])) {
+    const matches = (m.caption || '').match(/#[\p{L}\d_]+/gu) || [];
+    for (const t of matches) {
+      const lower = t.toLowerCase();
+      tags[lower] = (tags[lower] || 0) + 1;
+    }
+  }
+  return Object.entries(tags)
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+}
+
+/**
+ * Top post (engagement bo'yicha).
+ */
+function topPosts(media) {
+  return (media || [])
+    .map(m => ({
+      caption: (m.caption || '').slice(0, 120),
+      type: m.media_type === 'VIDEO' ? 'Reel' : (m.media_type === 'CAROUSEL_ALBUM' ? 'Carousel' : 'Photo'),
+      likes: m.like_count || 0,
+      comments: m.comments_count || 0,
+      engagement: (m.like_count || 0) + (m.comments_count || 0),
+      date: m.timestamp ? m.timestamp.slice(0, 10) : null,
+      url: m.permalink,
+    }))
+    .sort((a, b) => b.engagement - a.engagement)
+    .slice(0, 5);
+}
+
+/**
+ * Post chastotasi (haftada nechta post).
+ */
+function postFrequency(media) {
+  if (!media || media.length < 2) return null;
+  const dates = media
+    .map(m => m.timestamp ? new Date(m.timestamp).getTime() : null)
+    .filter(Boolean)
+    .sort((a, b) => b - a);
+  if (dates.length < 2) return null;
+  const spanDays = (dates[0] - dates[dates.length - 1]) / 86400000;
+  if (spanDays <= 0) return null;
+  return +(dates.length / spanDays * 7).toFixed(1); // post/hafta
+}
+
+/**
+ * Asosiy collector — Business Discovery yondashuvi.
+ */
+async function collectSnapshot(username, userId, organizationId, sourceId = null) {
+  const cleanUsername = String(username).trim().replace(/^@/, '');
+  console.log(`[IG-COMP] collectSnapshot @${cleanUsername} (userId=${userId})`);
+
+  // 1. User'ning Instagram credential'larini olish
+  const creds = await getInstagramCredentials(userId, sourceId);
+  if (!creds) {
+    return {
+      error: 'Instagram ulangan emas. Avval Manbalar sahifasida Instagram Business profilni ulang.',
+    };
+  }
+
+  // 2. Business Discovery API chaqirish
+  try {
+    const profile = await fetchViaBusinessDiscovery(creds, cleanUsername);
+    if (!profile) {
+      return { error: `@${cleanUsername} uchun ma'lumot olinmadi` };
+    }
+
+    const media = profile.media?.data || [];
+    const hashtags = extractHashtags(media);
+    const top = topPosts(media);
+    const freq = postFrequency(media);
+
+    // Engagement rate
+    const totalEng = media.reduce((a, m) => a + (m.like_count || 0) + (m.comments_count || 0), 0);
+    const avgEng = media.length ? Math.round(totalEng / media.length) : 0;
+    const er = profile.followers_count ? +((avgEng / profile.followers_count) * 100).toFixed(2) : 0;
+
+    const snapshot = {
+      username: profile.username,
+      followers: profile.followers_count || 0,
+      following: profile.follows_count || 0,
+      posts_count: profile.media_count || 0,
+      bio: profile.biography || '',
+      profile_picture_url: profile.profile_picture_url || null,
+      website: profile.website || null,
+      name: profile.name || '',
+      // Statistik
+      avg_engagement: avgEng,
+      engagement_rate: er,
+      post_frequency: freq ? `${freq}/hafta` : null,
+      // Strukturali
+      recent_posts: top,
+      hashtags_used: hashtags,
+      last_post_date: media[0]?.timestamp?.slice(0, 10) || null,
+      is_verified: false, // Business Discovery beradigan field emas
+      business_category: null,
+      _source: 'business_discovery',
+    };
+
+    console.log(`[IG-COMP] @${cleanUsername} muvaffaqiyat: ${snapshot.followers} obunachi, ER ${er}%`);
+    return { ok: true, snapshot };
+  } catch (e) {
+    console.warn(`[IG-COMP] @${cleanUsername} xato:`, e.message);
     return { error: e.message };
   }
 }
 
 /**
- * Snapshotni DB'ga saqlash (UPSERT bo'yicha kun).
+ * Snapshot DB'ga saqlash (UPSERT bo'yicha kun).
  */
 async function saveSnapshot(competitorId, snapshot) {
   const today = new Date().toISOString().slice(0, 10);
   await pool.query(
     `INSERT INTO instagram_competitor_snapshots
        (competitor_id, snapshot_date, followers, following, posts_count, bio, last_post_date, recent_posts, hashtags, meta, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'web_search')
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'business_discovery')
      ON CONFLICT (competitor_id, snapshot_date)
      DO UPDATE SET
        followers = EXCLUDED.followers,
@@ -120,23 +220,22 @@ async function saveSnapshot(competitorId, snapshot) {
       snapshot.following ?? null,
       snapshot.posts_count ?? null,
       snapshot.bio ?? null,
-      snapshot.recent_posts?.[0]?.date_approx ?? null,
+      snapshot.last_post_date ?? null,
       JSON.stringify(snapshot.recent_posts || []),
       JSON.stringify(snapshot.hashtags_used || []),
       JSON.stringify({
-        is_verified: snapshot.is_verified,
-        business_category: snapshot.business_category,
+        name: snapshot.name,
+        profile_picture_url: snapshot.profile_picture_url,
+        website: snapshot.website,
+        avg_engagement: snapshot.avg_engagement,
+        engagement_rate: snapshot.engagement_rate,
         post_frequency: snapshot.post_frequency,
-        content_style: snapshot.content_style,
-        language: snapshot.language,
-        audience_clue: snapshot.audience_clue,
-        _source_urls: snapshot._source_urls,
+        _source: 'business_discovery',
       }),
     ]
   );
-  // last_synced_at yangilash
   await pool.query(
-    'UPDATE instagram_competitors SET last_synced_at = NOW() WHERE id = $1',
+    'UPDATE instagram_competitors SET last_synced_at = NOW(), notes = NULL WHERE id = $1',
     [competitorId]
   );
 }
@@ -147,7 +246,7 @@ async function saveSnapshot(competitorId, snapshot) {
 async function dailyJob() {
   console.log('[IG-COMP] Snapshot job boshlandi');
   const r = await pool.query(
-    `SELECT c.id, c.user_id, c.username, u.organization_id
+    `SELECT c.id, c.user_id, c.source_id, c.username, u.organization_id
      FROM instagram_competitors c
      JOIN users u ON u.id = c.user_id
      WHERE u.active = TRUE
@@ -159,15 +258,19 @@ async function dailyJob() {
   let success = 0, fail = 0;
   for (const row of r.rows) {
     try {
-      const snap = await collectSnapshot(row.username, row.user_id, row.organization_id);
+      const snap = await collectSnapshot(row.username, row.user_id, row.organization_id, row.source_id);
       if (snap.ok) {
         await saveSnapshot(row.id, snap.snapshot);
         success++;
       } else {
+        await pool.query(
+          'UPDATE instagram_competitors SET notes=$1 WHERE id=$2',
+          [`Xato: ${snap.error}`, row.id]
+        ).catch(() => {});
         fail++;
       }
-      // Rate limiting — Anthropic 10/min, Voyage 3/min
-      await new Promise(r => setTimeout(r, 8000));
+      // Meta rate limit: 200/soat — 5 sek pauza yetarli
+      await new Promise(r => setTimeout(r, 5000));
     } catch (e) {
       console.warn('[IG-COMP] Xato:', row.username, e.message);
       fail++;

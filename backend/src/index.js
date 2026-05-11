@@ -4,6 +4,14 @@
  */
 require('dotenv').config();
 
+// IPv4-first DNS — Docker container'da AmoCRM/FB/boshqa API'lar uchun "fetch failed" muammosini hal qiladi
+try {
+  const dns = require('dns');
+  if (typeof dns.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch {}
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

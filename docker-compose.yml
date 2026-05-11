@@ -26,6 +26,7 @@ services:
 
   # ── Backend API (Node.js + Express) ─────────────────────
   backend:
+    image: biznesai-backend:amd64
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -63,6 +64,10 @@ services:
       - "127.0.0.1:3001:3001"
     networks:
       - biznesai_net
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+      - 8.8.4.4
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
       interval: 30s
@@ -72,6 +77,7 @@ services:
 
   # ── Telegram Bot Worker ─────────────────────────────────
   bot-worker:
+    image: biznesai-bot-worker:amd64
     build:
       context: ./bot-worker
       dockerfile: Dockerfile
@@ -106,6 +112,7 @@ services:
 
   # ── Frontend React App ──────────────────────────────────
   frontend:
+    image: biznesai-frontend:amd64
     build:
       context: ./frontend
       dockerfile: Dockerfile

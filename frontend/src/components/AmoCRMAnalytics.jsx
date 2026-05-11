@@ -46,14 +46,8 @@ export default function AmoCRMAnalytics({ source }) {
     return { won, lost, active, totalRevenue, pipelineValue, weightedPipeline, avgDeal, conversionRate, winRateClosed, avgCycle };
   }, [leads]);
 
-  if (!leads.length) {
-    return (
-      <div style={{ padding: 60, textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>🟡</div>
-        <h2 style={{ fontFamily: 'var(--fh)', fontSize: 22, fontWeight: 800, marginBottom: 8 }}>AmoCRM ulanmagan</h2>
-      </div>
-    );
-  }
+  // leads bo'sh bo'lsa ham dashboard'ning to'liq strukturasi (tab + 0 raqamlar) ko'rsatiladi.
+  const hasNoData = leads.length === 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

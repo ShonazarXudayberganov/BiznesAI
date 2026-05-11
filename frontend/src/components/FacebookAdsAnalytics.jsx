@@ -45,14 +45,8 @@ export default function FacebookAdsAnalytics({ source }) {
     return { spend, reach, impressions, clicks, conversions, revenue, ctr, cpc, cpl, cpm, roas, active };
   }, [campaigns]);
 
-  if (!campaigns.length) {
-    return (
-      <div style={{ padding: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>📣</div>
-        <h2>Facebook Ads ulanmagan</h2>
-      </div>
-    );
-  }
+  // campaigns bo'sh bo'lsa ham dashboard ko'rsatiladi
+  const hasNoCampaigns = campaigns.length === 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
